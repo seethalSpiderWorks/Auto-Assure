@@ -1,0 +1,12 @@
+{
+    "Users": true,
+    "Branch": true,
+    "Privilege": true,
+    "Rules": true,
+    "Company": true,
+    "Security": true,
+    "Manage": true,
+    "InspectionReport": true,
+    "Registration": true,
+    "Leads": true
+}

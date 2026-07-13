@@ -1,0 +1,11 @@
+{
+    "name": "InspectionReport",
+    "alias": "inspectionreport",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\InspectionReport\\Providers\\InspectionReportServiceProvider"
+    ],
+    "files": []
+}

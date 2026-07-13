@@ -1,0 +1,177 @@
+/*
+ * Brand button colors — derived from the Auto Assure logo (assets/images/logo.svg)
+ * Logo palette: navy #00263D · teal-green #04B084 / #17BC8D · leaf-green #76BE43
+ *
+ * The stock theme ships blue action buttons (primary #5b73e8, info #50a5f1) that
+ * clash with the logo. Here we recolor the two off-brand blues to logo colors and
+ * leave the semantic buttons (success=green, danger=red, warning=amber, secondary/
+ * light/dark=neutral) untouched. Load this AFTER app.min.css.
+ */
+
+/* ── Primary → brand teal #04B084 ───────────────────────────── */
+.btn-primary {
+    --bs-btn-bg: #04B084;
+    --bs-btn-border-color: #04B084;
+    --bs-btn-hover-bg: #039b74;
+    --bs-btn-hover-border-color: #039b74;
+    --bs-btn-active-bg: #028a66;
+    --bs-btn-active-border-color: #028a66;
+    --bs-btn-disabled-bg: #04B084;
+    --bs-btn-disabled-border-color: #04B084;
+    --bs-btn-focus-shadow-rgb: 4, 176, 132;
+}
+
+.btn-outline-primary {
+    --bs-btn-color: #04B084;
+    --bs-btn-border-color: #04B084;
+    --bs-btn-hover-bg: #04B084;
+    --bs-btn-hover-border-color: #04B084;
+    --bs-btn-active-bg: #04B084;
+    --bs-btn-active-border-color: #04B084;
+    --bs-btn-disabled-color: #04B084;
+    --bs-btn-disabled-border-color: #04B084;
+    --bs-btn-focus-shadow-rgb: 4, 176, 132;
+}
+
+.btn-soft-primary {
+    background-color: rgba(4, 176, 132, .2);
+    border-color: rgba(4, 176, 132, .2);
+    color: #04B084;
+}
+
+/* ── Reset buttons → match the soft-primary "Open" button ─────── */
+.btn[onclick*="clearForm"],
+.btn[onclick*="filtering('unset')"],
+.lead-reset,
+.insp-resetbtn {
+    background-color: rgba(4, 176, 132, .2) !important;
+    border-color: rgba(4, 176, 132, .2) !important;
+    color: #04B084 !important;
+}
+.btn[onclick*="clearForm"]:hover,
+.btn[onclick*="filtering('unset')"]:hover,
+.lead-reset:hover,
+.insp-resetbtn:hover {
+    background-color: rgba(4, 176, 132, .3) !important;
+    border-color: rgba(4, 176, 132, .3) !important;
+    color: #04B084 !important;
+}
+
+/* narrow table-plugin variant hard-coded in app.min.css */
+.table-rep-plugin .btn-group .btn-default.btn-primary {
+    background-color: #04B084;
+    border-color: #04B084;
+    -webkit-box-shadow: 0 0 0 2px rgba(4, 176, 132, .5);
+    box-shadow: 0 0 0 2px rgba(4, 176, 132, .5);
+}
+
+/* ── Info → logo navy #00263D ───────────────────────────────── */
+.btn-info {
+    --bs-btn-bg: #00263D;
+    --bs-btn-border-color: #00263D;
+    --bs-btn-hover-bg: #0e455f;
+    --bs-btn-hover-border-color: #0e455f;
+    --bs-btn-active-bg: #001b2c;
+    --bs-btn-active-border-color: #001b2c;
+    --bs-btn-disabled-bg: #00263D;
+    --bs-btn-disabled-border-color: #00263D;
+    --bs-btn-focus-shadow-rgb: 14, 69, 95;
+}
+
+.btn-outline-info {
+    --bs-btn-color: #00263D;
+    --bs-btn-border-color: #00263D;
+    --bs-btn-hover-bg: #00263D;
+    --bs-btn-hover-border-color: #00263D;
+    --bs-btn-active-bg: #00263D;
+    --bs-btn-active-border-color: #00263D;
+    --bs-btn-disabled-color: #00263D;
+    --bs-btn-disabled-border-color: #00263D;
+    --bs-btn-focus-shadow-rgb: 14, 69, 95;
+}
+
+.btn-soft-info {
+    background-color: rgba(0, 38, 61, .12);
+    border-color: rgba(0, 38, 61, .12);
+    color: #00263D;
+}
+
+/* ── Reset buttons → soft teal (matches the inspection-templates
+   "Open" button, i.e. btn-soft-primary) ─────────────────────── */
+/* Applied via the dedicated .btn-reset class on filter "Reset" buttons
+   so real Delete buttons keep btn-danger red. */
+.btn-reset {
+    --bs-btn-color: #04B084;
+    --bs-btn-bg: rgba(4, 176, 132, .2);
+    --bs-btn-border-color: rgba(4, 176, 132, .2);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #04B084;
+    --bs-btn-hover-border-color: #04B084;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #039b74;
+    --bs-btn-active-border-color: #039b74;
+    --bs-btn-disabled-color: #04B084;
+    --bs-btn-disabled-bg: rgba(4, 176, 132, .2);
+    --bs-btn-disabled-border-color: rgba(4, 176, 132, .2);
+    --bs-btn-focus-shadow-rgb: 4, 176, 132;
+    color: #04B084;
+    background-color: rgba(4, 176, 132, .2);
+    border-color: rgba(4, 176, 132, .2);
+}
+
+.btn-reset:hover,
+.btn-reset:focus,
+.btn-reset:active {
+    color: #fff;
+    background-color: #04B084;
+    border-color: #04B084;
+}
+
+/* ── Sidebar → light green shade (light theme) ──────────────── */
+:root,
+[data-bs-theme=light] {
+    /* soft tint of the logo teal-green */
+    --bs-sidebar-bg: #e9f7f0;
+}
+
+.vertical-menu {
+    border-right: 1px solid #d3ebe0;
+}
+
+/* ── Sidebar menu icons → dark green #0e6b3f ────────────────── */
+#sidebar-menu ul li a i {
+    color: #0e6b3f;
+}
+
+/* keep text readable on the green tint */
+#sidebar-menu ul li a {
+    color: #33475b;
+}
+
+#sidebar-menu ul li ul.sub-menu li a {
+    color: #4a6072;
+}
+
+/* hover + active accents → brand teal instead of the old blue */
+#sidebar-menu ul li a:hover,
+#sidebar-menu ul li a:hover i,
+#sidebar-menu ul li ul.sub-menu li a:hover {
+    color: #02845f;
+}
+
+#sidebar-menu > ul > li:hover > a {
+    color: #04B084;
+    background-color: #d8f0e6;
+}
+
+#sidebar-menu > ul > li:hover > a i {
+    color: #0e6b3f;
+}
+
+/* active (current / selected) menu item → dark green */
+#sidebar-menu ul li.mm-active > a,
+#sidebar-menu ul li.mm-active > a i,
+#sidebar-menu ul li a.active,
+#sidebar-menu ul li a.active i {
+    color: #0e6b3f !important;
+}

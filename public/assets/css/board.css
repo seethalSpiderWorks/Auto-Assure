@@ -1,0 +1,202 @@
+.add-task-container {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  width: 20rem;
+  height: 5.3rem;
+  margin: auto;
+  background: #a8a8a8;
+  border: #e7e7eb 0.2rem solid;
+  border-radius: 0.2rem;
+  padding: 0.4rem;
+}
+
+.main-container {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+}
+
+.columns {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: start;
+  -ms-flex-align: start;
+  align-items: flex-start;
+  margin: 0;
+  width: 1100px;
+  overflow-x: auto;	
+}
+
+.column {
+  width: 250px;
+  min-width: 250px;
+   margin: 0 0.6rem;
+    background: #f8f9fa;
+    max-height: calc(100vh - 240px);
+    overflow: hidden;
+    overflow-y: auto;
+    border-radius: 10px;
+	
+}
+
+.column-header {
+  padding: 0.1rem;
+  border-bottom: #e7e7eb  0.2rem solid;
+}
+
+.column-header h4 {
+  font-size: 13px;
+  padding: 12px;
+}
+
+
+.task-list {
+  min-height: 3rem;
+}
+
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0 !important;
+}
+
+li {
+  list-style-type: none;
+}
+
+.column-button {
+  text-align: center;
+  padding: 0.1rem;
+}
+
+	.columnsnew
+	{
+		border:1px solid black;
+	}
+.button {
+  font-family: "Arimo", sans-serif;
+  font-weight: 700;
+  border: #000013 0.14rem solid;
+  border-radius: 0.2rem;
+  color: #000013;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.3rem;
+  cursor: pointer;
+}
+
+.delete-button {
+  background-color: #ff4444;
+  margin: 0.1rem auto 0.6rem auto;
+}
+
+.delete-button:hover {
+  background-color: #fa7070;
+}
+
+.add-button {
+  background-color: #ffcb1e;
+  padding: 0 1rem;
+  height: 2.8rem;
+  width: 10rem;
+  margin-top: 0.6rem;
+}
+
+.add-button:hover {
+  background-color: #ffdd6e;
+}
+
+.task {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+ /* -webkit-box-pack: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  vertical-align: middle;
+  list-style-type: none; */
+  background: #fff;
+  -webkit-transition: all 0.3s;
+  transition: all 0.3s;
+  margin: 0.4rem;
+  height: 150px;
+  border: #d3d3d3 1px solid;
+  border-radius: 0.2rem;
+  cursor: move;
+  padding: 10px;
+  border-left: 3px solid #ffd600 !important;
+  
+}
+
+#taskText {
+  background: #fff;
+  border: #000013 0.15rem solid;
+  border-radius: 0.2rem;
+  text-align: center;
+  font-family: "Roboto Slab", serif;
+  height: 4rem;
+  width: 7rem;
+  margin: auto 0.8rem auto 0.1rem;
+}
+
+.task p {
+  margin: auto;
+  text-align: center;
+}
+
+/* Dragula CSS Release 3.2.0 from: https://github.com/bevacqua/dragula */
+
+.gu-mirror {
+  position: fixed !important;
+  margin: 0 !important;
+  z-index: 9999 !important;
+  opacity: 0.8;
+  -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";
+  filter: alpha(opacity=80);
+}
+
+.gu-hide {
+  display: none !important;
+}
+
+.gu-unselectable {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+.gu-transit {
+  opacity: 0.2;
+  -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=20)";
+  filter: alpha(opacity=20);
+}
+.float-end {
+    float: right!important;
+    padding: 12px;
+}
+::-webkit-scrollbar,
+::-webkit-scrollbar-thumb {
+    border-radius: 13px;
+    width: 6px;
+    height: 6px;
+    background-clip: padding-box;
+    background: transparent
+}
+
+::-webkit-scrollbar-track {
+    background: #eee
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #ccc
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #999
+}
+	
+tbody, td, tfoot, th, thead, tr {
+	font-size: 13px;
+}
