@@ -25,7 +25,7 @@ use App\Http\Controllers\InspectionStepController;
 
 Route::get('/',[LoginController::class,'showLoginForm'])->name('/');
 Route::get('login', [LoginController::class,'showLoginForm'])->name('login');
-Route::post('login', [LoginController::class,'login']);
+Route::post('login', [LoginController::class,'login'])->name('authenticate');
 
 //Route::post('users/resetmyUser', [Core::class,'resetMyPassword']); 
 
