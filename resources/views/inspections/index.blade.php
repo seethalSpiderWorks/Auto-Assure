@@ -107,7 +107,7 @@
                         <tbody>
                             @forelse ($inspections as $inspection)
                                 @php
-                                    $name = optional($inspection->lead)->customer_name ?? $inspection->customer_name ?? '—';
+                                    $name = $inspection->customer_name ?? optional($inspection->lead)->customer_name ?? '—';
                                     $phone = $inspection->customer_phone;
                                     $initials = collect(explode(' ', trim($name)))->filter()->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('') ?: '?';
                                     [$stLabel, $stClass] = $statusMeta[$inspection->status] ?? [ucfirst(str_replace('_',' ',$inspection->status)), 'is-pending'];
