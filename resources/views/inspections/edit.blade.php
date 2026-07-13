@@ -644,7 +644,12 @@
         async saveCustomer() {
             saving();
             const body = {};
-            root.querySelectorAll('#customer-block .js-customer').forEach(i => body[i.name] = i.value);
+            // Collect every named field in the block (customer, vehicle, assignment)
+            // except the template selector, which reloads the checklist on full submit.
+            root.querySelectorAll('#customer-block [name]').forEach(i => {
+                if (i.name === 'inspection_type_id') return;
+                body[i.name] = i.value;
+            });
             try { await post(urls.customer, body); saved(); } catch (e) { failed(); }
         },
         debounceCustomer() {
@@ -870,8 +875,13 @@
         });
     });
 
-    // Customer field auto-save
-    root.querySelectorAll('#customer-block .js-customer').forEach(i => i.addEventListener('input', () => AA.debounceCustomer()));
+    // Customer/vehicle/assignment field auto-save (all fields except the
+    // template selector, which is applied on full submit).
+    root.querySelectorAll('#customer-block [name]').forEach(i => {
+        if (i.name === 'inspection_type_id') return;
+        const evt = (i.tagName === 'SELECT') ? 'change' : 'input';
+        i.addEventListener(evt, () => AA.debounceCustomer());
+    });
 
     // ---- Wizard navigation ------------------------------------------------
     const panels = Array.from(root.querySelectorAll('[data-wstep]'));

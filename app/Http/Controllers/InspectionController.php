@@ -350,6 +350,24 @@ class InspectionController extends Controller
             'car_make' => ['nullable', 'string', 'max:100'],
             'car_model' => ['nullable', 'string', 'max:100'],
             'car_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
+            'technician_id' => ['nullable', 'integer', 'exists:users,id'],
+            // Extended vehicle details
+            'vin' => ['nullable', 'string', 'max:50'],
+            'registration_number' => ['nullable', 'string', 'max:50'],
+            'variant' => ['nullable', 'string', 'max:100'],
+            'color' => ['nullable', 'string', 'max:50'],
+            'fuel_type' => ['nullable', 'string', 'max:30'],
+            'transmission' => ['nullable', 'string', 'max:30'],
+            'body_type' => ['nullable', 'string', 'max:50'],
+            'number_of_keys' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'vehicle_type' => ['nullable', 'string', 'max:50'],
+            'manufacturer_name' => ['nullable', 'string', 'max:100'],
+            'country_of_origin' => ['nullable', 'string', 'max:100'],
+            'country_of_export' => ['nullable', 'string', 'max:100'],
+            'motor_power_kw' => ['nullable', 'integer', 'min:0'],
+            'cylinders_cc' => ['nullable', 'string', 'max:50'],
+            'passengers' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'fuel_economy' => ['nullable', 'string', 'max:30'],
         ]);
 
         $inspection->fill($data);
