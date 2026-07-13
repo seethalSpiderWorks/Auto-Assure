@@ -38,8 +38,6 @@
         'Location'       => $data->lead_location,
         'Source'         => $data->source_name ?: $data->lead_source_name,
         'Form Type'      => $data->lead_form_type,
-        'Tracking ID'    => $data->lead_tracking_id,
-        'Know More'      => $data->lead_know_more,
     ]);
 
     $seller = $clean([
@@ -48,13 +46,18 @@
         'Seller Mobile'       => $data->lead_seller_mobile,
     ]);
 
+    // Resolve the numeric enquiry-status code to its readable label.
+    $enqStatusLabel = ($data->lead_enq_status !== null && $data->lead_enq_status !== '')
+        ? optional(\DB::table('tbl_followup_type')->where('followup_type_id', $data->lead_enq_status)->first())->followup_type_name
+        : null;
+
     $meta = $clean([
         'Reference'       => $data->lead_unq_id,
         'Lead Date'       => $fmtDate($data->lead_date),
         'Created On'      => $data->lead_datetime ?: trim(($fmtDate($data->lead_date_on) ?? '').' '.($data->lead_time_on ?? '')),
         'Registered On'   => $fmtDate($data->breg_date),
         'Current Status'  => $data->lead_assigned_status,
-        'Enquiry Status'  => $data->lead_enq_status,
+        'Enquiry Status'  => $enqStatusLabel,
         'Assigned Staff'  => optional($assigned_staff)->name,
         'Added By'        => $data->added_by_name,
         'Branch'          => $data->branch_name,
