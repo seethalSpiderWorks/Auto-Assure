@@ -61,6 +61,7 @@ Route::group(['middleware' => 'auth'], function () {
 
     // AJAX auto-save endpoints
     Route::post('inspections/{inspection}/autosave-step', [InspectionController::class, 'autosaveStep'])->name('inspections.autosave.step');
+    Route::post('inspections/{inspection}/autosave-section-summary', [InspectionController::class, 'autosaveSectionSummary'])->name('inspections.autosave.section-summary');
     Route::post('inspections/{inspection}/autosave-customer', [InspectionController::class, 'autosaveCustomer'])->name('inspections.autosave.customer');
     Route::post('inspections/{inspection}/media', [InspectionController::class, 'uploadMedia'])->name('inspections.media.upload');
     Route::post('inspections/{inspection}/extra-media', [InspectionController::class, 'uploadExtraMedia'])->name('inspections.extra-media.upload');

@@ -1,23 +1,26 @@
 @php
     use App\Models\Inspection;
-    $lead   = $inspection->lead;
+    use Illuminate\Support\Facades\Storage;
+
+    $lead      = $inspection->lead;
     $reportNo  = optional($lead)->reference ?: ('AAQ-' . str_pad($inspection->id, 3, '0', STR_PAD_LEFT));
-    $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-m-Y');
-    $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-m-Y');
+    $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
+    $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
+    $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
     $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? '—';
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
-    $allMedia  = $inspection->details->flatMap(fn ($d) => $d->media)->values();
+    $typeName  = optional($inspection->type)->name ?: 'Inspection';
     $val = fn ($v) => ($v === null || $v === '') ? 'N/A' : e($v);
 
     // question -> answer (detail) lookup, for the EV & Technical special blocks
     $qa = [];
     foreach ($inspection->type->sections as $s) {
-        foreach ($s->steps as $st) { $qa[$st->question] = $answers->get($st->id); }
+        foreach ($s->steps as $stp) { $qa[$stp->question] = $answers->get($stp->id); }
     }
     $ev = fn ($q) => optional($qa[$q] ?? null)->descriptive_answer ?: 'N/A';
     // technical result state: pass | fail | na
-    $st = fn ($q) => (optional($qa[$q] ?? null)->choice === 'Pass') ? 'pass'
+    $techState = fn ($q) => (optional($qa[$q] ?? null)->choice === 'Pass') ? 'pass'
         : ((optional($qa[$q] ?? null)->choice === 'Fail') ? 'fail' : 'na');
     $reading = fn ($q) => optional($qa[$q] ?? null)->descriptive_answer ?: 'N/A';
 
@@ -31,9 +34,6 @@
         'Computer Diagnostics (OBD)' => 'تشخيص الكمبيوتر', 'Undercarriage & Chassis' => 'الهيكل السفلي والشاسيه',
         'Extended Road Test' => 'اختبار الطريق الموسّع',
     ];
-    // Section-name variants for the two special blocks. Kept as the single
-    // source of truth for both "skip in detailed checklist" and "show block only
-    // if the inspection type actually contains that section".
     $evSections   = ['EV and PHEV', 'EV & PHEV Details'];
     $techSections = ['Technical Inspection Measurements', 'Technical & Emissions Tests'];
     $skip = array_merge($evSections, $techSections);
@@ -42,8 +42,92 @@
     $hasEv   = $sectionNames->intersect($evSections)->isNotEmpty();
     $hasTech = $sectionNames->intersect($techSections)->isNotEmpty();
 
-    // Mid-level groups (between main heading and section), derived from the section number prefix.
-    // checkbox helper
+    $splitNum = fn ($s) => preg_match('/^(\d+(?:\.\d+)*)[\).]?\s+(.+)$/u', (string) $s, $m) ? [$m[1], $m[2]] : ['', (string) $s];
+
+    // Per-section banner images (from public/img/pdf_design). Keyed by section_name.
+    // Add an entry as artwork is supplied; sections without a mapping simply show no banner.
+    // Keyed by section_name OR group_name (the two never collide in practice).
+    $sectionBanners = [
+        'EV and PHEV'                          => 'EV&PHEV.png',
+        'EV & PHEV Details'                    => 'EV&PHEV.png',
+        'Technical Inspection Measurements'    => 'Technical-Inspection-Measurements.png',
+        'Technical & Emissions Tests'          => 'Technical-Inspection-Measurements.png',
+        '1. Inspection Exterior'               => 'Inspection-Exterior.png',
+        '1.7 Brake System'                     => 'Brake-System.png',
+        '1.7.7 Automated brake efficiency check (using static or dynamic inspection device)' => 'Automated-brake-efficiency-check.png',
+        '1.8 Lights'                           => 'Lights.png',
+        '1.10 Steering System'                 => 'Steering-System.png',
+        '1.11 Suspension System'               => 'Suspension-System.png',
+        '1.12 Exhaust System'                  => 'Exhaust-System.png',
+        '1.22 Gaseous Pollutants'              => 'Gaseous-Pollutants.png',
+        '2. Interior Inspection'               => 'Interior-Inspection.png',
+        '6. Buses (model year 2023 and above)' => 'Buses.png',
+    ];
+    $bannerUrl = function ($name) use ($sectionBanners) {
+        $file = $sectionBanners[$name] ?? null;
+        return $file ? asset('img/pdf_design/' . rawurlencode($file)) : null;
+    };
+
+    // Per-step pass/fail/na state (mirrors the checklist / summary rule).
+    $rowState = fn ($step) => Inspection::choiceState($answers->get($step->id));
+    $badge = fn ($state) => $state === 'pass'
+        ? '<span class="badge b-pass">PASS</span>'
+        : ($state === 'fail' ? '<span class="badge b-fail">FAIL</span>' : '<span class="badge b-na">N/A</span>');
+
+    // Photos attached to a given step, filtered to files that actually exist.
+    $stepPhotos = function ($step) use ($answers) {
+        $d = $answers->get($step->id);
+        if (! $d) return collect();
+        return $d->media->where('type', 'photo')->filter(function ($m) {
+            try { return $m->path && Storage::disk($m->disk ?: 'public')->exists($m->path); }
+            catch (\Throwable $e) { return false; }
+        })->values();
+    };
+
+    // Overall pass/fail/na tally for the Report Overview donut.
+    $tally = ['pass' => 0, 'fail' => 0, 'na' => 0];
+    foreach ($inspection->type->sections as $sec) {
+        if (in_array($sec->section_name, $skip, true)) continue;
+        foreach ($sec->steps as $stp) { $tally[$rowState($stp)]++; }
+    }
+    $tTot  = max(1, array_sum($tally));
+    $pPass = round($tally['pass'] / $tTot * 100);
+    $pFail = round($tally['fail'] / $tTot * 100);
+
+    // step_id -> section (for photo captions), and the flat photo list used by galleries + hero.
+    $stepSection = [];
+    foreach ($inspection->type->sections as $sec) {
+        foreach ($sec->steps as $stp) { $stepSection[$stp->id] = $sec; }
+    }
+    $reportPhotos = [];
+    foreach ($inspection->details as $d) {
+        $sec = $stepSection[$d->inspection_step_id] ?? null;
+        foreach ($d->media->where('type', 'photo') as $m) {
+            try {
+                if (! $m->path || ! Storage::disk($m->disk ?: 'public')->exists($m->path)) continue;
+            } catch (\Throwable $e) { continue; }
+            $reportPhotos[] = ['caption' => $m->label ?: ($sec?->section_name ?? 'Photo'), 'media' => $m];
+        }
+    }
+    $heroPhoto = $reportPhotos[0]['media']->url ?? null;
+
+    // Vehicle specification list (bilingual) for the summary card.
+    $specs = [
+        ['Make', 'اسم الصانع', $val($inspection->manufacturer_name ?: $inspection->car_make)],
+        ['Model', 'الطراز', $val(trim($inspection->car_make . ' ' . $inspection->car_model))],
+        ['Model Year', 'سنة الطراز', $val($inspection->car_year)],
+        ['Vehicle Type', 'نوع المركبة', $val($inspection->vehicle_type)],
+        ['Transmission', 'ناقل الحركة', $val($inspection->transmission)],
+        ['Fuel Type', 'نوع الوقود', $val($inspection->fuel_type)],
+        ['Engine (Cyl / CC)', 'عدد السلندرات والقدرة', $val($inspection->cylinders_cc)],
+        ['Odometer', 'قراءة العداد', $val($inspection->odometer)],
+        ['No. of Keys', 'عدد المفاتيح', $val($inspection->number_of_keys)],
+        ['Colour', 'اللون', $val($inspection->color)],
+        ['Country of Origin', 'بلد المنشأ', $val($inspection->country_of_origin)],
+        ['No. of Passengers', 'عدد الركاب', $val($inspection->passengers)],
+    ];
+
+    $makeHeading = $val($inspection->manufacturer_name ?: $inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
 @endphp
 <!doctype html>
@@ -52,416 +136,625 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Inspection Report — {{ $reportNo }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing:border-box; }
-        body { font-family:"Times New Roman", Tahoma, serif; color:#111827; margin:0; padding:18px; font-size:11px; background:#eef0f2; }
-        .sheet { max-width:920px; margin:0 auto; background:#fff; padding:24px 28px; box-shadow:0 1px 4px rgba(0,0,0,.12); }
-        .ar { font-family:'Tahoma','Geeza Pro','Arial',sans-serif; direction:rtl; unicode-bidi:embed; }
-        .ar-blk { display:block; }
-        table { border-collapse:collapse; width:100%; }
-        td, th { border:1px solid #9aa3af; padding:4px 6px; }
-        th { background:#e3e3e3; }
-        .nb td, .nb th { border:none; }
-        .c { text-align:center; } .b { font-weight:bold; }
-        .lbl { background:#ececec; text-align:center; font-weight:bold; font-size:10.5px; line-height:1.35; }
-        .head { border-bottom:3px solid #0b8457; padding-bottom:8px; margin-bottom:10px; }
-        .head td { border:none; vertical-align:middle; }
-        .logo { font-weight:800; color:#0b8457; font-size:24px; letter-spacing:.5px; }
-        .title { text-align:center; font-weight:bold; font-size:14px; line-height:1.5; }
-        .mainhead { background:#cfcfcf; color:#111; font-weight:bold; font-size:13px; padding:6px 10px; border:1px solid #9aa3af; }
-        .mainhead .ar { float:right; }
-        .midhead { background:#cfcfcf; color:#111; font-weight:bold; font-size:12px; padding:4px 10px; border:1px solid #9aa3af; }
-        .midhead .ar { float:right; }
-        .qcell { background:#eef3f6; font-weight:normal; }
-        .subgroup { background:#dcdcdc; font-weight:bold; text-align:center; }
-        .secbar { background:#cfcfcf; font-weight:bold; padding:5px 8px; border:1px solid #9aa3af; }
-        .secbar .en { } .secbar .ar { float:right; }
-        .on { color:#0b8457; font-weight:bold; } .off { color:#9aa3af; }
-        .green { color:#0b8457; } .red { color:#b42318; }
-        .vinbox td { text-align:center; font-weight:bold; width:24px; font-size:13px; }
-        .muted { color:#9ca3af; }
-        .badge { display:inline-block; font-weight:bold; }
-        .stars { color:#f1b44c; }
-        .photos img { width:60px; height:60px; object-fit:cover; border:1px solid #e5e7eb; margin:1px; }
-        .gallery { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
-        .gallery img { width:150px; height:110px; object-fit:cover; border:1px solid #e5e7eb; }
-        .foot { border-top:3px solid #0b8457; margin-top:14px; padding-top:4px; text-align:right; color:#6b7280; font-size:10px; }
-        .notes td { font-size:9.5px; padding:3px 4px; }
-        .photogrid { width:100%; border-collapse:collapse; }
-        .photogrid td { border:1px solid #9aa3af; width:50%; padding:6px; vertical-align:top; }
-        .pcap { text-align:center; font-weight:bold; text-decoration:underline; margin-bottom:4px; }
-        .pbox { height:200px; display:flex; align-items:center; justify-content:center; background:#fafafa; }
-        .pbox img { max-width:100%; max-height:200px; object-fit:contain; }
-        /* Center every image in the report */
-        .sheet img { display:block; margin-left:auto; margin-right:auto; }
-        .photos, .gallery, .photogrid td { text-align:center; }
-        .pempty { color:#bbb; }
-        .signtbl { width:100%; border-collapse:collapse; }
-        .signtbl td { border:1px solid #9aa3af; padding:5px 8px; height:26px; }
-        .signtbl .siglbl { background:#ececec; font-weight:bold; white-space:nowrap; }
-        .terms table td { border:1px solid #9aa3af; padding:8px; font-size:9.5px; vertical-align:top; }
-        .terms b { display:block; margin-bottom:4px; }
-        .terms ul { margin:0; padding-left:16px; }
-        .terms .ar ul { padding-left:0; padding-right:16px; }
-        .terms li { margin-bottom:3px; }
-        .endrep { text-align:center; color:#c0392b; font-weight:bold; font-size:14px; text-decoration:underline; margin:14px 0 4px; }
-        .toolbar { max-width:920px; margin:0 auto 12px; text-align:right; }
-        .btn { background:#0b8457; color:#fff; border:none; padding:8px 16px; border-radius:5px; cursor:pointer; font-size:13px; text-decoration:none; }
-        @media print { body{background:#fff;padding:0;} .toolbar{display:none;} .sheet{box-shadow:none;max-width:none;}
-            .secbar, .lbl, th { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .pb{page-break-before:always;} }
+        :root{
+            --bg:#eef1f5; --card:#ffffff; --ink:#1c2430; --muted:#8b93a1;
+            --bar:#00263d; --navy-2:#013a5c; --brand:#0c7a50; --brand-2:#12a150;
+            --pass:#35a44d; --fail:#ef8a3c; --na:#aeb6c2; --line:#e7eaef;
+        }
+        *{ box-sizing:border-box; }
+        body{ font-family:'Poppins','Segoe UI',Tahoma,sans-serif; color:var(--ink); margin:0; padding:20px; font-size:12px; background:#d9dde3; }
+        .sheet{ max-width:900px; margin:0 auto; }
+        .ar{ font-family:'Tahoma','Geeza Pro','Arial',sans-serif; direction:rtl; unicode-bidi:embed; }
+        .ar-blk{ display:block; }
+        .muted{ color:var(--muted); }
+        h1,h2,h3{ margin:0; }
+
+        /* ---- page shell ---- */
+        .page{ background:var(--bg); border-radius:6px; padding:22px 24px 30px; margin-bottom:22px; }
+        .page-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+        .brand-pill{ display:inline-flex; align-items:center; gap:7px; background:var(--brand); color:#fff;
+            font-weight:700; font-size:13px; padding:7px 15px 7px 10px; border-radius:20px; letter-spacing:.2px; }
+        .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+            background:#fff; color:var(--brand); border-radius:50%; font-size:12px; font-weight:800; }
+        .brand-logo{ height:38px; width:auto; display:block; }
+        .doc-tag{ color:#aab0bb; font-family:'Quicksand',sans-serif; font-weight:600; font-size:15px; }
+
+        /* ---- dark section bar (navy w/ emerald accent edge) ---- */
+        .sec-bar{ background:var(--bar); color:#fff; border-radius:10px; padding:16px 24px 16px 26px; margin:0 0 18px;
+            box-shadow:inset 5px 0 0 var(--brand-2); display:flex; align-items:center; justify-content:space-between; }
+        .sec-bar .en{ font-family:'Quicksand',sans-serif; font-weight:600; font-size:20px; }
+        .sec-bar .ar{ font-size:14px; color:#cfd4dc; font-weight:400; }
+
+        /* ---- per-section banner image ---- */
+        .sec-banner{ display:block; width:100%; border-radius:10px;
+            margin:16px 0 16px; border:1px solid var(--line); break-inside:avoid; }
+        /* group title + its banner as one unbreakable unit (never split across a page) */
+        .group-lead{ break-inside:avoid; margin-top:12px; }
+        .group-lead .make-h{ margin-bottom:2px; }
+
+        /* ---- cards ---- */
+        .card{ background:var(--card); border-radius:8px; padding:20px 22px; box-shadow:0 6px 18px rgba(24,33,54,.06); margin-bottom:16px; }
+        .card.tight{ padding:16px 18px; }
+        .grid2{ display:flex; flex-wrap:wrap; gap:16px; }
+        .grid2 > .item-card{ flex:1 1 calc(50% - 8px); min-width:calc(50% - 8px); margin-bottom:0; }
+
+        /* ---- item (check) card ---- */
+        .item-card{ background:var(--card); border-radius:10px; padding:16px 18px; box-shadow:0 6px 18px rgba(24,33,54,.06);
+            min-height:96px; margin-bottom:16px; }
+        .item-head{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+        .item-title{ font-weight:700; font-size:13px; color:#1c2431; }
+        .item-title .ar{ display:block; font-weight:600; font-size:12px; color:#6b7280; margin-top:20px; }
+        .item-note{ margin-top:8px; font-weight:600; font-size:12px; color:#3b4453; }
+        .item-note.ar{ text-align:right; }
+        .thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+        .thumb{ width:96px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
+
+        /* ---- badges ---- */
+        .badge{ display:inline-block; color:#fff; font-weight:700; font-size:11px; letter-spacing:.4px;
+            padding:5px 14px; border-radius:10px; line-height:1; }
+        .b-pass{ background:var(--pass); } .b-fail{ background:var(--fail); } .b-na{ background:var(--na); }
+
+        /* ---- key / value spec ---- */
+        .kv{ width:100%; border-collapse:collapse; }
+        .kv td{ padding:9px 4px; border-bottom:1px solid var(--line); font-size:12.5px; vertical-align:middle; }
+        .kv tr:last-child td{ border-bottom:none; }
+        .kv .k{ color:#6b7280; font-weight:600; }
+        .kv .k .ar{ display:block; font-size:11px; color:#9aa1ad; font-weight:400; }
+        .kv .v{ text-align:right; font-weight:700; color:#1c2431; }
+
+        /* ---- inspection-details strip ---- */
+        .facts{ display:flex; flex-wrap:wrap; gap:14px; }
+        .fact{ flex:1 1 22%; min-width:120px; }
+        .fact .fl{ color:var(--muted); font-size:11px; font-weight:600; }
+        .fact .fv{ font-weight:700; font-size:13.5px; margin-top:3px; }
+
+        /* ---- make heading ---- */
+        .make-h{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:26px; color:#1c2431; margin:6px 2px 4px; }
+        .make-h .u{ display:block; width:64px; height:4px; background:var(--brand-2); border-radius:3px; margin-top:6px; }
+
+        /* ---- report overview donut ---- */
+        .overview{ display:flex; align-items:center; gap:30px; flex-wrap:wrap; justify-content:center; }
+        .gauge-wrap{ text-align:center; flex:0 0 auto; }
+        .gauge{ display:block; margin:0 auto; }
+        .cond-legend{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:2px; font-size:11.5px; font-weight:600; color:#4a5563; }
+        .cond-legend i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+        .gauge-title{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:18px; color:var(--bar); margin-top:8px; }
+        .legend{ font-size:13px; }
+        .legend .row{ display:flex; align-items:center; gap:9px; margin-bottom:9px; }
+        .legend .dot{ width:12px; height:12px; border-radius:3px; }
+        .legend b{ margin-left:4px; }
+
+        /* ---- pill legend (diagram style) ---- */
+        .pill-legend{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+        .plg{ color:#fff; font-weight:700; font-size:11px; padding:5px 14px; border-radius:10px; }
+
+        /* ---- compliance result ---- */
+        .result{ display:flex; gap:14px; flex-wrap:wrap; }
+        .res-box{ flex:1 1 30%; min-width:150px; text-align:center; border:1px solid var(--line); border-radius:10px; padding:14px; }
+        .res-box .en{ font-weight:700; font-size:13px; }
+        .res-box .ar{ display:block; font-size:12px; margin-bottom:6px; }
+        .green{ color:var(--brand-2); } .red{ color:#c0392b; }
+        .on{ color:var(--brand-2); font-weight:bold; } .off{ color:#c3c9d2; }
+
+        /* ---- bilingual data tables (EV / technical) ---- */
+        .dt{ width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:10px; border:1px solid var(--line); }
+        .dt td,.dt th{ padding:9px 11px; border-bottom:1px solid var(--line); font-size:11.5px; }
+        .dt tr:last-child td{ border-bottom:none; }
+        .dt th{ background:#f3f5f8; font-weight:700; text-align:center; }
+        .dt th .ar{ display:block; font-weight:400; color:#8b93a1; }
+        .dt .lbl{ background:#f7f9fb; font-weight:600; }
+        .dt .lbl .ar{ display:block; font-size:10.5px; color:#8b93a1; font-weight:400; }
+        .dt .c{ text-align:center; }
+
+        /* ---- gallery ---- */
+        .gal{ display:flex; flex-wrap:wrap; gap:12px; }
+        .gal figure{ margin:0; width:calc(33.333% - 8px); }
+        .gal img{ width:100%; height:120px; object-fit:cover; border-radius:10px; border:1px solid var(--line); display:block; }
+        .gal figcaption{ text-align:center; font-size:10.5px; color:var(--muted); margin-top:5px; }
+
+        /* ---- signatures ---- */
+        .sign{ display:flex; gap:16px; flex-wrap:wrap; }
+        .sign .col{ flex:1 1 45%; min-width:220px; }
+        .sign .slot{ border-bottom:2px dashed #cfd4dc; height:34px; margin-bottom:6px; }
+        .sign .sl{ color:var(--muted); font-size:11px; font-weight:600; }
+        .sign .sl .ar{ float:right; }
+
+        /* ---- terms ---- */
+        .terms .col{ flex:1 1 45%; min-width:240px; }
+        .terms h4{ font-size:13px; margin:0 0 8px; }
+        .terms ul{ margin:0; padding-left:16px; font-size:11px; line-height:1.55; color:#3b4453; }
+        .terms .ar ul{ padding-left:0; padding-right:16px; }
+        .terms li{ margin-bottom:5px; }
+
+        /* ---- cover ---- */
+        .cover{ position:relative; border-radius:8px; overflow:hidden; min-height:1080px;
+            background:linear-gradient(160deg,var(--navy-2) 0%,var(--bar) 58%,#001a2b 100%); display:flex; flex-direction:column; }
+        .cover .top{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:50px 30px; }
+        .cover .logo-chip{ display:inline-flex; align-items:center; justify-content:center; background:#fff;
+            padding:16px 30px; border-radius:20px; margin-bottom:26px; box-shadow:0 14px 40px rgba(0,0,0,.28); }
+        .cover .logo-chip img{ height:54px; width:auto; display:block; }
+        .cover h1{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:42px; color:#ffffff; line-height:1.2; }
+        .cover h1 .g{ color:#4fd18b; }
+        .cover .site{ margin-top:14px; color:#b9c6d3; font-size:14px; font-weight:600; }
+        .cover .site .ar{ color:#cdd8e2; }
+        .cover .cover-art{ width:100%; max-width:470px; margin-top:38px; filter:drop-shadow(0 20px 34px rgba(0,0,0,.4)); }
+        .cover .hero{ width:100%; max-height:300px; object-fit:cover; }
+        /* cover rating gauge (dark theme) */
+        .cover .cover-gauge{ display:block; margin:35px auto 0; }
+        .cover .cover-cond-legend{ display:flex; gap:16px; justify-content:center; margin-top:2px;
+            font-size:12px; font-weight:600; color:#c2cede; }
+        .cover .cover-cond-legend i{ display:inline-block; width:9px; height:9px; border-radius:50%;
+            margin-right:6px; vertical-align:middle; }
+        .cover .cover-rating-title{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:20px;
+            color:#fff; margin-top:10px; letter-spacing:.3px; }
+        .cover .stat-chips{ display:flex; gap:12px; justify-content:center; margin-top:22px; }
+        .cover .stat-chips .chip{ background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.15);
+            border-radius:14px; padding:11px 22px; text-align:center; min-width:82px; }
+        .cover .stat-chips .chip .n{ font-size:22px; font-weight:800; color:#fff; line-height:1; }
+        .cover .stat-chips .chip .l{ font-size:10px; color:#9fb0c0; margin-top:5px; letter-spacing:.6px; text-transform:uppercase; }
+        .cover .bar{ background:rgba(0,0,0,.28); border-top:1px solid rgba(255,255,255,.12); color:#fff;
+            display:flex; justify-content:space-between; padding:22px 40px; }
+        .cover .bar .lab{ color:#8ea3b5; font-size:12px; }
+        .cover .bar .v{ font-weight:700; font-size:14px; margin-top:2px; }
+
+        /* ---- thank you ---- */
+        .thanks{ position:relative; border-radius:8px; overflow:hidden; min-height:1080px; text-align:center;
+            background:linear-gradient(160deg,#eef2f4 0%,#dfe6e5 60%,#cfe0d3 100%);
+            display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:150px 40px 90px; }
+        .thanks h1{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:44px; color:#2b3340; line-height:1.25; }
+        .thanks h1 .g{ color:var(--brand-2); }
+        .thanks .site{ margin-top:16px; color:#5b6472; font-weight:600; }
+        .thanks .thanks-logo{ height:66px; width:auto; display:block; }
+        .thanks .thanks-art{ width:100%; max-width:440px; filter:drop-shadow(0 16px 26px rgba(20,40,30,.16)); }
+
+        /* keep cards / rows intact across page breaks, never orphan a section bar */
+        .item-card,.card,.gal figure,.res-box,.fact{ break-inside:avoid; }
+        .sec-bar,.make-h{ break-after:avoid; }
+
+        /* ---- toolbar / print ---- */
+        .toolbar{ max-width:900px; margin:0 auto 14px; text-align:right; }
+        .btn{ background:var(--brand); color:#fff; border:none; padding:9px 18px; border-radius:10px; cursor:pointer;
+            font-size:13px; font-weight:600; text-decoration:none; }
+        @page{ size:A4; margin:0; }
+        @media print{
+            body{ background:#fff; padding:0; }
+            .toolbar{ display:none; }
+            .sheet{ max-width:none; }
+            .page,.cover,.thanks{ margin-bottom:0; border-radius:0; }
+            .pb{ page-break-before:always; }
+            .card,.item-card,.sec-bar,.badge,.plg,.brand-pill,.gauge,.cover,.thanks{
+                -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        }
     </style>
 </head>
 <body>
     <div class="toolbar"><button class="btn" onclick="window.print()">🖨 Print / Save PDF</button></div>
     <div class="sheet">
 
-        {{-- ===== Header ===== --}}
-        <table class="head nb"><tr>
-            <td style="width:200px"><span class="logo">Auto&nbsp;assure</span></td>
-            <td class="title">Inspection Checklist for Used Imported Vehicle
-                <span class="ar ar-blk" style="font-size:13px">قائمة فحص المركبات المستوردة المستعملة</span></td>
-            <td style="width:120px"></td>
-        </tr></table>
+        {{-- ============================== COVER ============================== --}}
+        <div class="cover">
+            <div class="top">
+                <span class="logo-chip"><img src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure"></span>
+                <h1><span class="g">Comprehensive</span><br>Inspection Report</h1>
+                <div class="site">Inspection Checklist for Used Imported Vehicle
+                    <span class="ar ar-blk" style="font-size:13px;margin-top:4px">قائمة فحص المركبات المستوردة المستعملة</span>
+                </div>
 
-        {{-- ===== Report no / date ===== --}}
-        <table style="margin-bottom:12px"><tr>
-            <td class="c b" style="width:25%">{{ $reportDt }}</td>
-            <td class="lbl" style="width:20%"><span class="ar ar-blk">تاريخ التقرير</span>Report Date</td>
-            <td class="c b" style="width:30%">{{ $reportNo }}</td>
-            <td class="lbl" style="width:25%"><span class="ar ar-blk">رقم التقرير</span>Report No.</td>
-        </tr></table>
+                {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
+                @php
+                    $scoreF = round($tally['pass'] / $tTot * 100, 1);
+                    $scoreLbl = rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
+                    $bands = [
+                        ['Bad', 0, 25, '#e0483d'], ['Fair', 25, 50, '#efb008'],
+                        ['Good', 50, 75, '#f2903f'], ['Excellent', 75, 100.01, '#2fa84f'],
+                    ];
+                    $cond = 'Bad'; $cColor = '#e0483d';
+                    foreach ($bands as $b) { if ($scoreF >= $b[1] && $scoreF < $b[2]) { $cond = $b[0]; $cColor = $b[3]; break; } }
 
-        {{-- ===== Vehicle Information ===== --}}
-        <div class="secbar"><span class="en">Vehicle Information</span><span class="ar">بيانات المركبة</span></div>
-        <table style="margin-bottom:12px">
-            @php
-                $info = [
-                    [$inspDt,'Inspection Date','تاريخ الفحص', $val($inspection->vehicle_type),'Vehicle Type','نوع المركبة'],
-                    [$val($inspection->country_of_origin),'Country of Origin','بلد المنشأ', $val($inspection->manufacturer_name),'Manufacturer Name','اسم الصانع'],
-                    [$val($inspection->country_of_export),'Country of Export','البلد المستورد منه', $val($inspection->car_year),'Model year','سنة الطراز'],
-                    [$val($inspection->motor_power_kw ? $inspection->motor_power_kw.' KW' : null),'Elec. Motor power','قدرة المحرك الكهربائي', $val(trim($inspection->car_make.' '.$inspection->car_model)),'Model','الطراز'],
-                    [$val($inspection->cylinders_cc),'No. of cylinder and CC','عدد السلندرات والقدرة', $val($inspection->color),'Color','اللون'],
-                    [$val($inspection->fuel_type),'Fuel Type','نوع الوقود', $val($inspection->odometer),'Odometer Reading','قراءة العداد'],
-                    [$val($inspection->fuel_economy),'Fuel Economy','اقتصاد الوقود', $val($inspection->passengers),'No. of Passenger','عدد الركاب'],
-                ];
-            @endphp
-            @foreach ($info as $r)
-                <tr>
-                    <td class="c" style="width:25%">{{ $r[0] }}</td>
-                    <td class="lbl" style="width:20%"><span class="ar ar-blk">{{ $r[2] }}</span>{{ $r[1] }}</td>
-                    <td class="c" style="width:30%">{{ $r[3] }}</td>
-                    <td class="lbl" style="width:25%"><span class="ar ar-blk">{{ $r[5] }}</span>{{ $r[4] }}</td>
-                </tr>
-            @endforeach
-            {{-- VIN row --}}
-            <tr>
-                <td colspan="3" style="padding:0">
-                    <table class="vinbox" style="border:none"><tr>
-                        @foreach (str_split(strtoupper($inspection->vin ?? '')) as $chx)
-                            <td>{{ $chx }}</td>
+                    $cx = 200; $cy = 170;
+                    $rBand = 150; $rMinO = 133; $rMinI = 126; $rMajI = 116; $rLabel = 102; $rNeedle = 112;
+                    $ang = fn ($v) => deg2rad(225 - 2.7 * max(0, min(100, $v)));
+                    $pt  = function ($v, $rr) use ($cx, $cy, $ang) {
+                        $a = $ang($v);
+                        return [round($cx + $rr * cos($a), 1), round($cy - $rr * sin($a), 1)];
+                    };
+                    [$ax, $ay] = $pt(0, $rBand); [$bx, $by] = $pt(100, $rBand);
+                    $arc = "M {$ax} {$ay} A {$rBand} {$rBand} 0 1 1 {$bx} {$by}";
+                    $na = $ang($scoreF); $nperp = $na + M_PI / 2; $nw = 6.5;
+                    [$ntx, $nty] = $pt($scoreF, $rNeedle);
+                    $nblx = round($cx + $nw * cos($nperp), 1); $nbly = round($cy - $nw * sin($nperp), 1);
+                    $nbrx = round($cx - $nw * cos($nperp), 1); $nbry = round($cy + $nw * sin($nperp), 1);
+                @endphp
+                <svg class="cover-gauge" viewBox="0 0 400 300" width="400" role="img" aria-label="Overall rating {{ $scoreLbl }} of 100">
+                    {{-- track --}}
+                    <path d="{{ $arc }}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="22" stroke-linecap="round"/>
+                    {{-- fill 0..score in the condition colour --}}
+                    <path pathLength="100" d="{{ $arc }}" fill="none" stroke="{{ $cColor }}" stroke-width="22"
+                          stroke-linecap="round" stroke-dasharray="{{ $scoreF }} 100" stroke-dashoffset="0"/>
+                    {{-- minor ticks every 2.5 --}}
+                    @for ($v = 0; $v <= 100; $v += 2.5)
+                        @php [$mox,$moy] = $pt($v,$rMinO); [$mix,$miy] = $pt($v,$rMinI); @endphp
+                        <line x1="{{ $mox }}" y1="{{ $moy }}" x2="{{ $mix }}" y2="{{ $miy }}" stroke="rgba(255,255,255,.28)" stroke-width="1.4"/>
+                    @endfor
+                    {{-- major ticks + numbers every 10 --}}
+                    @for ($v = 0; $v <= 100; $v += 10)
+                        @php [$Mox,$Moy] = $pt($v,$rMinO); [$Mix,$Miy] = $pt($v,$rMajI); [$lx2,$ly2] = $pt($v,$rLabel); @endphp
+                        <line x1="{{ $Mox }}" y1="{{ $Moy }}" x2="{{ $Mix }}" y2="{{ $Miy }}" stroke="rgba(255,255,255,.5)" stroke-width="2.2"/>
+                        <text x="{{ $lx2 }}" y="{{ $ly2 }}" font-size="12" font-weight="600" fill="#c2cede" text-anchor="middle" dominant-baseline="central" font-family="Poppins,sans-serif">{{ $v }}</text>
+                    @endfor
+                    {{-- needle + hub --}}
+                    <polygon points="{{ $ntx }},{{ $nty }} {{ $nblx }},{{ $nbly }} {{ $nbrx }},{{ $nbry }}" fill="{{ $cColor }}"/>
+                    <circle cx="{{ $cx }}" cy="{{ $cy }}" r="10" fill="#fff" stroke="{{ $cColor }}" stroke-width="3"/>
+                    {{-- readout --}}
+                    <text x="{{ $cx }}" y="{{ $cy + 44 }}" font-size="27" font-weight="800" fill="#ffffff" text-anchor="middle" font-family="Poppins,sans-serif">{{ $scoreLbl }} <tspan font-size="17" fill="#8ea3b5">/ 100</tspan></text>
+                    <text x="{{ $cx }}" y="{{ $cy + 66 }}" font-size="13.5" font-weight="700" fill="{{ $cColor }}" text-anchor="middle" font-family="Poppins,sans-serif">{{ $cond }} Condition</text>
+                </svg>
+                <div class="cover-cond-legend">
+                    <span><i style="background:#e0483d"></i>Bad</span>
+                    <span><i style="background:#efb008"></i>Fair</span>
+                    <span><i style="background:#f2903f"></i>Good</span>
+                    <span><i style="background:#2fa84f"></i>Excellent</span>
+                </div>
+                <div class="cover-rating-title">Overall Rating</div>
+
+                <div class="stat-chips">
+                    <div class="chip"><div class="n" style="color:#7fd39a">{{ $tally['pass'] }}</div><div class="l">Passed</div></div>
+                    <div class="chip"><div class="n" style="color:#f6a96b">{{ $tally['fail'] }}</div><div class="l">Failed</div></div>
+                    <div class="chip"><div class="n" style="color:#cbd5e1">{{ $tally['na'] }}</div><div class="l">N/A</div></div>
+                    <div class="chip"><div class="n">{{ array_sum($tally) }}</div><div class="l">Total</div></div>
+                </div>
+            </div>
+            <div class="bar">
+                <div><div class="lab">Report No.</div><div class="v">{{ $reportNo }}</div></div>
+                <div style="text-align:center"><div class="lab">Report Date</div><div class="v">{{ $reportDt }}</div></div>
+                <div style="text-align:right"><div class="lab">Vehicle</div><div class="v">{{ $val(trim($inspection->car_year.' '.$inspection->car_make.' '.$inspection->car_model)) }}</div></div>
+            </div>
+        </div>
+
+        {{-- ============================== VEHICLE SUMMARY ============================== --}}
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+
+        
+
+            {{-- Inspection details strip --}}
+            <div class="card tight">
+                <div class="facts">
+                    <div class="fact"><div class="fl">Date <span class="ar">التاريخ</span></div><div class="fv">{{ $inspDt }}</div></div>
+                    <div class="fact"><div class="fl">Time <span class="ar">الوقت</span></div><div class="fv">{{ $reportTm ?: 'N/A' }}</div></div>
+                    <div class="fact"><div class="fl">Inspection Type <span class="ar">نوع الفحص</span></div><div class="fv">{{ $typeName }}</div></div>
+                    <div class="fact"><div class="fl">VIN <span class="ar">رقم الهيكل</span></div><div class="fv" style="letter-spacing:.5px">{{ $val(strtoupper($inspection->vin ?? '')) }}</div></div>
+                </div>
+            </div>
+
+            {{-- Owner details --}}
+            <div class="sec-bar"><span class="en">Owner Details</span><span class="ar">بيانات المالك</span></div>
+            <div class="card tight">
+                <div class="facts">
+                    <div class="fact"><div class="fl">Owner Name <span class="ar">اسم المالك</span></div><div class="fv">{{ $val($inspection->customer_name) }}</div></div>
+                    <div class="fact"><div class="fl">Phone <span class="ar">رقم الهاتف</span></div><div class="fv" style="direction:ltr">{{ $val($inspection->customer_phone) }}</div></div>
+                    <div class="fact"><div class="fl">Email <span class="ar">البريد الإلكتروني</span></div><div class="fv" style="word-break:break-all">{{ $val($inspection->customer_email) }}</div></div>
+                    <div class="fact"><div class="fl">Reference <span class="ar">المرجع</span></div><div class="fv">{{ $reportNo }}</div></div>
+                </div>
+            </div>
+
+            <div class="sec-bar"><span class="en">Vehicle Summary</span><span class="ar">بيانات المركبة</span></div>
+
+            <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
+
+            <div class="grid2">
+                <div class="item-card" style="min-height:auto">
+                    @if ($heroPhoto)
+                        <img src="{{ $heroPhoto }}" style="width:100%;height:210px;object-fit:cover;border-radius:14px;border:1px solid var(--line)">
+                    @else
+                        <img src="{{ asset('img/pdf_design/cover-photo.webp') }}" style="width:100%;height:210px;object-fit:contain;border-radius:14px;background:#f3f5f8;padding:8px">
+                    @endif
+                </div>
+                <div class="item-card" style="min-height:auto">
+                    <table class="kv">
+                        @foreach ($specs as $sp)
+                            <tr>
+                                <td class="k">{{ $sp[0] }}<span class="ar">{{ $sp[1] }}</span></td>
+                                <td class="v">{{ $sp[2] }}</td>
+                            </tr>
                         @endforeach
-                    </tr></table>
-                </td>
-                <td class="lbl"><span class="ar ar-blk">الرقم المميز للمركبة</span>(VIN)</td>
-            </tr>
-        </table>
+                    </table>
+                </div>
+            </div>
 
-        {{-- ===== Inspection Result ===== --}}
-        <table style="margin-bottom:12px">
-            <tr>
-                <td style="width:45%" class="c">
-                    <span class="ar b red">غير مطابق للمتطلبات</span><br><span class="b red">Non-Compliance to Requirements</span>
-                    &nbsp;&nbsp;{!! $ck(!$compliant) !!}
-                </td>
-                <td style="width:35%" class="c">
-                    <span class="ar b green">مطابق للمتطلبات</span><br><span class="b green">Compliance to Requirements</span>
-                    &nbsp;&nbsp;{!! $ck($compliant) !!}
-                </td>
-                <td class="lbl" style="width:20%"><span class="ar ar-blk">نتيجة الفحص</span>Inspection Result</td>
-            </tr>
-            <tr>
-                <td colspan="2" class="c" style="font-size:10px;line-height:1.4">
-                    SASO Technical Regulation for Used Imported Vehicles MA-179-21-09-02 &amp; SASO GSO 42,
-                    SASO GSO 1680, GSO 1040,<br>Administrative and technical instructions regarding periodic technical inspection procedures (VSC-VS-P-6.0)
-                </td>
-                <td class="lbl"><span class="ar ar-blk">اللائحة الفنية والمواصفات</span>Technical Regulation and Standards</td>
-            </tr>
-            <tr>
-                <td colspan="2" style="height:34px">{{ $val($inspection->summary) === 'N/A' ? '' : $inspection->summary }}</td>
-                <td class="lbl"><span class="ar ar-blk">ملاحظات</span>Notes</td>
-            </tr>
-        </table>
+            {{-- Inspection result (compliance) --}}
+            <div class="card">
+                <div class="result">
+                    <div class="res-box">
+                        <span class="ar red">غير مطابق للمتطلبات</span>
+                        <span class="en red">Non-Compliance</span> &nbsp;{!! $ck(!$compliant) !!}
+                    </div>
+                    <div class="res-box">
+                        <span class="ar green">مطابق للمتطلبات</span>
+                        <span class="en green">Compliance to Requirements</span> &nbsp;{!! $ck($compliant) !!}
+                    </div>
+                    <div class="res-box" style="text-align:left">
+                        <div class="fl muted" style="font-size:11px;font-weight:600">Overall Condition <span class="ar">الحالة العامة</span></div>
+                        <div class="fv" style="font-weight:700;margin:2px 0 8px">{{ $condition }}</div>
+                        <div class="fl muted" style="font-size:11px;font-weight:600">Recommendation <span class="ar">التوصية</span></div>
+                        <div class="fv" style="font-weight:700">{{ $recommend }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        {{-- ===== EV and PHEV (only if this inspection type has the section) ===== --}}
+        {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
         @if ($hasEv)
-        <div class="secbar c"><span class="en">EV and PHEV</span> / <span class="ar" style="float:none">للسيارات الكهربائية والهجينة بقابس</span></div>
-        <table style="margin-bottom:12px">
-            <tr>
-                <td class="c" style="width:8%">N/A<span class="ar ar-blk b" style="font-size:9px">لا ينطبق</span>{!! $ck(true) !!}</td>
-                <td class="c" style="width:12%">Issued By<span class="ar ar-blk b" style="font-size:9px">جهة الإصدار</span></td>
-                <td class="lbl" style="width:22%">Type Approval Certificate<span class="ar ar-blk">شهادة مطابقة الطراز</span></td>
-                <td class="c" style="width:13%">{{ $ev('Footprint (M2)') }}</td>
-                <td class="lbl">Footprint (M2)<span class="ar ar-blk">البصمة (مساحة تلامس المركبة على الأرض)</span></td>
-            </tr>
-            <tr>
-                <td colspan="2" class="c">{{ $ev('Full Battery Charge Time (Min or H)') }}</td>
-                <td class="lbl">Full Battery Charge Time (Min or H)<span class="ar ar-blk">الوقت المستغرق للشحن</span></td>
-                <td class="c">{{ $ev('Battery Capacity (KW/h)') }}</td>
-                <td class="lbl">Battery Capacity (KW/h)<span class="ar ar-blk">قدرة البطارية</span></td>
-            </tr>
-            <tr>
-                <td colspan="2" class="c">{{ $ev('Battery Type') }}</td>
-                <td class="lbl">Battery Type<span class="ar ar-blk">نوع البطارية</span></td>
-                <td class="c">{{ $ev('Electric Consumption (KWh/100KM)') }}</td>
-                <td class="lbl">Electric Consumption (KWh/100KM)<span class="ar ar-blk">الاستهلاك الكهربائي</span></td>
-            </tr>
-            <tr>
-                <td colspan="2" class="c">{{ $ev('Battery Voltage (V)') }}</td>
-                <td class="lbl">Battery Voltage (V)<span class="ar ar-blk">فولت البطارية</span></td>
-                <td class="c">{{ $ev('Equivalent fuel economy (KM/L)') }}</td>
-                <td class="lbl">Equivalent fuel economy (KM/L)<span class="ar ar-blk">اقتصاد الوقود المكافئ</span></td>
-            </tr>
-        </table>
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            <div class="sec-bar"><span class="en">EV &amp; PHEV</span><span class="ar">للسيارات الكهربائية والهجينة</span></div>
+            @php $evBanner = $bannerUrl('EV and PHEV') ?: $bannerUrl('EV & PHEV Details'); @endphp
+            @if ($evBanner)<img class="sec-banner" src="{{ $evBanner }}" alt="">@endif
+            <div class="card">
+                <table class="dt">
+                    <tr>
+                        <td class="lbl">Type Approval Certificate<span class="ar">شهادة مطابقة الطراز</span></td>
+                        <td class="c">N/A {!! $ck(true) !!}</td>
+                        <td class="lbl">Footprint (M2)<span class="ar">البصمة</span></td>
+                        <td class="c">{{ $ev('Footprint (M2)') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Full Battery Charge Time<span class="ar">وقت الشحن الكامل</span></td>
+                        <td class="c">{{ $ev('Full Battery Charge Time (Min or H)') }}</td>
+                        <td class="lbl">Battery Capacity (KW/h)<span class="ar">قدرة البطارية</span></td>
+                        <td class="c">{{ $ev('Battery Capacity (KW/h)') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Battery Type<span class="ar">نوع البطارية</span></td>
+                        <td class="c">{{ $ev('Battery Type') }}</td>
+                        <td class="lbl">Electric Consumption<span class="ar">الاستهلاك الكهربائي</span></td>
+                        <td class="c">{{ $ev('Electric Consumption (KWh/100KM)') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Battery Voltage (V)<span class="ar">فولت البطارية</span></td>
+                        <td class="c">{{ $ev('Battery Voltage (V)') }}</td>
+                        <td class="lbl">Equivalent fuel economy<span class="ar">اقتصاد الوقود المكافئ</span></td>
+                        <td class="c">{{ $ev('Equivalent fuel economy (KM/L)') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
         @endif
 
-        {{-- ===== Technical Inspection Measurements (only if this inspection type has the section) ===== --}}
+        {{-- ============================== TECHNICAL MEASUREMENTS (bilingual, if present) ============================== --}}
         @if ($hasTech)
-        <div class="secbar"><span class="en">Technical Inspection Measurements:</span><span class="ar">قياسات الفحص الفني:</span></div>
-        <table style="margin-bottom:12px">
-            <thead>
-                <tr class="c b">
-                    <th colspan="3"><span class="ar ar-blk">النتيجة</span>Result</th>
-                    <th rowspan="2"><span class="ar ar-blk">القياسات</span>Measurements</th>
-                    <th rowspan="2"><span class="ar ar-blk">حد المعيار</span>Criteria Limit</th>
-                    <th rowspan="2"><span class="ar ar-blk">بند الفحص</span>Inspection Item</th>
-                    <th rowspan="2">No.</th>
-                </tr>
-                <tr class="c b">
-                    <th style="width:34px"><span class="ar ar-blk" style="font-size:9px">لا ينطبق</span>N/A</th>
-                    <th style="width:34px"><span class="ar ar-blk" style="font-size:9px">غير مطابق</span>Fail</th>
-                    <th style="width:34px"><span class="ar ar-blk" style="font-size:9px">مطابق</span>Pass</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{-- 1. Main Brake --}}
-                <tr class="c">
-                    @php $s1 = $st('Main Brake (Static Device) — Automated brake efficiency check'); @endphp
-                    <td>{!! $ck($s1==='na') !!}</td><td>{!! $ck($s1==='fail') !!}</td><td>{!! $ck($s1==='pass') !!}</td>
-                    <td style="padding:0">
-                        <table style="border:none"><tr><td style="border:none">RB</td><td style="border:none">FB</td></tr>
-                        <tr><td style="border:none">{{ $reading('Main Brake (Static Device) — Automated brake efficiency check') }}</td><td style="border:none">{{ $reading('Main Brake (Static Device) — Automated brake efficiency check') }}</td></tr></table>
-                    </td>
-                    <td>Brake efficiency ≥ 45%</td>
-                    <td><span class="ar ar-blk">الفحص الآلي لكفاءة المكابح</span>Main Brake (Static Device)<br>Automated brake efficiency check</td>
-                    <td>1</td>
-                </tr>
-                {{-- 2. Gaseous Pollutants (CO, HC, Smoke) --}}
-                @php $s2 = $st('Pollution - Gasoline Engines (CO)'); @endphp
-                <tr class="c">
-                    <td>{!! $ck($s2==='na') !!}</td><td>{!! $ck($s2==='fail') !!}</td><td>{!! $ck($s2==='pass') !!}</td>
-                    <td>{{ $reading('Pollution - Gasoline Engines (CO)') }}</td>
-                    <td>(CO) ≤ 3.5%</td>
-                    <td rowspan="3"><span class="ar ar-blk">الملوثات الغازية</span>Gaseous Pollutants</td>
-                    <td rowspan="3">2</td>
-                </tr>
-                @php $s3 = $st('Pollution - Gasoline Engines (HC)'); @endphp
-                <tr class="c">
-                    <td>{!! $ck($s3==='na') !!}</td><td>{!! $ck($s3==='fail') !!}</td><td>{!! $ck($s3==='pass') !!}</td>
-                    <td>{{ $reading('Pollution - Gasoline Engines (HC)') }}</td>
-                    <td>(HC) ≤ 1200 ppm</td>
-                </tr>
-                @php $s4 = $st('Smoke Density - Diesel Engines'); @endphp
-                <tr class="c">
-                    <td>{!! $ck($s4==='na') !!}</td><td>{!! $ck($s4==='fail') !!}</td><td>{!! $ck($s4==='pass') !!}</td>
-                    <td>{{ $reading('Smoke Density - Diesel Engines') }}</td>
-                    <td>Reading ≤ 40% <span class="ar ar-blk">كثافة الدخان — محركات الديزل</span></td>
-                </tr>
-                {{-- 3. Glass --}}
-                @php $s5 = $st('Glass Transparency'); @endphp
-                <tr class="c">
-                    <td>{!! $ck($s5==='na') !!}</td><td>{!! $ck($s5==='fail') !!}</td><td>{!! $ck($s5==='pass') !!}</td>
-                    <td>{{ $reading('Glass Transparency') }}</td>
-                    <td>Transparency ≥ 70%</td>
-                    <td><span class="ar ar-blk">شفافية الزجاج</span>Glass Transparency</td>
-                    <td>3</td>
-                </tr>
-                {{-- 4. Noise --}}
-                @php $s6 = $st('Noise Emissions'); @endphp
-                <tr class="c">
-                    <td>{!! $ck($s6==='na') !!}</td><td>{!! $ck($s6==='fail') !!}</td><td>{!! $ck($s6==='pass') !!}</td>
-                    <td>{{ $reading('Noise Emissions') }}</td>
-                    <td>Table on clause (1.19) of the checklist below</td>
-                    <td><span class="ar ar-blk">التلوث الضوضائي</span>Noise Emissions</td>
-                    <td>4</td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            <div class="sec-bar"><span class="en">Technical Inspection Measurements</span><span class="ar">قياسات الفحص الفني</span></div>
+            @php $techBanner = $bannerUrl('Technical Inspection Measurements') ?: $bannerUrl('Technical & Emissions Tests'); @endphp
+            @if ($techBanner)<img class="sec-banner" src="{{ $techBanner }}" alt="">@endif
+            <div class="card">
+                <table class="dt">
+                    <thead>
+                        <tr>
+                            <th>Inspection Item<span class="ar" style="font-weight:400">بند الفحص</span></th>
+                            <th>Criteria Limit<span class="ar" style="font-weight:400">حد المعيار</span></th>
+                            <th>Measurement<span class="ar" style="font-weight:400">القياس</span></th>
+                            <th>Result<span class="ar" style="font-weight:400">النتيجة</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @php
+                            $techRows = [
+                                ['Main Brake (Static Device)', 'المكابح', 'Brake efficiency ≥ 45%', 'Main Brake (Static Device) — Automated brake efficiency check'],
+                                ['Gaseous Pollutants (CO)', 'الملوثات الغازية', '(CO) ≤ 3.5%', 'Pollution - Gasoline Engines (CO)'],
+                                ['Gaseous Pollutants (HC)', 'الملوثات الغازية', '(HC) ≤ 1200 ppm', 'Pollution - Gasoline Engines (HC)'],
+                                ['Smoke Density (Diesel)', 'كثافة الدخان', 'Reading ≤ 40%', 'Smoke Density - Diesel Engines'],
+                                ['Glass Transparency', 'شفافية الزجاج', 'Transparency ≥ 70%', 'Glass Transparency'],
+                                ['Noise Emissions', 'التلوث الضوضائي', 'Per clause 1.19', 'Noise Emissions'],
+                            ];
+                        @endphp
+                        @foreach ($techRows as $tr)
+                            <tr>
+                                <td class="lbl">{{ $tr[0] }}<span class="ar">{{ $tr[1] }}</span></td>
+                                <td class="c">{{ $tr[2] }}</td>
+                                <td class="c">{{ $reading($tr[3]) }}</td>
+                                <td class="c">{!! $badge($techState($tr[3])) !!}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
         @endif
 
-        <div class="foot">Page 1 — Auto Assure</div>
-
-        {{-- ===== Detailed checklist — one table, one common header ===== --}}
-        <div class="pb"></div>
-        <table class="checklist">
-            <thead>
-                <tr class="c b">
-                    <th colspan="3">Acceptance &amp; Reject<span class="ar ar-blk" style="font-size:9px">القبول والرفض</span></th>
-                    <th rowspan="2"><div style="display:flex;justify-content:space-between;align-items:center"><span class="en">1) Technical Requirements</span><span class="ar ar-blk" style="float:none">المتطلبات الفنية</span></div></th>
-                    <th rowspan="2" style="width:32px"></th>
-                </tr>
-                <tr class="c b">
-                    <th style="width:34px">N/A<span class="ar ar-blk" style="font-size:9px">لا ينطبق</span></th>
-                    <th style="width:34px">Fail<span class="ar ar-blk" style="font-size:9px">غير مطابق</span></th>
-                    <th style="width:34px">Pass<span class="ar ar-blk" style="font-size:9px">مطابق</span></th>
-                </tr>
-            </thead>
-            <tbody>
-            @php
-                $lastGroup = null;
-                $splitNum = function ($s) {
-                    return preg_match('/^(\d+(?:\.\d+)*)[\).]?\s+(.+)$/u', (string) $s, $m) ? [$m[1], $m[2]] : ['', (string) $s];
-                };
-            @endphp
+        {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
+                @php
+                    [$sNum, $sTitle] = $splitNum($section->section_name);
+                    $sAr  = $section->section_name_ar ?: ($secAr[$section->section_name] ?? '');
+                    $steps = $section->steps;
+                @endphp
+
                 @if ($section->group_name && $section->group_name !== $lastGroup)
-                    @php [$gNum, $gTitle] = $splitNum($section->group_name); @endphp
-                    <tr><td colspan="4" class="mainhead c"><span class="en">{{ $gTitle }}</span>@if($section->group_name_ar) / <span class="ar" style="float:none;display:inline">{{ $section->group_name_ar }}</span>@endif</td><td class="mainhead c">{{ $gNum }}</td></tr>
-                    @php $lastGroup = $section->group_name; @endphp
-                @endif
-                @php [$sNum, $sTitle] = $splitNum($section->section_name); @endphp
-                @php $sAr = $section->section_name_ar ?: ($secAr[$section->section_name] ?? ''); @endphp
-                <tr><td colspan="4" class="secbar c"><span class="en">{{ $sTitle }}</span>@if($sAr) / <span class="ar" style="float:none;display:inline">{{ $sAr }}</span>@endif</td><td class="secbar c">{{ $sNum }}</td></tr>
-                @php $lastSub = null; $letterIdx = 0; @endphp
-                @foreach ($section->steps as $step)
-                    @if ($step->description && $step->description !== $lastSub)
-                        @php [$subNum, $subTitle] = $splitNum($step->description); [, $subTitleAr] = $splitNum($step->description_ar); @endphp
-                        @if (trim($subTitle) !== trim($sTitle))
-                            <tr><td colspan="4" class="subgroup c"><span class="en">{{ $subTitle }}</span>@if($subTitleAr) / <span class="ar" style="float:none;display:inline">{{ $subTitleAr }}</span>@endif</td><td class="subgroup c">{{ $subNum }}</td></tr>
-                        @endif
-                        @php $lastSub = $step->description; $letterIdx = 0; @endphp
-                    @endif
                     @php
-                        $d = $answers->get($step->id); $choice = $d->choice ?? null; $rating = $d->rating ?? null;
-                        $isPass = in_array($choice,['Pass','Yes'],true) || ($rating!==null && $rating>=3);
-                        $isFail = in_array($choice,['Fail','No'],true) || ($rating!==null && $rating<3);
-                        $isNa = ! $isPass && ! $isFail;
-                        $letterIdx++;
-                        $letter = $letterIdx <= 26 ? chr(96 + $letterIdx) : $letterIdx;
+                        [$gNum, $gTitle] = $splitNum($section->group_name); $lastGroup = $section->group_name;
+                        $gBanner = in_array($section->group_name, $shownGroupBanners, true) ? null : $bannerUrl($section->group_name);
                     @endphp
-                    <tr class="c">
-                        <td style="width:34px">{!! $ck($isNa) !!}</td><td style="width:34px">{!! $ck($isFail) !!}</td><td style="width:34px">{!! $ck($isPass) !!}</td>
-                        <td class="qcell">@if($step->question_ar)<span class="ar ar-blk" style="text-align:right">{{ $step->question_ar }}</span>@endif<span style="display:block;text-align:left">{{ $step->question }}</span></td>
-                        <td>({{ $letter }})</td>
-                    </tr>
-                @endforeach
+                    @if ($gBanner)
+                        @php $shownGroupBanners[] = $section->group_name; @endphp
+                        {{-- keep group title + banner together so they never split across a page --}}
+                        <div class="group-lead">
+                            <div class="make-h" style="font-size:20px">{{ $gTitle }}<span class="u"></span></div>
+                            <img class="sec-banner" style="margin-bottom:0" src="{{ $gBanner }}" alt="">
+                        </div>
+                    @else
+                        <div class="make-h" style="font-size:20px;margin-top:12px">{{ $gTitle }}<span class="u"></span></div>
+                    @endif
+                @endif
+
+                <div class="sec-bar" style="margin-top:14px">
+                    <span class="en">{{ $sTitle }}</span>
+                    @if ($sAr)<span class="ar">{{ $sAr }}</span>@endif
+                </div>
+                @php $secBanner = $bannerUrl($section->section_name); @endphp
+                @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
+
+                @php
+                    $secMeta = ($sectionSummaries ?? collect())->get($section->id);
+                    $secRating = Inspection::sectionRating($section, $answers, optional($secMeta)->rating);
+                @endphp
+                @if ($secRating || optional($secMeta)->summary)
+                    <div class="sec-summary" style="margin:6px 0 10px;font-size:12px;color:#444;">
+                        @if ($secRating)
+                            <span style="white-space:nowrap;margin-right:8px;">@for($i=1;$i<=5;$i++)<span style="color:{{ $i <= $secRating ? '#f1b44c' : '#d3d3d3' }};">★</span>@endfor <span style="color:#888;">{{ $secRating }}/5</span></span>
+                        @endif
+                        @if (optional($secMeta)->summary)<span style="font-style:italic;white-space:pre-line;">{{ $secMeta->summary }}</span>@endif
+                    </div>
+                @endif
+
+                <div class="grid2">
+                    @foreach ($steps as $step)
+                        @php
+                            $state = $rowState($step);
+                            $d = $answers->get($step->id);
+                            $note = $d->descriptive_answer ?: ($d->remedial_suggestion ?? null);
+                            $photos = $stepPhotos($step);
+                        @endphp
+                        <div class="item-card">
+                            <div class="item-head">
+                                <span class="item-title">{{ $step->question }}
+                                    @if ($step->question_ar)<span class="ar">{{ $step->question_ar }}</span>@endif
+                                </span> 
+                                {!! $badge($state) !!}
+                            </div>
+                            @if ($note)
+                                <div class="item-note">{{ $note }}</div>
+                            @endif
+                            @if ($photos->isNotEmpty())
+                                <div class="thumbs">
+                                    @foreach ($photos->take(4) as $ph)
+                                        <img class="thumb" src="{{ $ph->url }}" alt="">
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
             @endforeach
-            </tbody>
-        </table>
+        </div>
 
-        {{-- Standard footnotes (image-22) --}}
-        <table class="nb notes" style="margin-top:4px">
-            <tr><td style="text-align:left">* In the event that the above standard does not match, a proof of the distinguished number (VIN) from the manufacturer shall be attached.<span class="ar ar-blk" style="display:block;text-align:right">* في حالة عدم مطابقة المواصفة أعلاه، يتم إرفاق ما يثبت دلالات الرقم المميز من الشركة الصانعة.</span></td></tr>
-            <tr><td style="text-align:left">** Optional requirement.<span class="ar ar-blk" style="display:block;text-align:right">** متطلب اختياري.</span></td></tr>
-        </table>
-
-        {{-- Verdict --}}
-        <div class="secbar"><span class="en">Overall Verdict</span><span class="ar">النتيجة النهائية</span></div>
-        <table style="margin-bottom:10px">
-            <tr><th class="c" style="width:25%">Overall Condition<span class="ar ar-blk">الحالة العامة</span></th><td>{{ $condition }}</td>
-                <th class="c" style="width:25%">Recommendation<span class="ar ar-blk">التوصية</span></th><td>{{ $recommend }}</td></tr>
-            <tr><th class="c">Summary<span class="ar ar-blk">ملخص</span></th><td colspan="3" style="white-space:pre-line">{{ $val($inspection->summary) }}</td></tr>
-        </table>
-
-        {{-- ===== Inspection Photos — 2 per row, captioned by section (image-24 style) ===== --}}
-        @php
-            // step_id -> section, so each photo is captioned with its section name
-            $stepSection = [];
-            foreach ($inspection->type->sections as $sec) {
-                foreach ($sec->steps as $st) { $stepSection[$st->id] = $sec; }
-            }
-            $reportPhotos = [];
-            foreach ($inspection->details as $d) {
-                $sec = $stepSection[$d->inspection_step_id] ?? null;
-                foreach ($d->media->where('type', 'photo') as $m) {
-                    // Only show the image if the file actually exists on its disk.
-                    try {
-                        if (! $m->path || ! \Illuminate\Support\Facades\Storage::disk($m->disk ?: 'public')->exists($m->path)) {
-                            continue;
-                        }
-                    } catch (\Throwable $e) {
-                        continue;
-                    }
-                    // Prefer the media's own label (e.g. additional-media captions); fall back to the section name.
-                    $reportPhotos[] = ['caption' => $m->label ?: ($sec?->section_name ?? 'Photo'), 'media' => $m];
-                }
-            }
-        @endphp
+        {{-- ============================== GENERAL PHOTOS ============================== --}}
         @if (! empty($reportPhotos))
-            <div class="pb"></div>
-            <div class="secbar c"><span class="en">Inspection Photos</span></div>
-            <table class="photogrid">
-                @foreach (array_chunk($reportPhotos, 2) as $row)
-                    <tr>
-                        @foreach ($row as $p)
-                            <td>
-                                <div class="pcap">{{ $p['caption'] }}</div>
-                                <div class="pbox"><img src="{{ $p['media']->url }}"></div>
-                            </td>
-                        @endforeach
-                        @if (count($row) === 1)<td></td>@endif
-                    </tr>
-                @endforeach
-            </table>
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            <div class="sec-bar"><span class="en">General Photos</span><span class="ar">صور عامة</span></div>
+            <div class="card">
+                <div class="gal">
+                    @foreach ($reportPhotos as $p)
+                        <figure>
+                            <img src="{{ $p['media']->url }}" alt="">
+                            <figcaption>{{ $p['caption'] }}</figcaption>
+                        </figure>
+                    @endforeach
+                </div>
+            </div>
+        </div>
         @endif
 
-        {{-- ===== Signatures &amp; date (image-24) ===== --}}
-        <table class="signtbl" style="margin-top:10px">
-            <tr>
-                <td class="c">{{ $reportDt }}</td>
-                <td class="c siglbl">Date <span class="ar">التاريخ</span></td>
-                <td style="width:120px"></td>
-                <td class="c siglbl">Sign <span class="ar">التوقيع</span></td>
-                <td class="c"><b>{{ $val(optional($inspection->technician)->name) }}</b></td>
-                <td class="c siglbl">Inspector Name <span class="ar">اسم المفتش</span></td>
-            </tr>
-            <tr>
-                <td class="c">{{ $reportDt }}</td>
-                <td class="c siglbl">Date <span class="ar">التاريخ</span></td>
-                <td></td>
-                <td class="c siglbl">Sign <span class="ar">التوقيع</span></td>
-                <td class="c"></td>
-                <td class="c siglbl">Technical Manager <span class="ar">المدير الفني</span></td>
-            </tr>
-        </table>
+        {{-- ============================== INSPECTOR COMMENT ============================== --}}
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            <div class="sec-bar"><span class="en">Inspector Comment</span><span class="ar">ملاحظات المفتش</span></div>
+            <div class="card">
+                @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
+                @if ($summary)
+                    <div style="white-space:pre-line;font-weight:600;color:#2b3340;line-height:1.7">{{ $summary }}</div>
+                @else
+                    <div class="muted">No additional inspector comments were recorded.</div>
+                @endif
+            </div>
 
-        {{-- ===== Terms and conditions (image-24) ===== --}}
-        <div class="terms" style="margin-top:12px">
-            <table class="nb">
-                <tr>
-                    <td style="width:50%">
-                        <b>Terms and conditions</b>
+            {{-- Signatures --}}
+            <div class="sec-bar" style="margin-top:6px"><span class="en">Signatures</span><span class="ar">التواقيع</span></div>
+            <div class="card">
+                <div class="sign">
+                    <div class="col">
+                        <div class="fv" style="font-weight:700;margin-bottom:6px">{{ $val(optional($inspection->technician)->name) }}</div>
+                        <div class="slot"></div>
+                        <div class="sl">Inspector — Sign &amp; Date <span class="ar">المفتش — التوقيع والتاريخ</span></div>
+                    </div>
+                    <div class="col">
+                        <div class="fv" style="font-weight:700;margin-bottom:6px">&nbsp;</div>
+                        <div class="slot"></div>
+                        <div class="sl">Technical Manager — Sign &amp; Date <span class="ar">المدير الفني — التوقيع والتاريخ</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ============================== TERMS & CONDITIONS ============================== --}}
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            <div class="sec-bar"><span class="en">Terms &amp; Conditions</span><span class="ar">الشروط والأحكام</span></div>
+            <div class="card terms">
+                <div class="grid2">
+                    <div class="col">
+                        <h4>Terms and conditions</h4>
                         <ul>
                             <li>This report is for the vehicle provided by the customer and tested/inspected only.</li>
                             <li>This report is considered void in the event of any scraping, modification, deletion, or addition.</li>
                             <li>The data in this report is confidential and private and no company personnel has the right to publish or announce it except with the prior approval of the customer or according to a court ruling or a request from the competent authorities.</li>
                             <li>The vehicle owner (customer) is obligated to attend again if requested.</li>
                         </ul>
-                    </td>
-                    <td style="width:50%" class="ar">
-                        <b>الشروط والأحكام</b>
+                    </div>
+                    <div class="col ar">
+                        <h4>الشروط والأحكام</h4>
                         <ul>
                             <li>هذا التقرير يخص المركبة التي قدمها العميل وتم اختبارها/فحصها فقط.</li>
                             <li>يعتبر هذا التقرير لاغياً في حالة حدوث أي كشط أو تعديل أو حذف أو إضافة.</li>
                             <li>بيانات هذا التقرير سرية وخاصة ولا يحق لأي من أفراد الشركة نشرها أو الإعلان عنها إلا بموافقة مسبقة من العميل وبموجب حكم قضائي أو طلب من الجهات المختصة.</li>
                             <li>يلتزم صاحب المركبة (العميل) بالحضور مرة أخرى إذا طُلب منه.</li>
                         </ul>
-                    </td>
-                </tr>
-            </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="endrep">End of Report</div>
+        {{-- ============================== THANK YOU ============================== --}}
+        <div class="thanks pb">
+            <img class="thanks-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+            <div>
+                <h1>Thank You for Choosing<br><span class="g">Auto Assure</span></h1>
+                <div class="site">Inspection Checklist for Used Imported Vehicle</div>
+            </div>
+            <img class="thanks-art" src="{{ asset('img/pdf_design/footer.webp') }}" alt="">
+        </div>
+
     </div>
     @if(request()->boolean('download'))
         <script>

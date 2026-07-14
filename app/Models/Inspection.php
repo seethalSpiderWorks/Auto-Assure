@@ -76,6 +76,15 @@ class Inspection extends Model
     }
 
     /**
+     * Per-section free-text summaries + optional ratings (the section-level notes
+     * shown at the top of the report's "Inspection Summary"), keyed by section id.
+     */
+    public function sectionSummaries(): HasMany
+    {
+        return $this->hasMany(InspectionSectionSummary::class);
+    }
+
+    /**
      * Number of template steps that have been answered so far.
      */
     public function progress(): array
@@ -111,6 +120,67 @@ class Inspection extends Model
         return ($detail->choice !== null && $detail->choice !== '')
             || ((int) ($detail->rating ?? 0) > 0)
             || ($detail->descriptive_answer !== null && $detail->descriptive_answer !== '');
+    }
+
+    // Choice vocabulary used to score answers as pass / fail across the report,
+    // summary and API. Kept here so every surface reads the same rule.
+    public const POSITIVE_CHOICES = ['Pass', 'Yes', 'Working', 'Good', 'Available', 'OK'];
+
+    public const NEGATIVE_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available'];
+
+    /**
+     * pass | fail | na for a saved answer, recognising the checklist's choice vocab
+     * (Working/Not Working, Pass/Fail, Yes/No, …) or a 1–5 rating.
+     */
+    public static function choiceState($detail): string
+    {
+        if (! $detail) {
+            return 'na';
+        }
+
+        $choice = $detail->choice;
+        $rating = $detail->rating;
+
+        if (in_array($choice, self::POSITIVE_CHOICES, true) || ($rating !== null && $rating >= 3)) {
+            return 'pass';
+        }
+        if (in_array($choice, self::NEGATIVE_CHOICES, true) || ($rating !== null && $rating < 3)) {
+            return 'fail';
+        }
+
+        return 'na';
+    }
+
+    /**
+     * Dynamic 1–5 rating for a section, derived from the share of "pass" answers
+     * among its answered questions. A manual per-section rating overrides it.
+     *
+     * @param  \Illuminate\Support\Collection  $byStep  answers keyed by inspection_step_id
+     */
+    public static function sectionRating($section, $byStep, ?int $manual = null): ?int
+    {
+        if ($manual) {
+            return max(1, min(5, $manual));
+        }
+
+        $answered = 0;
+        $pass = 0;
+        foreach ($section->steps as $step) {
+            $detail = $byStep->get($step->id);
+            if (! self::detailIsAnswered($detail)) {
+                continue;
+            }
+            $answered++;
+            if (self::choiceState($detail) === 'pass') {
+                $pass++;
+            }
+        }
+
+        if ($answered === 0) {
+            return null;
+        }
+
+        return max(1, (int) round($pass / $answered * 5));
     }
 
     /**

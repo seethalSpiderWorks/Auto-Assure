@@ -48,7 +48,7 @@ class InspectionController extends Controller
      public function summary(Request $request, Inspection $inspection): InspectionSummaryResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media']);
+        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries']);
 
         return new InspectionSummaryResource($inspection);
     }

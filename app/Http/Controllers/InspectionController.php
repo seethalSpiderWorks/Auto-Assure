@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ResolvesCurrentBranch;
 use App\Models\Inspection;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
+use App\Models\InspectionSectionSummary;
 use App\Models\InspectionStep;
 use App\Models\Lead;
 use Illuminate\Contracts\View\View;
@@ -97,10 +98,14 @@ class InspectionController extends Controller
             'lead', 'technician',
             'type.sections.steps',
             'details.media',
+            'sectionSummaries',
         ]);
 
         // Index existing answers by step id for easy rendering.
         $answers = $inspection->details->keyBy('inspection_step_id');
+
+        // Section-level summaries, keyed by section id for the textareas.
+        $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
         // Step-less bucket of extra/additional media.
         $extraDetail = $inspection->details->first(fn ($d) => is_null($d->inspection_step_id));
@@ -121,7 +126,7 @@ class InspectionController extends Controller
             ->pluck('name', 'id')
             ->toArray();
 
-        return view('inspections.edit', compact('inspection', 'answers', 'technicians', 'inspectionTypes', 'extraMedia'));
+        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia'));
     }
 
     /**
@@ -135,11 +140,13 @@ class InspectionController extends Controller
             'lead', 'technician', 'branch',
             'type.sections.steps',
             'details.media',
+            'sectionSummaries',
         ]);
 
         $answers = $inspection->details->keyBy('inspection_step_id');
+        $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        return view('inspections.report', compact('inspection', 'answers'));
+        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries'));
     }
 
     /**
@@ -154,11 +161,13 @@ class InspectionController extends Controller
             'lead', 'technician', 'branch',
             'type.sections.steps',
             'details.media',
+            'sectionSummaries',
         ]);
 
         $answers = $inspection->details->keyBy('inspection_step_id');
+        $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        return view('inspections.report_preview', compact('inspection', 'answers'));
+        return view('inspections.report_preview', compact('inspection', 'answers', 'sectionSummaries'));
     }
 
     /**
@@ -204,26 +213,14 @@ class InspectionController extends Controller
             'lead', 'technician',
             'type.sections.steps',
             'details.media',
+            'sectionSummaries',
         ]);
 
         $byStep = $inspection->details->keyBy('inspection_step_id');
+        $summaryBySection = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        // Same pass/fail rule the printable report uses.
-        $stateOf = function ($detail): string {
-            if (! $detail) {
-                return 'na';
-            }
-            $choice = $detail->choice;
-            $rating = $detail->rating;
-            if (in_array($choice, ['Pass', 'Yes'], true) || ($rating !== null && $rating >= 3)) {
-                return 'pass';
-            }
-            if (in_array($choice, ['Fail', 'No'], true) || ($rating !== null && $rating < 3)) {
-                return 'fail';
-            }
-
-            return 'na';
-        };
+        // Same pass/fail rule the printable report and API use.
+        $stateOf = fn ($detail): string => Inspection::choiceState($detail);
 
         $sections = [];
         $totalSteps = 0;
@@ -268,6 +265,13 @@ class InspectionController extends Controller
                 'answered' => $answered,
                 'fail' => $fail,
                 'status' => $status,
+                'summary' => optional($summaryBySection->get($section->id))->summary,
+                // Dynamic rating from the section's answers; a manual rating overrides it.
+                'rating' => Inspection::sectionRating(
+                    $section,
+                    $byStep,
+                    optional($summaryBySection->get($section->id))->rating
+                ),
             ];
 
             $totalSteps += $total;
@@ -353,6 +357,40 @@ class InspectionController extends Controller
         $inspection->save();
 
         return response()->json(['saved' => true, 'progress' => $inspection->progress()]);
+    }
+
+    /**
+     * Auto-save a single section's summary note and optional rating (AJAX).
+     */
+    public function autosaveSectionSummary(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeInspection($inspection);
+
+        $data = $request->validate([
+            'section_id' => ['required', 'integer'],
+            'summary' => ['nullable', 'string', 'max:5000'],
+            'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+        ]);
+
+        $sectionId = (int) $data['section_id'];
+
+        // Only accept summaries for sections that belong to this inspection's template.
+        $belongs = $inspection->type
+            && $inspection->type->sections()->whereKey($sectionId)->exists();
+        abort_unless($belongs, 422, 'Unknown section.');
+
+        InspectionSectionSummary::updateOrCreate(
+            ['inspection_id' => $inspection->id, 'inspection_section_id' => $sectionId],
+            [
+                'summary' => filled($data['summary'] ?? null) ? $data['summary'] : null,
+                'rating' => $data['rating'] ?? null,
+            ]
+        );
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        return response()->json(['saved' => true]);
     }
 
     /**
@@ -544,6 +582,11 @@ class InspectionController extends Controller
             'answers.*.choice' => ['nullable', 'string', 'max:255'],
             'answers.*.text' => ['nullable', 'string', 'max:5000'],
             'answers.*.remedial' => ['nullable', 'string', 'max:5000'],
+            // Per-section summaries (section id => text) and optional ratings (section id => 1-5)
+            'section_summaries' => ['nullable', 'array'],
+            'section_summaries.*' => ['nullable', 'string', 'max:5000'],
+            'section_ratings' => ['nullable', 'array'],
+            'section_ratings.*' => ['nullable', 'integer', 'min:1', 'max:5'],
             // Media
             'photos.*.*' => ['nullable', 'image', 'max:10240'],
             'videos.*.*' => ['nullable', 'mimetypes:video/mp4,video/quicktime,video/x-matroska', 'max:102400'],
@@ -637,6 +680,34 @@ class InspectionController extends Controller
             );
 
             $this->storeUploads($request, $inspection, $detail, $stepId);
+        }
+
+        // Persist per-section summaries and optional ratings (only for sections
+        // that belong to the template the form was rendered with).
+        $sectionSummaries = (array) $request->input('section_summaries', []);
+        $sectionRatings = (array) $request->input('section_ratings', []);
+        $formSectionIds = array_unique(array_merge(array_keys($sectionSummaries), array_keys($sectionRatings)));
+        if ($formSectionIds) {
+            $validSectionIds = $inspection->type
+                ? $inspection->type->sections()->pluck('id')->all()
+                : [];
+
+            foreach ($formSectionIds as $sectionId) {
+                if (! in_array((int) $sectionId, $validSectionIds, true)) {
+                    continue;
+                }
+
+                $text = $sectionSummaries[$sectionId] ?? null;
+                $rating = $sectionRatings[$sectionId] ?? null;
+
+                InspectionSectionSummary::updateOrCreate(
+                    ['inspection_id' => $inspection->id, 'inspection_section_id' => (int) $sectionId],
+                    [
+                        'summary' => filled($text) ? $text : null,
+                        'rating' => filled($rating) ? (int) $rating : null,
+                    ]
+                );
+            }
         }
 
         // Completion (with mandatory-media check). Skipped when the template was just

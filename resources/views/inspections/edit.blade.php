@@ -61,7 +61,7 @@
     .form-control:focus, .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 .18rem rgba(4,176,132,.15); }
 
     /* Star rating */
-    .js-star { cursor: pointer; font-size: 1.35rem; line-height: 1; }
+    .js-star, .js-secstar { cursor: pointer; font-size: 1.35rem; line-height: 1; }
 
     /* Dashed upload area */
     .upload-drop {
@@ -146,7 +146,7 @@
     $choiceColor = function ($opt) {
         $o = strtolower(trim($opt));
         if (in_array($o, ['pass', 'yes', 'ok', 'good', 'passed', 'available', 'working'])) return '#0f9d69';
-        if (in_array($o, ['fail', 'no', 'bad', 'not ok', 'failed', 'faulty', 'damaged'])) return '#e43f3f';
+        if (in_array($o, ['fail', 'no', 'bad', 'not ok', 'failed', 'faulty', 'damaged', 'not working', 'not available'])) return '#e43f3f';
         return '#6b7280';
     };
 
@@ -166,6 +166,7 @@
 
         <div id="inspection-root"
              data-step-url="{{ route('inspections.autosave.step', $inspection) }}"
+             data-section-summary-url="{{ route('inspections.autosave.section-summary', $inspection) }}"
              data-customer-url="{{ route('inspections.autosave.customer', $inspection) }}"
              data-media-url="{{ route('inspections.media.upload', $inspection) }}"
              data-extra-media-url="{{ route('inspections.extra-media.upload', $inspection) }}"
@@ -328,7 +329,12 @@
                             @php($section = $ws['section'])
                             <div class="card" data-section="{{ $section->id }}" id="section-card-{{ $section->id }}">
                                 <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
+                                    <div>
+                                        @if($section->group_name)
+                                            <div class="text-uppercase text-muted font-size-11 font-weight-bold" style="letter-spacing:.04em;">{{ $section->group_name }}@if($section->group_name_ar)<span dir="rtl"> — {{ $section->group_name_ar }}</span>@endif</div>
+                                        @endif
+                                        <h5 class="mb-0">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
+                                    </div>
                                     <span class="badge badge-soft-secondary font-size-12" data-section-badge="{{ $section->id }}">0/{{ $section->steps->count() }}</span>
                                 </div>
                                 <div class="card-body">
@@ -370,6 +376,9 @@
                                             </div>
 
                                             @php($choiceGated = $step->show_multiple_choice && (in_array('Pass', $step->multiple_choice_options ?? [], true) || in_array('Fail', $step->multiple_choice_options ?? [], true)))
+                                            {{-- The "negative" option that reveals the remedial box (Not Working / No / Fail). --}}
+                                            @php($negChoice = collect($step->multiple_choice_options ?? [])->first(fn ($o) => in_array($o, ['Fail', 'No', 'Not Working'], true)))
+                                            @php($remedialGated = $step->show_multiple_choice && $negChoice !== null)
                                             @if ($step->show_text_answer || $choiceGated)
                                                 <div class="observation-wrap mt-2" data-observation="{{ $choiceGated ? $step->id : '' }}"
                                                     style="{{ $choiceGated && ($detail->choice ?? '') !== 'Fail' ? 'display:none;' : '' }}">
@@ -379,11 +388,11 @@
                                             @endif
 
                                             @if ($step->show_remedial_suggestions)
-                                                {{-- Pass/Fail questions: remedial gated to "Fail" (unchanged).
-                                                     Any other choice set (or rating/text only): always show it. --}}
-                                                <div class="remedial-wrap" data-remedial="{{ $choiceGated ? $step->id : '' }}"
-                                                    style="{{ $choiceGated && ($detail->choice ?? '') !== 'Fail' ? 'display:none;' : '' }}">
-                                                    <label class="form-label font-size-12 text-danger mb-1">Remedial suggestion{{ $choiceGated ? ' (for failed item)' : '' }}</label>
+                                                {{-- Remedial is gated to the question's negative option (e.g. "Not Working",
+                                                     "No", "Fail"). Questions without a negative option always show it. --}}
+                                                <div class="remedial-wrap" data-remedial="{{ $remedialGated ? $step->id : '' }}" data-remedial-neg="{{ $negChoice }}"
+                                                    style="{{ $remedialGated && ($detail->choice ?? '') !== $negChoice ? 'display:none;' : '' }}">
+                                                    <label class="form-label font-size-12 text-danger mb-1">Remedial suggestion{{ $remedialGated ? ' (for '.$negChoice.')' : '' }}</label>
                                                     <textarea name="answers[{{ $step->id }}][remedial]" rows="2" placeholder="What needs to be repaired / replaced…"
                                                         oninput="AA.debounceStep({{ $step->id }})" class="form-control mb-2">{{ $detail->remedial_suggestion ?? '' }}</textarea>
                                                 </div>
@@ -431,6 +440,30 @@
                                     @empty
                                         <p class="text-muted mb-0">No items in this section.</p>
                                     @endforelse
+
+                                    {{-- Section-level summary + optional rating (shown on the report's Inspection Summary) --}}
+                                    @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
+                                    @php($secRating = (int) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
+                                    <div class="border-top pt-3 mt-2" data-section-summary="{{ $section->id }}">
+                                        <label class="form-label font-size-13 font-weight-bold mb-1">
+                                            {{ $section->section_name }} summary
+                                            <small class="text-muted font-weight-normal">— shown on the report</small>
+                                        </label>
+                                        <textarea name="section_summaries[{{ $section->id }}]" rows="2"
+                                            placeholder="e.g. {{ $section->section_name }} is in good condition"
+                                            oninput="AA.debounceSectionSummary({{ $section->id }})"
+                                            class="form-control">{{ old('section_summaries.'.$section->id, $sectionSummary->summary ?? '') }}</textarea>
+
+                                        <div class="d-inline-flex align-items-center mt-2" data-section-rating="{{ $section->id }}">
+                                            <span class="font-size-12 text-muted mr-2">Section rating <span class="text-muted">(optional)</span>:</span>
+                                            <input type="hidden" name="section_ratings[{{ $section->id }}]" value="{{ $secRating ?: '' }}">
+                                            @for ($n = 1; $n <= 5; $n++)
+                                                <span class="js-secstar" data-section="{{ $section->id }}" data-val="{{ $n }}"
+                                                      style="color:{{ $n <= $secRating ? '#f1b44c' : '#ccc' }};">★</span>
+                                            @endfor
+                                            <small class="text-muted ml-2 js-secrating-label" data-section="{{ $section->id }}">{{ $secRating ? $secRating.'/5' : '' }}</small>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -586,6 +619,7 @@
     const status = document.getElementById('save-status');
     const urls = {
         step: root.dataset.stepUrl,
+        sectionSummary: root.dataset.sectionSummaryUrl,
         customer: root.dataset.customerUrl,
         media: root.dataset.mediaUrl,
         extraMedia: root.dataset.extraMediaUrl,
@@ -640,6 +674,23 @@
         debounceStep(stepId) {
             clearTimeout(timers['s' + stepId]);
             timers['s' + stepId] = setTimeout(() => AA.saveStep(stepId), 700);
+        },
+        async saveSectionSummary(sectionId) {
+            saving();
+            const el = root.querySelector('textarea[name="section_summaries[' + sectionId + ']"]');
+            const rt = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
+            try {
+                await post(urls.sectionSummary, {
+                    section_id: sectionId,
+                    summary: el ? el.value : null,
+                    rating: rt && rt.value ? parseInt(rt.value, 10) : null,
+                });
+                saved();
+            } catch (e) { failed(); }
+        },
+        debounceSectionSummary(sectionId) {
+            clearTimeout(timers['ss' + sectionId]);
+            timers['ss' + sectionId] = setTimeout(() => AA.saveSectionSummary(sectionId), 700);
         },
         async saveCustomer() {
             saving();
@@ -843,7 +894,10 @@
     }
     function toggleAnswerFields(stepId, value) {
         toggleField('[data-observation="', stepId, value === 'Fail');
-        toggleField('[data-remedial="', stepId, value === 'Fail');
+        // Remedial uses each question's own "negative" option, not a fixed "Fail".
+        const remWrap = root.querySelector('[data-remedial="' + stepId + '"]');
+        const neg = remWrap ? remWrap.getAttribute('data-remedial-neg') : '';
+        toggleField('[data-remedial="', stepId, !!neg && value === neg);
     }
     root.addEventListener('change', function (e) {
         const t = e.target;
@@ -872,6 +926,27 @@
             paintStars(stepId, next);
             AA.saveStep(stepId);
             recompute();
+        });
+    });
+
+    // Optional per-section rating stars.
+    function paintSecStars(sectionId, val) {
+        root.querySelectorAll('.js-secstar[data-section="' + sectionId + '"]').forEach(s => {
+            s.style.color = parseInt(s.dataset.val, 10) <= val ? '#f1b44c' : '#ccc';
+        });
+        const label = root.querySelector('.js-secrating-label[data-section="' + sectionId + '"]');
+        if (label) label.textContent = val ? val + '/5' : '';
+    }
+    root.querySelectorAll('.js-secstar').forEach(star => {
+        star.addEventListener('click', () => {
+            const sectionId = star.dataset.section;
+            const val = parseInt(star.dataset.val, 10);
+            const hidden = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
+            const current = hidden.value ? parseInt(hidden.value, 10) : 0;
+            const next = current === val ? 0 : val;       // click same star again to clear
+            hidden.value = next || '';
+            paintSecStars(sectionId, next);
+            AA.saveSectionSummary(sectionId);
         });
     });
 

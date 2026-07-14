@@ -120,7 +120,17 @@
                                 @endphp
                                 <tr class="insp-brow insp-brow--{{ $stClass }}">
                                     <td class="c-no"><span class="insp-bno">{{ $s['number'] }}</span></td>
-                                    <td class="c-name">{{ $s['name'] }}</td>
+                                    <td class="c-name">
+                                        {{ $s['name'] }}
+                                        @if(!empty($s['rating']))
+                                            <span class="ml-1" title="{{ $s['rating'] }}/5" style="white-space:nowrap;">
+                                                @for($i=1;$i<=5;$i++)<span style="color:{{ $i <= $s['rating'] ? '#f1b44c' : '#d3d3d3' }};">★</span>@endfor
+                                            </span>
+                                        @endif
+                                        @if(!empty($s['summary']))
+                                            <div class="text-muted font-size-12 mt-1" style="white-space:pre-line;font-weight:400;">{{ $s['summary'] }}</div>
+                                        @endif
+                                    </td>
                                     <td class="c-prog">
                                         <div class="insp-btprog">
                                             <span class="insp-btbar"><span style="--w: {{ $pct }}%"></span></span>

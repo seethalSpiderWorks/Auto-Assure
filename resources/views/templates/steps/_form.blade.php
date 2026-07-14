@@ -16,15 +16,9 @@
             @error('question_ar')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 
-        <div class="form-group mb-3">
-            <label for="description" class="form-label">Sub-group heading / helper description</label>
-            <textarea id="description" name="description" rows="2" class="form-control">{{ old('description', $step->description) }}</textarea>
-        </div>
-
-        <div class="form-group mb-3">
-            <label for="description_ar" class="form-label">Sub-group heading (Arabic) — العنوان الفرعي بالعربية</label>
-            <textarea id="description_ar" name="description_ar" dir="rtl" rows="2" class="form-control">{{ old('description_ar', $step->description_ar) }}</textarea>
-        </div>
+        {{-- Sub-group heading / helper description fields are hidden (not used) but preserved on submit. --}}
+        <input type="hidden" name="description" value="{{ old('description', $step->description) }}">
+        <input type="hidden" name="description_ar" value="{{ old('description_ar', $step->description_ar) }}">
 
         <div class="form-group mb-3">
             <label for="sequence" class="form-label">Display order</label>
@@ -63,12 +57,20 @@
             </div>
 
             @php($mcOn = old('show_multiple_choice', $step->show_multiple_choice))
+            @php($mcList = array_values(array_filter(array_map('trim', explode(',', $mc)))))
+            {{-- The free-text "Choice options (comma separated)" field is hidden. The
+                 question's existing options are shown read-only and preserved on submit. --}}
             <div class="form-group mt-2" id="mc-options" style="display: {{ $mcOn ? '' : 'none' }};">
-                <label for="multiple_choice_options" class="form-label">Choice options (comma separated) <span class="text-danger">*</span></label>
-                <input id="multiple_choice_options" name="multiple_choice_options"
-                       class="form-control @error('multiple_choice_options') is-invalid @enderror"
-                       value="{{ $mc }}" placeholder="Yes, No" @if($mcOn) required @endif>
-                @error('multiple_choice_options')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                <label class="form-label">Choice options</label>
+                <input type="hidden" id="multiple_choice_options" name="multiple_choice_options" value="{{ $mc }}">
+                <div class="d-flex flex-wrap" style="gap:.4rem;">
+                    @forelse ($mcList as $opt)
+                        <span class="badge badge-soft-secondary font-size-13">{{ $opt }}</span>
+                    @empty
+                        <span class="text-muted font-size-12">No options set for this question.</span>
+                    @endforelse
+                </div>
+                @error('multiple_choice_options')<div class="text-danger font-size-12 mt-1">{{ $message }}</div>@enderror
             </div>
         </div>
 
@@ -102,14 +104,11 @@
 (function () {
     var mc = document.getElementById('show_multiple_choice');
     var mcWrap = document.getElementById('mc-options');
-    var mcInput = document.getElementById('multiple_choice_options');
 
-    // Show the choice-options field and make it required only while "Multiple choice"
-    // is ticked — a hidden required field would block submission unfocusably.
+    // Reveal the read-only choice options only while "Multiple choice" is ticked.
+    // Options are carried in a hidden field, so nothing is required from the user here.
     function syncMc() {
-        var on = mc.checked;
-        mcWrap.style.display = on ? '' : 'none';
-        if (mcInput) mcInput.required = on;
+        mcWrap.style.display = mc.checked ? '' : 'none';
     }
     if (mc) { mc.addEventListener('change', syncMc); syncMc(); }
 

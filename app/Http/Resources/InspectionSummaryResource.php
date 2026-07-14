@@ -21,23 +21,16 @@ class InspectionSummaryResource extends JsonResource
         // step id => saved answer (detail)
         $byStep = $this->details->keyBy('inspection_step_id');
 
+        // section id => per-section summary + rating
+        $summaryBySection = $this->relationLoaded('sectionSummaries')
+            ? $this->sectionSummaries->keyBy('inspection_section_id')
+            : collect();
+
         // Pass / Fail / N-A for a saved answer — same rule used by the report and
         // the web details/summary screens.
-        $stateOf = function ($d): string {
-            if (! $d) {
-                return 'na';
-            }
-            if (in_array($d->choice, ['Pass', 'Yes'], true) || ($d->rating !== null && $d->rating >= 3)) {
-                return 'pass';
-            }
-            if (in_array($d->choice, ['Fail', 'No'], true) || ($d->rating !== null && $d->rating < 3)) {
-                return 'fail';
-            }
+        $stateOf = fn ($d): string => Inspection::choiceState($d);
 
-            return 'na';
-        };
-
-        $sections = collect($this->type?->sections ?? [])->map(function ($section) use ($byStep, $stateOf) {
+        $sections = collect($this->type?->sections ?? [])->map(function ($section) use ($byStep, $stateOf, $summaryBySection) {
             $steps = $section->steps->map(function ($step) use ($byStep, $stateOf) {
                 $d = $byStep->get($step->id);
 
@@ -70,6 +63,8 @@ class InspectionSummaryResource extends JsonResource
                 'section_name' => $section->section_name,
                 'sequence'     => $section->sequence,
                 'description'  => $section->description,
+                'summary'      => optional($summaryBySection->get($section->id))->summary,
+                'rating'       => Inspection::sectionRating($section, $byStep, optional($summaryBySection->get($section->id))->rating),
                 'total'        => $total,
                 'answered'     => $answered,
                 'done'         => $total > 0 && $answered >= $total,
