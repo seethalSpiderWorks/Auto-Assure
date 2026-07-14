@@ -143,6 +143,25 @@ class InspectionController extends Controller
     }
 
     /**
+     * Dummy/preview version of the printable report — a sandbox copy used to
+     * iterate on the report UI without touching the live `report` view.
+     */
+    public function reportPreview(Inspection $inspection): View
+    {
+        $this->authorizeInspection($inspection);
+
+        $inspection->load([
+            'lead', 'technician', 'branch',
+            'type.sections.steps',
+            'details.media',
+        ]);
+
+        $answers = $inspection->details->keyBy('inspection_step_id');
+
+        return view('inspections.report_preview', compact('inspection', 'answers'));
+    }
+
+    /**
      * Full inspection details page (read-only) — customer, vehicle, verdict
      * and the complete checklist with answers and media.
      */

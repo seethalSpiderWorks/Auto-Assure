@@ -54,6 +54,7 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('inspections/{inspection}/edit', [InspectionController::class, 'edit'])->name('inspections.edit');
     Route::get('inspections/{inspection}/details', [InspectionController::class, 'show'])->name('inspections.show');
     Route::get('inspections/{inspection}/report', [InspectionController::class, 'report'])->name('inspections.report');
+    Route::get('inspections/{inspection}/report-preview', [InspectionController::class, 'reportPreview'])->name('inspections.report.preview');
     Route::get('inspections/{inspection}/summary', [InspectionController::class, 'summary'])->name('inspections.summary');
     Route::post('inspections/{inspection}/start', [InspectionController::class, 'start'])->name('inspections.start');
     Route::put('inspections/{inspection}', [InspectionController::class, 'update'])->name('inspections.update');
