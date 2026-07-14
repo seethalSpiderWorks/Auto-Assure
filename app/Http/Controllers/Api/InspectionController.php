@@ -60,7 +60,7 @@ class InspectionController extends Controller
         $query = Inspection::where('technician_id', $request->user()->id)
             ->where('status', '!=', Inspection::STATUS_PENDING)   // history = started/completed only
             ->with(['lead', 'type', 'branch', 'technician'])
-            ->latest();
+            ->latest('updated_at');   // most recently updated first
 
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);
