@@ -169,7 +169,7 @@
                                 <tbody>
                                     @forelse($latestInspections as $insp)
                                         @php
-                                            $nm  = optional($insp->lead)->customer_name ?? $insp->customer_name ?? '—';
+                                            $nm  = $insp->customer_name ?: (optional($insp->lead)->customer_name ?: '—');
                                             $ini = strtoupper(mb_substr(trim($nm), 0, 1)) ?: '?';
                                             $veh = trim(($insp->car_year ? $insp->car_year.' ' : '').($insp->car_make ?? '').' '.($insp->car_model ?? ''));
                                             $stMap = ['completed'=>['Completed','is-completed'],'in_progress'=>['In Progress','is-progress'],'pending'=>['Pending','is-pending']];
