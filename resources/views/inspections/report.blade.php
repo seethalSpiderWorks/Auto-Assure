@@ -633,7 +633,7 @@
                         @php
                             $state = $rowState($step);
                             $d = $answers->get($step->id);
-                            $note = $d->descriptive_answer ?: ($d->remedial_suggestion ?? null);
+                            $note = optional($d)->descriptive_answer ?: (optional($d)->remedial_suggestion ?? null);
                             $photos = $stepPhotos($step);
                         @endphp
                         <div class="item-card">
