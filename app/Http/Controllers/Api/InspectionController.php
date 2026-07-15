@@ -41,7 +41,7 @@ class InspectionController extends Controller
     public function show(Request $request, Inspection $inspection): InspectionResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media']);
+        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries']);
 
         return new InspectionResource($inspection);
     }

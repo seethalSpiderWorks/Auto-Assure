@@ -59,6 +59,26 @@ class InspectionResource extends JsonResource
 
             'progress' => $this->progress(),
 
+            // Per-section summary + rating (manual rating if set, else derived from answers).
+            'section_summaries' => $this->when(
+                $this->relationLoaded('type') && $this->type && $this->type->relationLoaded('sections'),
+                function () {
+                    $byStep = $this->relationLoaded('details')
+                        ? $this->details->keyBy('inspection_step_id')
+                        : collect();
+                    $summaryBySection = $this->relationLoaded('sectionSummaries')
+                        ? $this->sectionSummaries->keyBy('inspection_section_id')
+                        : collect();
+
+                    return $this->type->sections->map(fn ($section) => [
+                        'section_id'   => $section->id,
+                        'section_name' => $section->section_name,
+                        'summary'      => optional($summaryBySection->get($section->id))->summary,
+                        'rating'       => Inspection::sectionRating($section, $byStep, optional($summaryBySection->get($section->id))->rating),
+                    ])->values();
+                }
+            ),
+
             'type'    => new InspectionTypeResource($this->whenLoaded('type')),
             'details' => $this->whenLoaded('details', fn () => $this->details->map(fn ($detail) => [
                 'id'                  => $detail->id,
