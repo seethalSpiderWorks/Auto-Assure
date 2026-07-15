@@ -7,6 +7,7 @@ use App\Http\Resources\InspectionResource;
 use App\Models\Inspection;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
+use App\Models\InspectionSectionSummary;
 use App\Models\Lead;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\InspectionSummaryResource;
@@ -140,6 +141,11 @@ class InspectionController extends Controller
             'answers.*.choice' => ['nullable', 'string', 'max:255'],
             'answers.*.descriptive_answer' => ['nullable', 'string', 'max:5000'],
             'answers.*.remedial_suggestion' => ['nullable', 'string', 'max:5000'],
+            // Optional per-section summaries + ratings (1–5) saved alongside the answers.
+            'sections' => ['nullable', 'array'],
+            'sections.*.section_id' => ['required_with:sections', 'integer'],
+            'sections.*.summary' => ['nullable', 'string', 'max:5000'],
+            'sections.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
 
         if ($validator->fails()) {
@@ -163,6 +169,27 @@ class InspectionController extends Controller
                     'remedial_suggestion' => $a['remedial_suggestion'] ?? null,
                 ]
             );
+        }
+
+        // Per-section summaries + ratings (only for sections in this template).
+        if (! empty($validated['sections'])) {
+            $validSections = $inspection->type
+                ? $inspection->type->sections()->pluck('inspection_sections.id')->all()
+                : [];
+
+            foreach ($validated['sections'] as $s) {
+                $sectionId = (int) $s['section_id'];
+                if (! in_array($sectionId, $validSections, true)) {
+                    continue;
+                }
+                InspectionSectionSummary::updateOrCreate(
+                    ['inspection_id' => $inspection->id, 'inspection_section_id' => $sectionId],
+                    [
+                        'summary' => filled($s['summary'] ?? null) ? $s['summary'] : null,
+                        'rating' => $s['rating'] ?? null,
+                    ]
+                );
+            }
         }
 
         $this->markStarted($inspection);
