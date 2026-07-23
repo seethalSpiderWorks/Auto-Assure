@@ -219,81 +219,15 @@ class InspectionController extends Controller
     /**
      * Upload one photo/video for a given step.
      */
-    /**
-     * Upload one or many photos/videos against a category (section) rather than
-     * a single question.
-     *
-     * POST /api/inspections/{inspection}/sections/{section}/media
-     *   files[]  one or more uploads (multipart). `file` is accepted too, for a single upload.
-     *
-     * The photo/video type is derived from each file's MIME type, so the client
-     * doesn't have to declare it and a mixed batch works in one request.
-     */
-    public function uploadSectionMedia(Request $request, Inspection $inspection, InspectionSection $section): JsonResponse
-    {
-        $this->authorizeTechnician($request, $inspection);
-
-        if ((int) $section->inspection_type_id !== (int) $inspection->inspection_type_id) {
-            return response()->json(['message' => 'Section does not belong to this inspection.'], 422);
-        }
-
-        // Accept files[] (many) or file (one).
-        $input = $request->hasFile('files')
-            ? ['files' => $request->file('files')]
-            : ['files' => array_filter([$request->file('file')])];
-
-        $validator = Validator::make($input, [
-            'files' => ['required', 'array', 'min:1'],
-            'files.*' => ['file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/x-matroska'],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
-        }
-
-        $detail = InspectionDetail::firstOrCreate([
-            'inspection_id' => $inspection->id,
-            'inspection_step_id' => null,
-            'inspection_section_id' => $section->id,
-        ]);
-
-        $created = [];
-
-        foreach ($input['files'] as $file) {
-            $type = str_starts_with((string) $file->getClientMimeType(), 'video/') ? 'video' : 'photo';
-            $path = $file->store("inspections/{$inspection->id}/sections/{$section->id}/{$type}s", 'public');
-
-            $media = $detail->media()->create([
-                'type' => $type,
-                'disk' => 'public',
-                'path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getClientMimeType(),
-                'size' => $file->getSize(),
-            ]);
-
-            $created[] = [
-                'id' => $media->id,
-                'type' => $media->type,
-                'url' => $media->url,
-                'original_name' => $media->original_name,
-                'size' => $media->size,
-            ];
-        }
-
-        $this->markStarted($inspection);
-        $inspection->save();
-
-        return response()->json([
-            'section' => ['id' => $section->id, 'name' => $section->section_name],
-            'uploaded' => count($created),
-            'data' => $created,
-        ], 201);
-    }
-
     public function uploadMedia(Request $request, Inspection $inspection): JsonResponse
     {
         $this->authorizeTechnician($request, $inspection);
+
+        // Section mode: files[<section_id>][] — many files across many sections
+        // in one request. Falls through to the per-step mode below when absent.
+        if (is_array($request->file('files'))) {
+            return $this->uploadSectionMedia($request, $inspection);
+        }
 
         $validator = Validator::make($request->all(), [
             'step_id' => ['required', 'integer'],
@@ -335,6 +269,100 @@ class InspectionController extends Controller
             'type' => $media->type,
             'url' => $media->url,
         ], 201);
+    }
+
+    /**
+     * Section mode of POST /api/inspections/{inspection}/media.
+     *
+     * Files arrive keyed by section id, so one request can cover several
+     * categories at once:
+     *   files[12][] = engine-1.jpg
+     *   files[12][] = engine-2.jpg
+     *   files[9][]  = exterior-1.mp4
+     *
+     * Photo vs video is derived from each file's MIME type. Validation is
+     * all-or-nothing — if any file or section id is rejected, nothing is stored.
+     */
+    private function uploadSectionMedia(Request $request, Inspection $inspection): JsonResponse
+    {
+        $groups = $request->file('files');
+
+        $validSections = InspectionSection::where('inspection_type_id', $inspection->inspection_type_id)
+            ->pluck('section_name', 'id');
+
+        $unknown = array_values(array_filter(
+            array_keys($groups),
+            fn ($id) => ! $validSections->has((int) $id)
+        ));
+
+        if ($unknown !== []) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['files' => ['Unknown section id(s) for this inspection: '.implode(', ', $unknown).'.']],
+            ], 422);
+        }
+
+        $rules = [];
+        foreach (array_keys($groups) as $sectionId) {
+            $rules["files.{$sectionId}"] = ['required', 'array', 'min:1'];
+            $rules["files.{$sectionId}.*"] = ['file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/x-matroska'];
+        }
+
+        $validator = Validator::make(['files' => $groups], $rules);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $sections = [];
+        $total = 0;
+
+        foreach ($groups as $sectionId => $files) {
+            $sectionId = (int) $sectionId;
+
+            $detail = InspectionDetail::firstOrCreate([
+                'inspection_id' => $inspection->id,
+                'inspection_step_id' => null,
+                'inspection_section_id' => $sectionId,
+            ]);
+
+            $items = [];
+
+            foreach ($files as $file) {
+                $type = str_starts_with((string) $file->getClientMimeType(), 'video/') ? 'video' : 'photo';
+                $path = $file->store("inspections/{$inspection->id}/sections/{$sectionId}/{$type}s", 'public');
+
+                $media = $detail->media()->create([
+                    'type' => $type,
+                    'disk' => 'public',
+                    'path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(),
+                    'size' => $file->getSize(),
+                ]);
+
+                $items[] = [
+                    'id' => $media->id,
+                    'type' => $media->type,
+                    'url' => $media->url,
+                    'original_name' => $media->original_name,
+                    'size' => $media->size,
+                ];
+                $total++;
+            }
+
+            $sections[] = [
+                'section_id' => $sectionId,
+                'section_name' => $validSections->get($sectionId),
+                'uploaded' => count($items),
+                'media' => $items,
+            ];
+        }
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        return response()->json(['uploaded' => $total, 'sections' => $sections], 201);
     }
 
     public function deleteMedia(Request $request, InspectionMedia $media): JsonResponse

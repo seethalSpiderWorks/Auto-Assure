@@ -45,8 +45,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/inspections/{inspection}/answers', [InspectionController::class, 'saveAnswers']);       // Screen 4/5
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);
-    // Category (section) media — accepts files[] for a multi-file upload in one request.
-    Route::post('/inspections/{inspection}/sections/{section}/media', [InspectionController::class, 'uploadSectionMedia']);
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
     

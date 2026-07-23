@@ -1,0 +1,55 @@
+{
+  "info": {
+    "name": "Auto Assure — Section Media Upload",
+    "description": "Multiple photo/video upload against an inspection category (section).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "PASTE_SANCTUM_TOKEN_HERE" },
+    { "key": "inspection_id", "value": "1" },
+    { "key": "section_id", "value": "12" }
+  ],
+  "item": [
+    {
+      "name": "Upload multiple media to a section",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "files[]", "type": "file", "src": "/absolute/path/to/a.jpg" },
+            { "key": "files[]", "type": "file", "src": "/absolute/path/to/b.jpg" },
+            { "key": "files[]", "type": "file", "src": "/absolute/path/to/c.mp4" }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/inspections/{{inspection_id}}/sections/{{section_id}}/media",
+          "host": ["{{base_url}}"],
+          "path": ["api", "inspections", "{{inspection_id}}", "sections", "{{section_id}}", "media"]
+        }
+      }
+    },
+    {
+      "name": "Login (get token)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "options": { "raw": { "language": "json" } },
+          "raw": "{\n  \"email\": \"technician@example.com\",\n  \"password\": \"secret\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "login"]
+        }
+      }
+    }
+  ]
+}
