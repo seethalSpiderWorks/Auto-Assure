@@ -153,7 +153,9 @@ class InspectionTemplateSeeder extends Seeder
                             'multiple_choice_options' => self::CHOICES,
                             'show_rating' => false,
                             'show_text_answer' => false,
-                            'show_remedial_suggestions' => false,
+                            // The box stays hidden until Bad or Average is picked
+                            // (Inspection::REMEDIAL_CHOICES gates it in the UI).
+                            'show_remedial_suggestions' => true,
                             'photos' => InspectionStep::MEDIA_NOT_REQUIRED,
                             'videos' => InspectionStep::MEDIA_NOT_REQUIRED,
                         ]

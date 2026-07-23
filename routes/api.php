@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::put('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer']);
 
+    
     Route::post('/inspections/{inspection}/answers', [InspectionController::class, 'saveAnswers']);       // Screen 4/5
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);

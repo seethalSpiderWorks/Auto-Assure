@@ -107,14 +107,26 @@
     foreach ($inspection->type->sections as $sec) {
         foreach ($sec->steps as $stp) { $stepSection[$stp->id] = $sec; }
     }
+    // Category media has no step, so it must be resolved by its own section id.
+    $sectionById = $inspection->type->sections->keyBy('id');
+
     $reportPhotos = [];
     foreach ($inspection->details as $d) {
-        $sec = $stepSection[$d->inspection_step_id] ?? null;
+        $isCategory = is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id);
+        $sec = $isCategory
+            ? ($sectionById[$d->inspection_section_id] ?? null)
+            : ($stepSection[$d->inspection_step_id] ?? null);
+
         foreach ($d->media->where('type', 'photo') as $m) {
             try {
                 if (! $m->path || ! Storage::disk($m->disk ?: 'public')->exists($m->path)) continue;
             } catch (\Throwable $e) { continue; }
-            $reportPhotos[] = ['caption' => $m->label ?: ($sec?->section_name ?? 'Photo'), 'media' => $m];
+            // Photos uploaded against a category are captioned with the section
+            // name; per-question photos keep their own label when one was typed.
+            $caption = $isCategory
+                ? ($sec?->section_name ?? 'Photo')
+                : ($m->label ?: ($sec?->section_name ?? 'Photo'));
+            $reportPhotos[] = ['caption' => $caption, 'media' => $m];
         }
     }
     $heroPhoto = $reportPhotos[0]['media']->url ?? null;

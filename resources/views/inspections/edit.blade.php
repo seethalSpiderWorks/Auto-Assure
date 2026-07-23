@@ -48,7 +48,13 @@
     .q-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
     .q-titlewrap { flex: 1 1 240px; min-width: 0; }
     .q-head .q-title { margin-bottom: 0; }
-    .q-answer { flex: 0 0 auto; display: flex; align-items: center; }
+    /* Rating and choice radios sit side by side here. Without a gap they collide
+       when a question enables both; wrap keeps them readable on narrow screens. */
+    .q-answer { flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: .35rem 1.25rem; justify-content: flex-end; }
+    /* The rating block carries mb-2 for the stacked layout — cancel it inline. */
+    .q-answer > [data-rating] { margin-bottom: 0 !important; }
+    /* Thin divider between the stars and the options when both are shown. */
+    .q-answer > [data-rating] + .choice-radios { border-left: 1px solid #e4e8ee; padding-left: 1.25rem; }
     .observation-wrap, .remedial-wrap { margin-top: .5rem; }
 
     /* Choice options as radio buttons */
@@ -433,9 +439,11 @@
                                             </div>
 
                                             @php($choiceGated = $step->show_multiple_choice && (in_array('Pass', $step->multiple_choice_options ?? [], true) || in_array('Fail', $step->multiple_choice_options ?? [], true)))
-                                            {{-- The "negative" option that reveals the remedial box (Not Working / No / Fail). --}}
-                                            @php($negChoice = collect($step->multiple_choice_options ?? [])->first(fn ($o) => in_array($o, ['Fail', 'No', 'Not Working'], true)))
-                                            @php($remedialGated = $step->show_multiple_choice && $negChoice !== null)
+                                            {{-- Options that reveal the remedial box (Bad / Average / Fail / No / …). --}}
+                                            @php($remedialTriggers = collect($step->multiple_choice_options ?? [])
+                                                    ->filter(fn ($o) => in_array($o, \App\Models\Inspection::REMEDIAL_CHOICES, true))
+                                                    ->values()->all())
+                                            @php($remedialGated = $step->show_multiple_choice && $remedialTriggers !== [])
                                             @if ($step->show_text_answer || $choiceGated)
                                                 <div class="observation-wrap mt-2" data-observation="{{ $choiceGated ? $step->id : '' }}"
                                                     style="{{ $choiceGated && ($detail->choice ?? '') !== 'Fail' ? 'display:none;' : '' }}">
@@ -445,11 +453,11 @@
                                             @endif
 
                                             @if ($step->show_remedial_suggestions)
-                                                {{-- Remedial is gated to the question's negative option (e.g. "Not Working",
-                                                     "No", "Fail"). Questions without a negative option always show it. --}}
-                                                <div class="remedial-wrap" data-remedial="{{ $remedialGated ? $step->id : '' }}" data-remedial-neg="{{ $negChoice }}"
-                                                    style="{{ $remedialGated && ($detail->choice ?? '') !== $negChoice ? 'display:none;' : '' }}">
-                                                    <label class="form-label font-size-12 text-danger mb-1">Remedial suggestion{{ $remedialGated ? ' (for '.$negChoice.')' : '' }}</label>
+                                                {{-- Remedial is gated to the question's less-than-pass options (Bad, Average,
+                                                     Fail, No, …). Questions with none of them always show it. --}}
+                                                <div class="remedial-wrap" data-remedial="{{ $remedialGated ? $step->id : '' }}" data-remedial-triggers="{{ implode('|', $remedialTriggers) }}"
+                                                    style="{{ $remedialGated && ! in_array($detail->choice ?? '', $remedialTriggers, true) ? 'display:none;' : '' }}">
+                                                    <label class="form-label font-size-12 text-danger mb-1">Remedial suggestion{{ $remedialGated ? ' (for '.implode(' / ', $remedialTriggers).')' : '' }}</label>
                                                     <textarea name="answers[{{ $step->id }}][remedial]" rows="2" placeholder="What needs to be repaired / replaced…"
                                                         oninput="AA.debounceStep({{ $step->id }})" class="form-control mb-2">{{ $detail->remedial_suggestion ?? '' }}</textarea>
                                                 </div>
@@ -498,27 +506,20 @@
                                         <p class="text-muted mb-0">No items in this section.</p>
                                     @endforelse
 
-                                    {{-- Category-level media: one uploader for the whole section.
-                                         Both inputs are `multiple`, so several files can be picked at once. --}}
-                                    <div class="sec-media mb-3" data-section-media="{{ $section->id }}">
-                                        <div class="row">
-                                            <div class="col-sm-6 mb-2">
-                                                <label class="upload-drop">
-                                                    <input type="file" accept="image/*" multiple class="d-none"
-                                                           onchange="AA.uploadSection(this, {{ $section->id }}, 'photo')">
-                                                    <i class="bx bx-image-add"></i>
-                                                    <span>Add {{ $section->section_name }} photos <small class="text-muted">(select multiple)</small></span>
-                                                </label>
-                                            </div>
-                                            <div class="col-sm-6 mb-2">
-                                                <label class="upload-drop">
-                                                    <input type="file" accept="video/*" multiple class="d-none"
-                                                           onchange="AA.uploadSection(this, {{ $section->id }}, 'video')">
-                                                    <i class="bx bx-video-plus"></i>
-                                                    <span>Add {{ $section->section_name }} videos <small class="text-muted">(select multiple)</small></span>
-                                                </label>
-                                            </div>
-                                        </div>
+                                    {{-- Category-level media, kept apart from the questions above:
+                                         a single picker taking photos and videos, several at a time. --}}
+                                    <div class="sec-media border-top pt-3 mt-3" data-section-media="{{ $section->id }}">
+                                        <label class="form-label font-size-13 font-weight-bold mb-1">
+                                            {{ $section->section_name }} media
+                                            <small class="text-muted font-weight-normal">— photos or videos, select multiple</small>
+                                        </label>
+                                        <label class="upload-drop">
+                                            {{-- One picker for both kinds; the type is derived per file from its MIME type. --}}
+                                            <input type="file" accept="image/*,video/*" multiple class="d-none"
+                                                   onchange="AA.uploadSection(this, {{ $section->id }})">
+                                            <i class="bx bx-images"></i>
+                                            <span>Add files <small class="text-muted">(photos or videos)</small></span>
+                                        </label>
                                         <div class="d-flex flex-wrap mt-2" style="gap:.75rem;" id="media-section-{{ $section->id }}">
                                             @foreach (($sectionMedia[$section->id] ?? collect()) as $m)
                                                 <div class="extra-item" data-media="{{ $m->id }}">
@@ -532,9 +533,6 @@
                                                             class="btn btn-danger btn-sm position-absolute p-0"
                                                             style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>
                                                     </div>
-                                                    <input type="text" class="form-control form-control-sm extra-item__label" maxlength="255"
-                                                        placeholder="Add a label…" value="{{ $m->label }}"
-                                                        oninput="AA.debounceLabel({{ $m->id }}, this.value)" onblur="AA.saveLabel({{ $m->id }}, this.value)">
                                                 </div>
                                             @endforeach
                                         </div>
@@ -853,7 +851,7 @@
          * Category-level upload. The picker is `multiple`, so every selected file
          * is posted to this section's bucket in turn and thumbnailed as it lands.
          */
-        async uploadSection(input, sectionId, type) {
+        async uploadSection(input, sectionId) {
             const files = Array.from(input.files || []);
             input.value = '';
             const MAX_BYTES = 100 * 1024 * 1024;
@@ -864,6 +862,8 @@
                     alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB — the limit is 100 MB.');
                     continue;
                 }
+                // One picker takes both, so classify each file by its MIME type.
+                const type = (file.type || '').startsWith('video/') ? 'video' : 'photo';
                 saving();
                 const fd = new FormData();
                 fd.append('type', type);
@@ -889,12 +889,8 @@
                 : '<video src="' + m.url + '" controls preload="metadata"></video>';
             wrap.innerHTML =
                 '<div class="extra-item__thumb">' + media +
-                '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>' +
-                '<input type="text" class="form-control form-control-sm extra-item__label" maxlength="255" placeholder="Add a label…" value="' + (m.label || '') + '">';
+                '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>';
             wrap.querySelector('button').addEventListener('click', () => AA.deleteMedia(m.id));
-            const label = wrap.querySelector('.extra-item__label');
-            label.addEventListener('input', () => AA.debounceLabel(m.id, label.value));
-            label.addEventListener('blur', () => AA.saveLabel(m.id, label.value));
             box.appendChild(wrap);
         },
         async uploadExtra(input, type) {
@@ -1059,10 +1055,11 @@
     }
     function toggleAnswerFields(stepId, value) {
         toggleField('[data-observation="', stepId, value === 'Fail');
-        // Remedial uses each question's own "negative" option, not a fixed "Fail".
+        // Remedial shows for any of the question's less-than-pass options (Bad, Average, …).
         const remWrap = root.querySelector('[data-remedial="' + stepId + '"]');
-        const neg = remWrap ? remWrap.getAttribute('data-remedial-neg') : '';
-        toggleField('[data-remedial="', stepId, !!neg && value === neg);
+        const triggers = (remWrap ? remWrap.getAttribute('data-remedial-triggers') || '' : '')
+            .split('|').filter(Boolean);
+        toggleField('[data-remedial="', stepId, triggers.includes(value));
     }
     root.addEventListener('change', function (e) {
         const t = e.target;

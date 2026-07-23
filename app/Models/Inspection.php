@@ -160,6 +160,13 @@ class Inspection extends Model
     public const NA_CHOICES = ['NA', 'N/A', 'Not Applicable'];
 
     /**
+     * Choices that reveal the "Remedial suggestion" box on the checklist.
+     * Anything less than a clean pass — the outright negatives plus "Average",
+     * which still warrants a note about what needs attention.
+     */
+    public const REMEDIAL_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available', 'Bad', 'Average'];
+
+    /**
      * Should this answer appear as a line item in the report?
      * False when the step was never answered or was explicitly marked N/A.
      */
