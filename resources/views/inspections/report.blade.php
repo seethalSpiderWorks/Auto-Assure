@@ -3,7 +3,7 @@
     use Illuminate\Support\Facades\Storage;
 
     $lead      = $inspection->lead;
-    $reportNo  = optional($lead)->reference ?: ('AAQ-' . str_pad($inspection->id, 3, '0', STR_PAD_LEFT));
+    $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
     $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
@@ -103,21 +103,24 @@
 
     // Vehicle specification list for the summary card.
     $specs = [
-        ['Make', $val($inspection->manufacturer_name ?: $inspection->car_make)],
-        ['Model', $val(trim($inspection->car_make . ' ' . $inspection->car_model))],
-        ['Model Year', $val($inspection->car_year)],
-        ['Vehicle Type', $val($inspection->vehicle_type)],
-        ['Transmission', $val($inspection->transmission)],
-        ['Fuel Type', $val($inspection->fuel_type)],
-        ['Engine (Cyl / CC)', $val($inspection->cylinders_cc)],
+        ['Make', $val($inspection->car_make)],
+        ['Model', $val($inspection->car_model)],
+        ['Year', $val($inspection->car_year)],
+        ['Manufacturing Year', $val($inspection->manufacturing_year)],
+        ['VIN / Chassis No', $val($inspection->vin)],
+        ['Plate No', $val($inspection->plate_no)],
         ['Odometer', $val($inspection->odometer)],
+        ['Region', $val($inspection->region)],
+        ['Exterior Colour', $val($inspection->exterior_color)],
+        ['Gearbox', $val($inspection->gearbox)],
+        ['Fuel Type', $val($inspection->fuel_type)],
+        ['Body Type', $val($inspection->body_type)],
         ['No. of Keys', $val($inspection->number_of_keys)],
-        ['Colour', $val($inspection->color)],
-        ['Country of Origin', $val($inspection->country_of_origin)],
-        ['No. of Passengers', $val($inspection->passengers)],
+        ['With Service History', $inspection->with_service_history === null ? $val(null) : ($inspection->with_service_history ? 'Yes' : 'No')],
+        ['Last Service Date', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
     ];
 
-    $makeHeading = $val($inspection->manufacturer_name ?: $inspection->car_make);
+    $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
 @endphp
 <!doctype html>

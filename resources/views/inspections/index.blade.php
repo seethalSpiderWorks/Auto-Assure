@@ -119,7 +119,7 @@
                                             <span class="insp-avatar">{{ $initials }}</span>
                                             <div class="insp-cust__meta">
                                                 <a href="{{ route('inspections.show', $inspection) }}" class="insp-cust__name">{{ $name }}</a>
-                                                <span class="insp-cust__ref">{{ optional($inspection->lead)->reference ?? ('#'.$inspection->id) }}</span>
+                                                <span class="insp-cust__ref">{{ $inspection->reference }}</span>
                                             </div>
                                         </div>
                                     </td>

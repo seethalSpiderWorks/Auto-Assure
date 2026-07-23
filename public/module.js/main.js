@@ -400,13 +400,18 @@ function insertEntry(url,formId,modalId,dataTable,redirectUrl,validation,next)
         processData: false,
         success: function (data) 
 		{
-            if(data.status == 1) 
+            if(data.status == 1)
 			{
-				if(dataTable != '') 
+				// Only refresh the listing when we're actually done with the form.
+				// A multi-step "save & next" fired this on every step, costing an
+				// extra round trip + full table redraw while the user is still
+				// filling in tabs they can't even see the table from.
+				// (The update-modal branch below used to reload a second time.)
+				if(dataTable != '' && (modalId == 'update-modal' || next == undefined || next == '' || next == 'end'))
 				{
 					$('#' + dataTable).DataTable().ajax.reload();
 				}
-				
+
                 Command: toastr["success"](data.msg)
 					toastr.options = {
 						  "heading": "data.heading",
@@ -433,14 +438,13 @@ function insertEntry(url,formId,modalId,dataTable,redirectUrl,validation,next)
 					{
 						$('#' + formId)[0].reset();
                              
-						if (dataTable == '') 
+						if (dataTable == '')
 						{
 							setTimeout(function () {
 								window.location.href = redirectUrl;
 								}, 2000);
 						}
-						
-						$('#' + dataTable).DataTable().ajax.reload();
+
                         $('.updatesButton').hide();
 						$('.savesButton').show();
 						$('.cancelsButton').show();

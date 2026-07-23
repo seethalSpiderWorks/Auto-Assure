@@ -28,19 +28,23 @@ class Inspection extends Model
 
     protected $fillable = [
         'lead_id', 'branch_id', 'technician_id', 'inspection_type_id',
-        'customer_name', 'customer_email', 'customer_phone', 'car_make', 'car_model', 'car_year',
+        'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone',
+        'date_of_inspection', 'car_make', 'car_model', 'car_year',
         'status', 'scheduled_at', 'started_at', 'completed_at',
         'odometer', 'overall_condition', 'summary', 'recommendation', 'estimated_repair_cost',
         // Extended vehicle details (inspection edit page)
-        'vin', 'registration_number', 'variant', 'color', 'fuel_type', 'transmission',
-        'body_type', 'number_of_keys', 'vehicle_type', 'manufacturer_name',
-        'country_of_origin', 'country_of_export', 'motor_power_kw', 'cylinders_cc',
-        'passengers', 'fuel_economy',
+        'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
+        'exterior_color', 'region',
+        'fuel_type', 'gearbox', 'cylinders', 'steering_side', 'body_type',
+        'number_of_keys', 'with_service_history', 'last_service_date',
     ];
 
     protected function casts(): array
     {
         return [
+            'date_of_inspection' => 'date',
+            'last_service_date' => 'date',
+            'with_service_history' => 'boolean',
             'scheduled_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
@@ -106,6 +110,17 @@ class Inspection extends Model
     public function car(): string
     {
         return trim("{$this->car_year} {$this->car_make} {$this->car_model}");
+    }
+
+    /**
+     * Reference shown for this inspection: the linked lead's unique id
+     * (tbl_lead.lead_unq_id, e.g. "LD01272"), falling back to a generated id
+     * for inspections with no lead.
+     */
+    public function getReferenceAttribute(): string
+    {
+        return optional($this->lead)->reference
+            ?: 'AAQ-'.str_pad((string) $this->id, 3, '0', STR_PAD_LEFT);
     }
 
     /**

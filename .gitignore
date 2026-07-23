@@ -1,2 +1,13 @@
 .env
 .env.*
+
+# Composer dependencies — reinstall with `composer install`, don't commit.
+/vendor
+
+# Server-specific rewrite / PHP-handler rules. The cPanel host and local MAMP
+# need different handler directives, so this file is kept out of version
+# control to stop them overwriting each other.
+public/.htaccess
+
+/node_modules
+.DS_Store

@@ -9,6 +9,7 @@ use App\Models\InspectionMedia;
 use App\Models\InspectionSectionSummary;
 use App\Models\InspectionStep;
 use App\Models\Lead;
+use App\Support\VehicleLookups;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -47,10 +48,11 @@ class InspectionController extends Controller
             $like = '%'.$search.'%';
             $query->where(function ($w) use ($like) {
                 $w->where('customer_name', 'like', $like)
+                  ->orWhere('customer_name_ar', 'like', $like)
                   ->orWhere('customer_phone', 'like', $like)
                   ->orWhere('car_make', 'like', $like)
                   ->orWhere('car_model', 'like', $like)
-                  ->orWhere('registration_number', 'like', $like)
+                  ->orWhere('plate_no', 'like', $like)
                   ->orWhereHas('lead', fn ($l) => $l->where('lead_unq_id', 'like', $like)->orWhere('lead_seller_name', 'like', $like));
             });
         }
@@ -126,7 +128,43 @@ class InspectionController extends Controller
             ->pluck('name', 'id')
             ->toArray();
 
-        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia'));
+        $lookups = $this->vehicleLookups($inspection);
+
+        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'lookups'));
+    }
+
+    /**
+     * Dropdown options for the vehicle-detail selects, read from the same lookup
+     * tables the legacy /inspectionreport form uses so both screens offer the
+     * identical choices. Names (not ids) are returned — inspections stores the
+     * name, so the report views can print the column without a join.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function vehicleLookups(Inspection $inspection): array
+    {
+        // Same range the legacy form offers (1995 .. current year), newest first.
+        $years = range((int) date('Y'), 1995);
+
+        // A stored year outside that range (legacy data) must still be selectable,
+        // otherwise the select renders blank and silently clears it on save.
+        foreach ([$inspection->car_year, $inspection->manufacturing_year] as $stored) {
+            if ($stored && ! in_array((int) $stored, $years, true)) {
+                $years[] = (int) $stored;
+            }
+        }
+        rsort($years);
+
+        // The table-backed selects come from VehicleLookups so this screen and the
+        // API (GET /api/vehicle-lookups) always offer exactly the same choices.
+        return [
+            'exterior_color' => VehicleLookups::names('exterior_color'),
+            'gearbox' => VehicleLookups::names('gearbox'),
+            'fuel_type' => VehicleLookups::names('fuel_type'),
+            'steering_side' => VehicleLookups::names('steering_side'),
+            'years' => $years,
+            'vehicle_condition' => ['Used', 'New'],
+        ];
     }
 
     /**
@@ -402,29 +440,29 @@ class InspectionController extends Controller
 
         $data = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
+            'customer_name_ar' => ['nullable', 'string', 'max:255'],
             'customer_email' => ['nullable', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'car_make' => ['nullable', 'string', 'max:100'],
             'car_model' => ['nullable', 'string', 'max:100'],
             'car_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
             'technician_id' => ['nullable', 'integer', 'exists:users,id'],
+            'date_of_inspection' => ['nullable', 'date'],
             // Extended vehicle details
+            'manufacturing_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
+            'vehicle_condition' => ['nullable', 'string', 'max:20'],
             'vin' => ['nullable', 'string', 'max:50'],
-            'registration_number' => ['nullable', 'string', 'max:50'],
-            'variant' => ['nullable', 'string', 'max:100'],
-            'color' => ['nullable', 'string', 'max:50'],
+            'plate_no' => ['nullable', 'string', 'max:50'],
+            'exterior_color' => ['nullable', 'string', 'max:50'],
+            'region' => ['nullable', 'string', 'max:100'],
             'fuel_type' => ['nullable', 'string', 'max:30'],
-            'transmission' => ['nullable', 'string', 'max:30'],
+            'gearbox' => ['nullable', 'string', 'max:30'],
+            'cylinders' => ['nullable', 'string', 'max:50'],
+            'steering_side' => ['nullable', 'string', 'max:50'],
             'body_type' => ['nullable', 'string', 'max:50'],
             'number_of_keys' => ['nullable', 'integer', 'min:0', 'max:20'],
-            'vehicle_type' => ['nullable', 'string', 'max:50'],
-            'manufacturer_name' => ['nullable', 'string', 'max:100'],
-            'country_of_origin' => ['nullable', 'string', 'max:100'],
-            'country_of_export' => ['nullable', 'string', 'max:100'],
-            'motor_power_kw' => ['nullable', 'integer', 'min:0'],
-            'cylinders_cc' => ['nullable', 'string', 'max:50'],
-            'passengers' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'fuel_economy' => ['nullable', 'string', 'max:30'],
+            'with_service_history' => ['nullable', 'boolean'],
+            'last_service_date' => ['nullable', 'date'],
         ]);
 
         $inspection->fill($data);
@@ -546,6 +584,7 @@ class InspectionController extends Controller
         $validated = $request->validate([
             // Customer / vehicle snapshot (editable)
             'customer_name' => ['required', 'string', 'max:255'],
+            'customer_name_ar' => ['nullable', 'string', 'max:255'],
             'customer_email' => ['nullable', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'car_make' => ['nullable', 'string', 'max:100'],
@@ -553,23 +592,22 @@ class InspectionController extends Controller
             'car_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
             'technician_id' => ['nullable', 'integer', 'exists:users,id'],
             'inspection_type_id' => ['nullable', 'integer', 'exists:inspection_types,id'],
+            'date_of_inspection' => ['nullable', 'date'],
             // Extended vehicle details
+            'manufacturing_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
+            'vehicle_condition' => ['nullable', 'string', 'max:20'],
             'vin' => ['nullable', 'string', 'max:50'],
-            'registration_number' => ['nullable', 'string', 'max:50'],
-            'variant' => ['nullable', 'string', 'max:100'],
-            'color' => ['nullable', 'string', 'max:50'],
+            'plate_no' => ['nullable', 'string', 'max:50'],
+            'exterior_color' => ['nullable', 'string', 'max:50'],
+            'region' => ['nullable', 'string', 'max:100'],
             'fuel_type' => ['nullable', 'string', 'max:30'],
-            'transmission' => ['nullable', 'string', 'max:30'],
+            'gearbox' => ['nullable', 'string', 'max:30'],
+            'cylinders' => ['nullable', 'string', 'max:50'],
+            'steering_side' => ['nullable', 'string', 'max:50'],
             'body_type' => ['nullable', 'string', 'max:50'],
             'number_of_keys' => ['nullable', 'integer', 'min:0', 'max:20'],
-            'vehicle_type' => ['nullable', 'string', 'max:50'],
-            'manufacturer_name' => ['nullable', 'string', 'max:100'],
-            'country_of_origin' => ['nullable', 'string', 'max:100'],
-            'country_of_export' => ['nullable', 'string', 'max:100'],
-            'motor_power_kw' => ['nullable', 'integer', 'min:0'],
-            'cylinders_cc' => ['nullable', 'string', 'max:50'],
-            'passengers' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'fuel_economy' => ['nullable', 'string', 'max:30'],
+            'with_service_history' => ['nullable', 'boolean'],
+            'last_service_date' => ['nullable', 'date'],
             // Overall verdict
             'odometer' => ['nullable', 'integer', 'min:0'],
             'overall_condition' => ['nullable', 'in:'.implode(',', array_keys(Inspection::CONDITIONS))],
@@ -599,6 +637,7 @@ class InspectionController extends Controller
 
         $inspection->fill([
             'customer_name' => $validated['customer_name'],
+            'customer_name_ar' => $validated['customer_name_ar'] ?? null,
             'customer_email' => $validated['customer_email'] ?? null,
             'customer_phone' => $validated['customer_phone'] ?? null,
             'car_make' => $validated['car_make'] ?? null,
@@ -609,23 +648,22 @@ class InspectionController extends Controller
             'recommendation' => $validated['recommendation'] ?? null,
             'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? null,
             'summary' => $validated['summary'] ?? null,
+            'date_of_inspection' => $validated['date_of_inspection'] ?? null,
             // Extended vehicle details
+            'manufacturing_year' => $validated['manufacturing_year'] ?? null,
+            'vehicle_condition' => $validated['vehicle_condition'] ?? null,
             'vin' => $validated['vin'] ?? null,
-            'registration_number' => $validated['registration_number'] ?? null,
-            'variant' => $validated['variant'] ?? null,
-            'color' => $validated['color'] ?? null,
+            'plate_no' => $validated['plate_no'] ?? null,
+            'exterior_color' => $validated['exterior_color'] ?? null,
+            'region' => $validated['region'] ?? null,
             'fuel_type' => $validated['fuel_type'] ?? null,
-            'transmission' => $validated['transmission'] ?? null,
+            'gearbox' => $validated['gearbox'] ?? null,
+            'cylinders' => $validated['cylinders'] ?? null,
+            'steering_side' => $validated['steering_side'] ?? null,
             'body_type' => $validated['body_type'] ?? null,
             'number_of_keys' => $validated['number_of_keys'] ?? null,
-            'vehicle_type' => $validated['vehicle_type'] ?? null,
-            'manufacturer_name' => $validated['manufacturer_name'] ?? null,
-            'country_of_origin' => $validated['country_of_origin'] ?? null,
-            'country_of_export' => $validated['country_of_export'] ?? null,
-            'motor_power_kw' => $validated['motor_power_kw'] ?? null,
-            'cylinders_cc' => $validated['cylinders_cc'] ?? null,
-            'passengers' => $validated['passengers'] ?? null,
-            'fuel_economy' => $validated['fuel_economy'] ?? null,
+            'with_service_history' => $validated['with_service_history'] ?? null,
+            'last_service_date' => $validated['last_service_date'] ?? null,
         ]);
 
         if (! empty($validated['technician_id'])) {

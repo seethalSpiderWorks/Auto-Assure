@@ -84,8 +84,12 @@
     .detail-group-title::before { content: ''; width: 16px; height: 3px; border-radius: 3px; background: var(--brand); }
     .detail-card .form-label { font-size: .8rem; font-weight: 600; color: #5b6472; margin-bottom: .3rem; }
     .detail-card .form-control, .detail-card .form-select, .detail-card select.form-control {
-        border: 1px solid #e4e8ee; border-radius: 10px; padding: .58rem .85rem; font-size: .92rem; background: #fff; transition: border-color .12s, box-shadow .12s; }
+        /* background-color, NOT the `background` shorthand — the shorthand would reset
+           background-image and wipe out the .form-select dropdown chevron. */
+        border: 1px solid #e4e8ee; border-radius: 10px; padding: .58rem .85rem; font-size: .92rem; background-color: #fff; transition: border-color .12s, box-shadow .12s; }
     .detail-card .form-control:hover, .detail-card select.form-control:hover { border-color: #cfd6df; }
+    /* Leave room on the right for the chevron and sit it inside the rounded border. */
+    .detail-card select.form-select { padding-right: 2.1rem; background-position: right .8rem center; background-size: 13px 10px; cursor: pointer; }
     .detail-card .row + .detail-group-title { margin-top: .5rem; padding-top: .55rem; border-top: 1px dashed #eef1f5; }
 
     /* Compact section / verdict cards + field spacing */
@@ -182,7 +186,7 @@
                         <p class="text-muted mb-0 font-size-13">
                             <i class="bx bx-car"></i> {{ $inspection->car() }} ·
                             {{ $inspection->customer_name ?: '—' }} ·
-                            <span class="text-monospace">{{ optional($lead)->reference ?? '—' }}</span>
+                            <span class="text-monospace">{{ $inspection->reference }}</span>
                         </p>
                     </div>
                     <div class="d-flex align-items-center" style="gap:.5rem;">
@@ -238,25 +242,59 @@
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    <p class="detail-group-title">Owner</p>
+                                    <p class="detail-group-title">Report</p>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3"><label class="form-label">Customer name <span class="text-danger">*</span></label><input name="customer_name" data-wreq class="form-control js-customer" value="{{ old('customer_name', $inspection->customer_name) }}" required></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Phone</label><input name="customer_phone" class="form-control js-customer" value="{{ old('customer_phone', $inspection->customer_phone) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Email</label><input name="customer_email" type="email" class="form-control js-customer" value="{{ old('customer_email', $inspection->customer_email) }}"></div>
+                                        {{-- Reference is the linked lead's unique id — derived, so no name attribute (nothing to post). --}}
+                                        <div class="col-md-6 mb-3"><label class="form-label">Reference</label><input class="form-control text-monospace" value="{{ $inspection->reference }}" readonly></div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Date of Inspection</label><input name="date_of_inspection" type="date" class="form-control js-customer" value="{{ old('date_of_inspection', optional($inspection->date_of_inspection)->format('Y-m-d')) }}"></div>
+                                    </div>
+
+                                    <p class="detail-group-title mt-2">Owner</p>
+                                    <div class="row">
+                                        <div class="col-md-3 mb-3"><label class="form-label">Customer name <span class="text-danger">*</span></label><input name="customer_name" data-wreq class="form-control js-customer" value="{{ old('customer_name', $inspection->customer_name) }}" required></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Name in Arabic</label><input name="customer_name_ar" dir="rtl" class="form-control js-customer" maxlength="255" value="{{ old('customer_name_ar', $inspection->customer_name_ar) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Phone</label><input name="customer_phone" class="form-control js-customer" value="{{ old('customer_phone', $inspection->customer_phone) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Email</label><input name="customer_email" type="email" class="form-control js-customer" value="{{ old('customer_email', $inspection->customer_email) }}"></div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Vehicle</p>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3"><label class="form-label">Make</label><input name="car_make" class="form-control js-customer" value="{{ old('car_make', $inspection->car_make) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Model</label><input name="car_model" class="form-control js-customer" value="{{ old('car_model', $inspection->car_model) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Year</label><input name="car_year" type="number" class="form-control js-customer" value="{{ old('car_year', $inspection->car_year) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Make</label><input name="car_make" class="form-control js-customer" value="{{ old('car_make', $inspection->car_make) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Model</label><input name="car_model" class="form-control js-customer" value="{{ old('car_model', $inspection->car_model) }}"></div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Model Year</label>
+                                            <select name="car_year" class="form-control form-select js-customer">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['years'] as $yr)
+                                                    <option value="{{ $yr }}" @selected((int) old('car_year', $inspection->car_year) === $yr)>{{ $yr }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Manufacturing Year</label>
+                                            <select name="manufacturing_year" class="form-control form-select js-customer">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['years'] as $yr)
+                                                    <option value="{{ $yr }}" @selected((int) old('manufacturing_year', $inspection->manufacturing_year) === $yr)>{{ $yr }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Condition</label>
+                                            <select name="vehicle_condition" class="form-control form-select js-customer">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['vehicle_condition'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('vehicle_condition', $inspection->vehicle_condition) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Assignment</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">Assigned Technician</label>
-                                            <select name="technician_id" class="form-control">
+                                            <select name="technician_id" class="form-control form-select">
                                                 <option value="">Select Technician</option>
                                                 @foreach ($technicians as $technician)
                                                     <option value="{{ $technician->id }}" @selected(old('technician_id', $inspection->technician_id) == $technician->id)>{{ $technician->name }}</option>
@@ -268,7 +306,7 @@
                                             @if(auth()->user()->isTechnician())
                                                 <input type="text" class="form-control" value="{{ optional($inspection->type)->name ?? '—' }}" readonly>
                                             @else
-                                                <select name="inspection_type_id" class="form-control" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">
+                                                <select name="inspection_type_id" class="form-control form-select" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">
                                                     @foreach ($inspectionTypes as $tid => $tname)
                                                         <option value="{{ $tid }}" @selected(old('inspection_type_id', $inspection->inspection_type_id) == $tid)>{{ $tname }}</option>
                                                     @endforeach
@@ -281,45 +319,63 @@
                                     <p class="detail-group-title mt-2"><i class="bx bxs-car"></i> Vehicle Details</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3"><label class="form-label">VIN / Chassis No.</label><input name="vin" class="form-control" maxlength="50" value="{{ old('vin', $inspection->vin) }}"></div>
-                                        <div class="col-md-6 mb-3"><label class="form-label">Registration No.</label><input name="registration_number" class="form-control" maxlength="50" value="{{ old('registration_number', $inspection->registration_number) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Variant / Trim</label><input name="variant" class="form-control" maxlength="100" value="{{ old('variant', $inspection->variant) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Color</label><input name="color" class="form-control" maxlength="50" value="{{ old('color', $inspection->color) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Plate Number</label><input name="plate_no" class="form-control" maxlength="50" value="{{ old('plate_no', $inspection->plate_no) }}"></div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Exterior Color</label>
+                                            <select name="exterior_color" class="form-control form-select">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['exterior_color'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('exterior_color', $inspection->exterior_color) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Region</label><input name="region" class="form-control" maxlength="100" value="{{ old('region', $inspection->region) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">No. of Keys</label><input name="number_of_keys" type="number" min="0" max="20" class="form-control" value="{{ old('number_of_keys', $inspection->number_of_keys) }}"></div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Powertrain</p>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Fuel Type</label>
-                                            <select name="fuel_type" class="form-control">
+                                            <select name="fuel_type" class="form-control form-select">
                                                 <option value="">Select</option>
-                                                @foreach (['Petrol','Diesel','Hybrid','Electric','Other'] as $ft)
-                                                    <option value="{{ $ft }}" @selected(old('fuel_type', $inspection->fuel_type) === $ft)>{{ $ft }}</option>
+                                                @foreach ($lookups['fuel_type'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('fuel_type', $inspection->fuel_type) === $opt)>{{ $opt }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label">Transmission</label>
-                                            <select name="transmission" class="form-control">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Gearbox</label>
+                                            <select name="gearbox" class="form-control form-select">
                                                 <option value="">Select</option>
-                                                @foreach (['Automatic','Manual'] as $tr)
-                                                    <option value="{{ $tr }}" @selected(old('transmission', $inspection->transmission) === $tr)>{{ $tr }}</option>
+                                                @foreach ($lookups['gearbox'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('gearbox', $inspection->gearbox) === $opt)>{{ $opt }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Electric Motor Power (kW)</label><input name="motor_power_kw" type="number" min="0" class="form-control" value="{{ old('motor_power_kw', $inspection->motor_power_kw) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">No. of Cylinders &amp; CC</label><input name="cylinders_cc" class="form-control" maxlength="50" placeholder="e.g. 4 / 2000cc or N/A" value="{{ old('cylinders_cc', $inspection->cylinders_cc) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Fuel Economy</label><input name="fuel_economy" class="form-control" maxlength="30" placeholder="e.g. 16.9 km/l or N/A" value="{{ old('fuel_economy', $inspection->fuel_economy) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">No. of Passengers</label><input name="passengers" type="number" min="0" max="100" class="form-control" value="{{ old('passengers', $inspection->passengers) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Cylinders</label><input name="cylinders" class="form-control" maxlength="50" value="{{ old('cylinders', $inspection->cylinders) }}"></div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Steering Side</label>
+                                            <select name="steering_side" class="form-control form-select">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['steering_side'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('steering_side', $inspection->steering_side) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </div>
 
-                                    <p class="detail-group-title mt-2">Origin &amp; Keys</p>
+                                    <p class="detail-group-title mt-2">Warranty / Services</p>
                                     <div class="row">
-                                        <div class="col-md-3 mb-3"><label class="form-label">Vehicle Type</label><input name="vehicle_type" class="form-control" maxlength="50" placeholder="e.g. CUV, Sedan" value="{{ old('vehicle_type', $inspection->vehicle_type) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Manufacturer</label><input name="manufacturer_name" class="form-control" maxlength="100" value="{{ old('manufacturer_name', $inspection->manufacturer_name) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Country of Origin</label><input name="country_of_origin" class="form-control" maxlength="100" value="{{ old('country_of_origin', $inspection->country_of_origin) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Country of Export</label><input name="country_of_export" class="form-control" maxlength="100" value="{{ old('country_of_export', $inspection->country_of_export) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">No. of Keys</label><input name="number_of_keys" type="number" min="0" max="20" class="form-control" value="{{ old('number_of_keys', $inspection->number_of_keys) }}"></div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">With Service History</label>
+                                            <select name="with_service_history" class="form-control form-select">
+                                                <option value="0" @selected(! old('with_service_history', $inspection->with_service_history))>No</option>
+                                                <option value="1" @selected(old('with_service_history', $inspection->with_service_history))>Yes</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Last Service Date</label><input name="last_service_date" type="date" class="form-control" value="{{ old('last_service_date', optional($inspection->last_service_date)->format('Y-m-d')) }}"></div>
                                     </div>
                                 </div>
                             </div>
@@ -476,7 +532,7 @@
                                         <div class="col-md-4 mb-3"><label class="form-label">Odometer (km)</label><input name="odometer" type="number" class="form-control" value="{{ old('odometer', $inspection->odometer) }}"></div>
                                         <div class="col-md-4 mb-3">
                                             <label class="form-label">Overall condition</label>
-                                            <select name="overall_condition" class="form-control">
+                                            <select name="overall_condition" class="form-control form-select">
                                                 <option value="">—</option>
                                                 @foreach (\App\Models\Inspection::CONDITIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->overall_condition === $v)>{{ $l }}</option>@endforeach
                                             </select>
@@ -484,7 +540,7 @@
                                         <div class="col-md-4 mb-3"><label class="form-label">Est. repair cost</label><input name="estimated_repair_cost" type="number" step="0.01" class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
                                         <div class="col-md-12 mb-3">
                                             <label class="form-label">Recommendation</label>
-                                            <select name="recommendation" data-wreq class="form-control">
+                                            <select name="recommendation" data-wreq class="form-control form-select">
                                                 <option value="">—</option>
                                                 @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
                                             </select>

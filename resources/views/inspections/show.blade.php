@@ -5,7 +5,7 @@
     use App\Models\Inspection;
 
     $vehicleName = trim(($inspection->car_make ?? '').' '.($inspection->car_model ?? ''));
-    if ($vehicleName === '') { $vehicleName = $inspection->manufacturer_name ?: 'Vehicle'; }
+    if ($vehicleName === '') { $vehicleName = 'Vehicle'; }
 
     $statusMap = [
         'pending'     => ['Pending', 'is-pending'],
@@ -27,24 +27,21 @@
 
     // Vehicle specification rows (only those with a value).
     $spec = array_filter([
-        'VIN'                => $inspection->vin,
-        'Registration No'    => $inspection->registration_number,
-        'Manufacturer'       => $inspection->manufacturer_name,
-        'Variant'            => $inspection->variant,
-        'Year'               => $inspection->car_year,
-        'Colour'             => $inspection->color,
-        'Body Type'          => $inspection->body_type,
-        'Vehicle Type'       => $inspection->vehicle_type,
-        'Fuel Type'          => $inspection->fuel_type,
-        'Transmission'       => $inspection->transmission,
-        'Cylinders / CC'     => $inspection->cylinders_cc,
-        'Motor Power'        => $inspection->motor_power_kw ? $inspection->motor_power_kw.' kW' : null,
-        'Passengers'         => $inspection->passengers,
-        'No. of Keys'        => $inspection->number_of_keys,
-        'Odometer'           => $inspection->odometer ? number_format($inspection->odometer).' km' : null,
-        'Fuel Economy'       => $inspection->fuel_economy,
-        'Country of Origin'  => $inspection->country_of_origin,
-        'Country of Export'  => $inspection->country_of_export,
+        'Make'                 => $inspection->car_make,
+        'Model'                => $inspection->car_model,
+        'Year'                 => $inspection->car_year,
+        'Manufacturing Year'   => $inspection->manufacturing_year,
+        'VIN / Chassis No'     => $inspection->vin,
+        'Plate No'             => $inspection->plate_no,
+        'Odometer'             => $inspection->odometer ? number_format($inspection->odometer).' km' : null,
+        'Region'               => $inspection->region,
+        'Exterior Color'       => $inspection->exterior_color,
+        'Gearbox'              => $inspection->gearbox,
+        'Fuel Type'            => $inspection->fuel_type,
+        'Body Type'            => $inspection->body_type,
+        'No. of Keys'          => $inspection->number_of_keys,
+        'With Service History' => $inspection->with_service_history === null ? null : ($inspection->with_service_history ? 'Yes' : 'No'),
+        'Last Service Date'    => optional($inspection->last_service_date)->format('d-m-Y'),
     ], fn ($v) => $v !== null && $v !== '');
 
     // Flat gallery of every media item, in checklist order, for the lightbox.
@@ -107,7 +104,7 @@
             <div class="idet-hero__left">
                 <div class="idet-hero__icon"><i class="bx bxs-car"></i></div>
                 <div>
-                    <div class="idet-hero__eyebrow">Inspection #{{ $inspection->id }} · {{ optional($inspection->lead)->reference ?? '—' }}</div>
+                    <div class="idet-hero__eyebrow">Inspection #{{ $inspection->id }} · {{ $inspection->reference }}</div>
                     <h3 class="idet-hero__title">{{ $inspection->car_year ? $inspection->car_year.' ' : '' }}{{ $vehicleName }}</h3>
                     <div class="idet-hero__badges">
                         <span class="idet-status {{ $statusClass }}">{{ $statusLabel }}</span>

@@ -81,6 +81,18 @@ class InspectionController extends Controller
 
     /**
      * Screen 3 — confirm/update customer & vehicle details.
+     *
+     * Accepts the same fields as the "Customer & Vehicle" step of the web
+     * inspection edit screen, minus the ones the app must not change:
+     *
+     *   Reference           derived from the linked lead (Inspection::$reference)
+     *   Date of Inspection  scheduling, set by the CRM
+     *   Name in Arabic      maintained by the CRM
+     *   Assigned Technician }  assignment, CRM-only — a technician must not be
+     *   Inspection Template }  able to reassign or re-template their own job
+     *
+     * Anything not listed here is ignored, so posting technician_id or
+     * inspection_type_id has no effect.
      */
     public function updateCustomer(Request $request, Inspection $inspection): InspectionResource|JsonResponse
     {
@@ -88,29 +100,31 @@ class InspectionController extends Controller
 
         // Validate manually so failures always return JSON errors (never redirect to login).
         $validator = Validator::make($request->all(), [
+            // Owner
             'customer_name' => ['required', 'string', 'max:255'],
-            'customer_email' => ['nullable', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
+            // Vehicle
             'car_make' => ['nullable', 'string', 'max:100'],
             'car_model' => ['nullable', 'string', 'max:100'],
             'car_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
-            // Extended vehicle details
+            'manufacturing_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
+            'vehicle_condition' => ['nullable', 'string', 'max:20'],
+            // Vehicle details
             'vin' => ['nullable', 'string', 'max:50'],
-            'registration_number' => ['nullable', 'string', 'max:50'],
-            'variant' => ['nullable', 'string', 'max:100'],
-            'color' => ['nullable', 'string', 'max:50'],
-            'fuel_type' => ['nullable', 'string', 'max:30'],
-            'transmission' => ['nullable', 'string', 'max:30'],
+            'plate_no' => ['nullable', 'string', 'max:50'],
+            'exterior_color' => ['nullable', 'string', 'max:50'],
+            'region' => ['nullable', 'string', 'max:100'],
             'body_type' => ['nullable', 'string', 'max:50'],
             'number_of_keys' => ['nullable', 'integer', 'min:0', 'max:20'],
-            'vehicle_type' => ['nullable', 'string', 'max:50'],
-            'manufacturer_name' => ['nullable', 'string', 'max:100'],
-            'country_of_origin' => ['nullable', 'string', 'max:100'],
-            'country_of_export' => ['nullable', 'string', 'max:100'],
-            'motor_power_kw' => ['nullable', 'integer', 'min:0'],
-            'cylinders_cc' => ['nullable', 'string', 'max:50'],
-            'passengers' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'fuel_economy' => ['nullable', 'string', 'max:30'],
+            // Powertrain
+            'fuel_type' => ['nullable', 'string', 'max:30'],
+            'gearbox' => ['nullable', 'string', 'max:30'],
+            'cylinders' => ['nullable', 'string', 'max:50'],
+            'steering_side' => ['nullable', 'string', 'max:50'],
+            // Warranty / services
+            'with_service_history' => ['nullable', 'boolean'],
+            'last_service_date' => ['nullable', 'date'],
         ]);
 
         if ($validator->fails()) {

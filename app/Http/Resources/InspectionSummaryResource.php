@@ -82,6 +82,7 @@ class InspectionSummaryResource extends JsonResource
 
         return [
             'id'              => $this->id,
+            'reference'       => $this->reference,
             'status'          => $this->status,
             'inspection_type' => $this->whenLoaded('type', fn () => $this->type->name),
 
@@ -90,9 +91,10 @@ class InspectionSummaryResource extends JsonResource
             'completed_at' => optional($this->completed_at)->toIso8601String(),
 
             'customer' => [
-                'name'  => $this->customer_name,
-                'email' => $this->customer_email,
-                'phone' => $this->customer_phone,
+                'name'    => $this->customer_name,
+                'name_ar' => $this->customer_name_ar,
+                'email'   => $this->customer_email,
+                'phone'   => $this->customer_phone,
             ],
 
             'vehicle' => [
@@ -100,23 +102,21 @@ class InspectionSummaryResource extends JsonResource
                 'make'                => $this->car_make,
                 'model'               => $this->car_model,
                 'year'                => $this->car_year,
-                'vin'                 => $this->vin,
-                'registration_number' => $this->registration_number,
-                'variant'             => $this->variant,
-                'color'               => $this->color,
-                'body_type'           => $this->body_type,
-                'vehicle_type'        => $this->vehicle_type,
-                'fuel_type'           => $this->fuel_type,
-                'transmission'        => $this->transmission,
-                'cylinders_cc'        => $this->cylinders_cc,
-                'motor_power_kw'      => $this->motor_power_kw,
-                'passengers'          => $this->passengers,
-                'number_of_keys'      => $this->number_of_keys,
-                'odometer'            => $this->odometer,
-                'fuel_economy'        => $this->fuel_economy,
-                'manufacturer_name'   => $this->manufacturer_name,
-                'country_of_origin'   => $this->country_of_origin,
-                'country_of_export'   => $this->country_of_export,
+                'manufacturing_year'   => $this->manufacturing_year,
+                'vehicle_condition'    => $this->vehicle_condition,
+                'vin'                  => $this->vin,
+                'plate_no'             => $this->plate_no,
+                'exterior_color'       => $this->exterior_color,
+                'region'               => $this->region,
+                'body_type'            => $this->body_type,
+                'fuel_type'            => $this->fuel_type,
+                'gearbox'              => $this->gearbox,
+                'cylinders'            => $this->cylinders,
+                'steering_side'        => $this->steering_side,
+                'number_of_keys'       => $this->number_of_keys,
+                'odometer'             => $this->odometer,
+                'with_service_history' => $this->with_service_history,
+                'last_service_date'    => optional($this->last_service_date)->toDateString(),
             ],
 
             'verdict' => [

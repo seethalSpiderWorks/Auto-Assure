@@ -3,7 +3,7 @@
     use Illuminate\Support\Facades\Storage;
 
     $lead      = $inspection->lead;
-    $reportNo  = optional($lead)->reference ?: ('AAQ-' . str_pad($inspection->id, 3, '0', STR_PAD_LEFT));
+    $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
     $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
@@ -118,21 +118,24 @@
 
     // Vehicle specification list (bilingual) for the summary card.
     $specs = [
-        ['Make', 'اسم الصانع', $val($inspection->manufacturer_name ?: $inspection->car_make)],
-        ['Model', 'الطراز', $val(trim($inspection->car_make . ' ' . $inspection->car_model))],
-        ['Model Year', 'سنة الطراز', $val($inspection->car_year)],
-        ['Vehicle Type', 'نوع المركبة', $val($inspection->vehicle_type)],
-        ['Transmission', 'ناقل الحركة', $val($inspection->transmission)],
-        ['Fuel Type', 'نوع الوقود', $val($inspection->fuel_type)],
-        ['Engine (Cyl / CC)', 'عدد السلندرات والقدرة', $val($inspection->cylinders_cc)],
+        ['Make', 'اسم الصانع', $val($inspection->car_make)],
+        ['Model', 'الطراز', $val($inspection->car_model)],
+        ['Year', 'سنة الطراز', $val($inspection->car_year)],
+        ['Manufacturing Year', 'سنة الصنع', $val($inspection->manufacturing_year)],
+        ['VIN / Chassis No', 'رقم الهيكل', $val($inspection->vin)],
+        ['Plate No', 'رقم اللوحة', $val($inspection->plate_no)],
         ['Odometer', 'قراءة العداد', $val($inspection->odometer)],
+        ['Region', 'المنطقة', $val($inspection->region)],
+        ['Exterior Colour', 'اللون الخارجي', $val($inspection->exterior_color)],
+        ['Gearbox', 'ناقل الحركة', $val($inspection->gearbox)],
+        ['Fuel Type', 'نوع الوقود', $val($inspection->fuel_type)],
+        ['Body Type', 'نوع الهيكل', $val($inspection->body_type)],
         ['No. of Keys', 'عدد المفاتيح', $val($inspection->number_of_keys)],
-        ['Colour', 'اللون', $val($inspection->color)],
-        ['Country of Origin', 'بلد المنشأ', $val($inspection->country_of_origin)],
-        ['No. of Passengers', 'عدد الركاب', $val($inspection->passengers)],
+        ['With Service History', 'مع سجل الصيانة', $inspection->with_service_history === null ? $val(null) : ($inspection->with_service_history ? 'Yes' : 'No')],
+        ['Last Service Date', 'تاريخ آخر صيانة', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
     ];
 
-    $makeHeading = $val($inspection->manufacturer_name ?: $inspection->car_make);
+    $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
 @endphp
 <!doctype html>
