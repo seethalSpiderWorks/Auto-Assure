@@ -4,7 +4,6 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\UserAuthController;
 use App\Http\Controllers\Api\InspectionTypeController;
 use App\Http\Controllers\Api\InspectionController;
-use App\Http\Controllers\Api\VehicleLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,10 +24,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('get-user', [UserAuthController::class, 'getUser'])->name('app.get-user');
     Route::post('logout', [UserAuthController::class, 'logout'])->name('app.logout');
     
-    // Vehicle-detail dropdown options (exterior colour, fuel type, gearbox, steering side).
-    Route::get('/vehicle-lookups', [VehicleLookupController::class, 'index']);
-    Route::get('/vehicle-lookups/{field}', [VehicleLookupController::class, 'show']);
-
     Route::get('/inspection-types', [InspectionTypeController::class, 'index']);
     Route::get('/inspection-types/{inspectionType}', [InspectionTypeController::class, 'show']);
 
@@ -48,14 +43,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::put('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer']);
 
-    
     Route::post('/inspections/{inspection}/answers', [InspectionController::class, 'saveAnswers']);       // Screen 4/5
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);
+    // Category (section) media — accepts files[] for a multi-file upload in one request.
+    Route::post('/inspections/{inspection}/sections/{section}/media', [InspectionController::class, 'uploadSectionMedia']);
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
     
-    Route::get('/inspections/
-    {inspection}/summary', [InspectionController::class, 'summary']);
+    Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
 
 
 });
