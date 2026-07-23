@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class InspectionDetail extends Model
 {
     protected $fillable = [
-        'inspection_id', 'inspection_step_id',
+        'inspection_id', 'inspection_step_id', 'inspection_section_id',
         'descriptive_answer', 'rating', 'choice', 'remedial_suggestion',
     ];
 
@@ -26,6 +26,12 @@ class InspectionDetail extends Model
     public function step(): BelongsTo
     {
         return $this->belongsTo(InspectionStep::class, 'inspection_step_id');
+    }
+
+    /** Set only on a per-category media bucket. */
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(InspectionSection::class, 'inspection_section_id');
     }
 
     public function media(): HasMany

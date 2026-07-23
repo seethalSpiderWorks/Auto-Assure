@@ -174,6 +174,8 @@
              data-customer-url="{{ route('inspections.autosave.customer', $inspection) }}"
              data-media-url="{{ route('inspections.media.upload', $inspection) }}"
              data-extra-media-url="{{ route('inspections.extra-media.upload', $inspection) }}"
+             data-section-media-base="{{ url("inspections/".$inspection->id."/sections") }}"
+
              data-media-delete-base="{{ url('inspection-media') }}">
 
             @include('partials._notify')
@@ -497,6 +499,48 @@
                                         <p class="text-muted mb-0">No items in this section.</p>
                                     @endforelse
 
+                                    {{-- Category-level media: one uploader for the whole section.
+                                         Both inputs are `multiple`, so several files can be picked at once. --}}
+                                    <div class="sec-media mb-3" data-section-media="{{ $section->id }}">
+                                        <div class="row">
+                                            <div class="col-sm-6 mb-2">
+                                                <label class="upload-drop">
+                                                    <input type="file" accept="image/*" multiple class="d-none"
+                                                           onchange="AA.uploadSection(this, {{ $section->id }}, 'photo')">
+                                                    <i class="bx bx-image-add"></i>
+                                                    <span>Add {{ $section->section_name }} photos <small class="text-muted">(select multiple)</small></span>
+                                                </label>
+                                            </div>
+                                            <div class="col-sm-6 mb-2">
+                                                <label class="upload-drop">
+                                                    <input type="file" accept="video/*" multiple class="d-none"
+                                                           onchange="AA.uploadSection(this, {{ $section->id }}, 'video')">
+                                                    <i class="bx bx-video-plus"></i>
+                                                    <span>Add {{ $section->section_name }} videos <small class="text-muted">(select multiple)</small></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-wrap mt-2" style="gap:.75rem;" id="media-section-{{ $section->id }}">
+                                            @foreach (($sectionMedia[$section->id] ?? collect()) as $m)
+                                                <div class="extra-item" data-media="{{ $m->id }}">
+                                                    <div class="extra-item__thumb">
+                                                        @if ($m->type === 'photo')
+                                                            <img src="{{ $m->url }}">
+                                                        @else
+                                                            <video src="{{ $m->url }}" controls preload="metadata"></video>
+                                                        @endif
+                                                        <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
+                                                            class="btn btn-danger btn-sm position-absolute p-0"
+                                                            style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>
+                                                    </div>
+                                                    <input type="text" class="form-control form-control-sm extra-item__label" maxlength="255"
+                                                        placeholder="Add a label…" value="{{ $m->label }}"
+                                                        oninput="AA.debounceLabel({{ $m->id }}, this.value)" onblur="AA.saveLabel({{ $m->id }}, this.value)">
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+
                                     {{-- Section-level summary + optional rating (shown on the report's Inspection Summary) --}}
                                     @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
                                     @php($secRating = (int) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
@@ -679,6 +723,7 @@
         customer: root.dataset.customerUrl,
         media: root.dataset.mediaUrl,
         extraMedia: root.dataset.extraMediaUrl,
+        sectionMediaBase: root.dataset.sectionMediaBase,
         mediaDelete: root.dataset.mediaDeleteBase,
     };
     let timers = {};
@@ -787,6 +832,54 @@
                     alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + '). If it is a large video, the server upload limit may be too low.');
                 }
             }
+        },
+        /**
+         * Category-level upload. The picker is `multiple`, so every selected file
+         * is posted to this section's bucket in turn and thumbnailed as it lands.
+         */
+        async uploadSection(input, sectionId, type) {
+            const files = Array.from(input.files || []);
+            input.value = '';
+            const MAX_BYTES = 100 * 1024 * 1024;
+            const url = urls.sectionMediaBase + '/' + sectionId + '/media';
+            for (const file of files) {
+                if (file.size > MAX_BYTES) {
+                    failed();
+                    alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB — the limit is 100 MB.');
+                    continue;
+                }
+                saving();
+                const fd = new FormData();
+                fd.append('type', type);
+                fd.append('file', file);
+                try {
+                    const m = await post(url, fd);
+                    AA.addSectionThumb(sectionId, m);
+                    saved();
+                } catch (e) {
+                    failed();
+                    alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + ').');
+                }
+            }
+        },
+        addSectionThumb(sectionId, m) {
+            const box = document.getElementById('media-section-' + sectionId);
+            if (!box) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'extra-item';
+            wrap.dataset.media = m.id;
+            const media = m.type === 'photo'
+                ? '<img src="' + m.url + '">'
+                : '<video src="' + m.url + '" controls preload="metadata"></video>';
+            wrap.innerHTML =
+                '<div class="extra-item__thumb">' + media +
+                '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>' +
+                '<input type="text" class="form-control form-control-sm extra-item__label" maxlength="255" placeholder="Add a label…" value="' + (m.label || '') + '">';
+            wrap.querySelector('button').addEventListener('click', () => AA.deleteMedia(m.id));
+            const label = wrap.querySelector('.extra-item__label');
+            label.addEventListener('input', () => AA.debounceLabel(m.id, label.value));
+            label.addEventListener('blur', () => AA.saveLabel(m.id, label.value));
+            box.appendChild(wrap);
         },
         async uploadExtra(input, type) {
             const files = Array.from(input.files || []);

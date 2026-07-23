@@ -89,11 +89,15 @@
         })->values();
     };
 
-    // Overall pass/fail/na tally for the Report Overview donut.
+    // Overall pass/fail/na tally for the Report Overview donut. N/A and
+    // unanswered steps are excluded so the percentages match the printed items.
     $tally = ['pass' => 0, 'fail' => 0, 'na' => 0];
     foreach ($inspection->type->sections as $sec) {
         if (in_array($sec->section_name, $skip, true)) continue;
-        foreach ($sec->steps as $stp) { $tally[$rowState($stp)]++; }
+        foreach ($sec->steps as $stp) {
+            if (! Inspection::isReportable($answers->get($stp->id))) continue;
+            $tally[$rowState($stp)]++;
+        }
     }
     $tTot  = max(1, array_sum($tally));
     $pPass = round($tally['pass'] / $tTot * 100);
@@ -623,12 +627,17 @@
                 @php $secBanner = $bannerUrl($section->section_name); @endphp
                 @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
 
+                @php
+                    // N/A (and unanswered) items are left out of the report entirely.
+                    $steps = $steps->filter(fn ($s) => Inspection::isReportable($answers->get($s->id)))->values();
+                @endphp
                 <div class="grid2">
                     @foreach ($steps as $step)
                         @php
                             $state = $rowState($step);
                             $d = $answers->get($step->id);
-                            $note = $d->descriptive_answer ?: ($d->remedial_suggestion ?? null);
+                            // $d is null for an unanswered step — guard, as report.blade.php does.
+                            $note = optional($d)->descriptive_answer ?: (optional($d)->remedial_suggestion ?? null);
                             $photos = $stepPhotos($step);
                         @endphp
                         <div class="item-card">

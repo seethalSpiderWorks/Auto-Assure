@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ResolvesCurrentBranch;
 use App\Models\Inspection;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
+use App\Models\InspectionSection;
 use App\Models\InspectionSectionSummary;
 use App\Models\InspectionStep;
 use App\Models\Lead;
@@ -110,8 +111,16 @@ class InspectionController extends Controller
         $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
         // Step-less bucket of extra/additional media.
-        $extraDetail = $inspection->details->first(fn ($d) => is_null($d->inspection_step_id));
+        // The global bucket has BOTH ids null — a per-section bucket also has a
+        // null step id, so it must be excluded here or its photos leak into this list.
+        $extraDetail = $inspection->details
+            ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
         $extraMedia = $extraDetail ? $extraDetail->media : collect();
+
+        // Per-category media, keyed by section id, for the section cards.
+        $sectionMedia = $inspection->details
+            ->filter(fn ($d) => ! is_null($d->inspection_section_id))
+            ->mapWithKeys(fn ($d) => [$d->inspection_section_id => $d->media]);
 
         // Technicians (previlage 49) for the assigned-technician dropdown.
         $technicians = \DB::table('users')
@@ -130,7 +139,7 @@ class InspectionController extends Controller
 
         $lookups = $this->vehicleLookups($inspection);
 
-        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'lookups'));
+        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups'));
     }
 
     /**
@@ -527,10 +536,52 @@ class InspectionController extends Controller
         $detail = InspectionDetail::firstOrCreate([
             'inspection_id' => $inspection->id,
             'inspection_step_id' => null,
+            'inspection_section_id' => null,
         ]);
 
         $file = $request->file('file');
         $path = $file->store("inspections/{$inspection->id}/extra/{$data['type']}s", 'public');
+
+        $media = $detail->media()->create([
+            'type' => $data['type'],
+            'disk' => 'public',
+            'path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+        ]);
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        return response()->json(['id' => $media->id, 'type' => $media->type, 'url' => $media->url, 'label' => $media->label]);
+    }
+
+    /**
+     * Upload one photo/video against a category (section) rather than a single
+     * question. The browser sends one request per selected file, so a multi-file
+     * pick lands as several calls against the same section bucket.
+     */
+    public function uploadSectionMedia(Request $request, Inspection $inspection, InspectionSection $section): JsonResponse
+    {
+        $this->authorizeInspection($inspection);
+
+        // The section must belong to this inspection's template.
+        abort_unless((int) $section->inspection_type_id === (int) $inspection->inspection_type_id, 404);
+
+        $data = $request->validate([
+            'type' => ['required', 'in:photo,video'],
+            'file' => ['required', 'file', 'max:102400'],
+        ]);
+
+        $detail = InspectionDetail::firstOrCreate([
+            'inspection_id' => $inspection->id,
+            'inspection_step_id' => null,
+            'inspection_section_id' => $section->id,
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store("inspections/{$inspection->id}/sections/{$section->id}/{$data['type']}s", 'public');
 
         $media = $detail->media()->create([
             'type' => $data['type'],

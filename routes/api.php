@@ -53,7 +53,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
     
-    Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
+    Route::get('/inspections/
+    {inspection}/summary', [InspectionController::class, 'summary']);
 
 
 });

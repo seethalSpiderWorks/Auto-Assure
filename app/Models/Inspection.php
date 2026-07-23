@@ -141,7 +141,27 @@ class Inspection extends Model
     // summary and API. Kept here so every surface reads the same rule.
     public const POSITIVE_CHOICES = ['Pass', 'Yes', 'Working', 'Good', 'Available', 'OK'];
 
-    public const NEGATIVE_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available'];
+    public const NEGATIVE_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available', 'Bad'];
+
+    /**
+     * Choices that mean "doesn't apply to this vehicle". These line items are
+     * omitted from the printable report entirely — an unanswered step counts the
+     * same way.
+     */
+    public const NA_CHOICES = ['NA', 'N/A', 'Not Applicable'];
+
+    /**
+     * Should this answer appear as a line item in the report?
+     * False when the step was never answered or was explicitly marked N/A.
+     */
+    public static function isReportable($detail): bool
+    {
+        if (! self::detailIsAnswered($detail)) {
+            return false;
+        }
+
+        return ! in_array($detail->choice, self::NA_CHOICES, true);
+    }
 
     /**
      * pass | fail | na for a saved answer, recognising the checklist's choice vocab

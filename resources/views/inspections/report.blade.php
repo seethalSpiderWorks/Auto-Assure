@@ -74,11 +74,15 @@
         })->values();
     };
 
-    // Overall pass/fail/na tally for the Report Overview donut.
+    // Overall pass/fail/na tally for the Report Overview donut. N/A and
+    // unanswered steps are excluded so the percentages match the printed items.
     $tally = ['pass' => 0, 'fail' => 0, 'na' => 0];
     foreach ($inspection->type->sections as $sec) {
         if (in_array($sec->section_name, $skip, true)) continue;
-        foreach ($sec->steps as $stp) { $tally[$rowState($stp)]++; }
+        foreach ($sec->steps as $stp) {
+            if (! Inspection::isReportable($answers->get($stp->id))) continue;
+            $tally[$rowState($stp)]++;
+        }
     }
     $tTot  = max(1, array_sum($tally));
     $pPass = round($tally['pass'] / $tTot * 100);
@@ -596,7 +600,9 @@
                 @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
 
                 @php
-                    // Show passed items first, then N/A, then failed items last.
+                    // N/A (and unanswered) items are left out of the report entirely.
+                    $steps = $steps->filter(fn ($s) => Inspection::isReportable($answers->get($s->id)));
+                    // Show passed items first, then failed items last.
                     $stateRank = ['pass' => 0, 'na' => 1, 'fail' => 2];
                     $steps = $steps->sortBy(fn ($s) => $stateRank[$rowState($s)] ?? 1)->values();
                 @endphp
