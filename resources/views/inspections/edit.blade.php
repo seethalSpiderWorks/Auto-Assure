@@ -438,16 +438,20 @@
                                                 </div>
                                             </div>
 
-                                            @php($choiceGated = $step->show_multiple_choice && (in_array('Pass', $step->multiple_choice_options ?? [], true) || in_array('Fail', $step->multiple_choice_options ?? [], true)))
-                                            {{-- Options that reveal the remedial box (Bad / Average / Fail / No / …). --}}
-                                            @php($remedialTriggers = collect($step->multiple_choice_options ?? [])
-                                                    ->filter(fn ($o) => in_array($o, \App\Models\Inspection::REMEDIAL_CHOICES, true))
+                                            {{-- Options that call for a written note (Bad / Average / Fail / No / …).
+                                                 Both the Observations and Remedial boxes are gated to these. --}}
+                                            @php($attentionTriggers = collect($step->multiple_choice_options ?? [])
+                                                    ->filter(fn ($o) => in_array($o, \App\Models\Inspection::ATTENTION_CHOICES, true))
                                                     ->values()->all())
-                                            @php($remedialGated = $step->show_multiple_choice && $remedialTriggers !== [])
+                                            @php($choiceGated = $step->show_multiple_choice && $attentionTriggers !== [])
+                                            @php($remedialTriggers = $attentionTriggers)
+                                            @php($remedialGated = $choiceGated)
                                             @if ($step->show_text_answer || $choiceGated)
                                                 <div class="observation-wrap mt-2" data-observation="{{ $choiceGated ? $step->id : '' }}"
-                                                    style="{{ $choiceGated && ($detail->choice ?? '') !== 'Fail' ? 'display:none;' : '' }}">
-                                                    <textarea name="answers[{{ $step->id }}][text]" rows="2" placeholder="Observations…"
+                                                    data-observation-triggers="{{ implode('|', $attentionTriggers) }}"
+                                                    style="{{ $choiceGated && ! in_array($detail->choice ?? '', $attentionTriggers, true) ? 'display:none;' : '' }}">
+                                                    <label class="form-label font-size-12 text-danger mb-1">Observation{{ $choiceGated ? ' (for '.implode(' / ', $attentionTriggers).')' : '' }}</label>
+                                                    <textarea name="answers[{{ $step->id }}][text]" rows="2" placeholder="What was observed…"
                                                         oninput="AA.debounceStep({{ $step->id }})" class="form-control mb-2">{{ $detail->descriptive_answer ?? '' }}</textarea>
                                                 </div>
                                             @endif
@@ -1054,12 +1058,13 @@
         }
     }
     function toggleAnswerFields(stepId, value) {
-        toggleField('[data-observation="', stepId, value === 'Fail');
-        // Remedial shows for any of the question's less-than-pass options (Bad, Average, …).
-        const remWrap = root.querySelector('[data-remedial="' + stepId + '"]');
-        const triggers = (remWrap ? remWrap.getAttribute('data-remedial-triggers') || '' : '')
-            .split('|').filter(Boolean);
-        toggleField('[data-remedial="', stepId, triggers.includes(value));
+        // Both boxes show for any of the question's less-than-pass options (Bad, Average, …).
+        const triggersOf = (sel, attr) => {
+            const el = root.querySelector('[' + sel + '="' + stepId + '"]');
+            return (el ? el.getAttribute(attr) || '' : '').split('|').filter(Boolean);
+        };
+        toggleField('[data-observation="', stepId, triggersOf('data-observation', 'data-observation-triggers').includes(value));
+        toggleField('[data-remedial="', stepId, triggersOf('data-remedial', 'data-remedial-triggers').includes(value));
     }
     root.addEventListener('change', function (e) {
         const t = e.target;

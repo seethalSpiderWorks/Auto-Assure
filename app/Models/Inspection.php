@@ -160,11 +160,11 @@ class Inspection extends Model
     public const NA_CHOICES = ['NA', 'N/A', 'Not Applicable'];
 
     /**
-     * Choices that reveal the "Remedial suggestion" box on the checklist.
-     * Anything less than a clean pass — the outright negatives plus "Average",
-     * which still warrants a note about what needs attention.
+     * Choices that need a written note — anything less than a clean pass: the
+     * outright negatives plus "Average". Picking one of these reveals the
+     * Observations box (and the Remedial box, on templates that use it).
      */
-    public const REMEDIAL_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available', 'Bad', 'Average'];
+    public const ATTENTION_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available', 'Bad', 'Average'];
 
     /**
      * Should this answer appear as a line item in the report?
