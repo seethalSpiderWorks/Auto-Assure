@@ -89,6 +89,15 @@ class Inspection extends Model
     }
 
     /**
+     * Free-text notes per summary type (Exterior, Engine, Brakes, …) shown
+     * under the Overall Verdict.
+     */
+    public function summaries(): HasMany
+    {
+        return $this->hasMany(InspectionSummary::class);
+    }
+
+    /**
      * Number of template steps that have been answered so far.
      */
     public function progress(): array

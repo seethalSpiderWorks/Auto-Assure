@@ -9,6 +9,7 @@ use App\Models\InspectionMedia;
 use App\Models\InspectionSection;
 use App\Models\InspectionSectionSummary;
 use App\Models\InspectionStep;
+use App\Models\InspectionSummary;
 use App\Models\Lead;
 use App\Support\VehicleLookups;
 use Illuminate\Contracts\View\View;
@@ -54,7 +55,9 @@ class InspectionController extends Controller
                   ->orWhere('car_make', 'like', $like)
                   ->orWhere('car_model', 'like', $like)
                   ->orWhere('plate_no', 'like', $like)
-                  ->orWhereHas('lead', fn ($l) => $l->where('lead_unq_id', 'like', $like)->orWhere('lead_seller_name', 'like', $like));
+                  // Names are matched against the inspection's own columns above;
+                  // the lead is only consulted for its reference (lead_unq_id).
+                  ->orWhereHas('lead', fn ($l) => $l->where('lead_unq_id', 'like', $like));
             });
         }
 
@@ -139,7 +142,11 @@ class InspectionController extends Controller
 
         $lookups = $this->vehicleLookups($inspection);
 
-        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups'));
+        // Summary types (Exterior, Engine, Brakes, …) and this inspection's notes.
+        $summaryTypes = InspectionSummary::types();
+        $summaries = $inspection->summaries()->pluck('summary', 'summary_type_id')->all();
+
+        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups', 'summaryTypes', 'summaries'));
     }
 
     /**
@@ -674,6 +681,9 @@ class InspectionController extends Controller
             // Per-section summaries (section id => text) and optional ratings (section id => 1-5)
             'section_summaries' => ['nullable', 'array'],
             'section_summaries.*' => ['nullable', 'string', 'max:5000'],
+            // Per-summary-type notes (Exterior, Engine, Brakes, …)
+            'summaries' => ['nullable', 'array'],
+            'summaries.*' => ['nullable', 'string', 'max:5000'],
             'section_ratings' => ['nullable', 'array'],
             'section_ratings.*' => ['nullable', 'integer', 'min:1', 'max:5'],
             // Media
@@ -796,6 +806,30 @@ class InspectionController extends Controller
                         'rating' => filled($rating) ? (int) $rating : null,
                     ]
                 );
+            }
+        }
+
+        // Per-summary-type notes shown under the Overall Verdict. Unknown type ids
+        // are ignored; a cleared box removes the row rather than storing "".
+        $typeSummaries = (array) $request->input('summaries', []);
+        if ($typeSummaries) {
+            $validTypeIds = array_keys(InspectionSummary::types());
+
+            foreach ($typeSummaries as $typeId => $text) {
+                if (! in_array((int) $typeId, $validTypeIds, true)) {
+                    continue;
+                }
+
+                if (filled($text)) {
+                    InspectionSummary::updateOrCreate(
+                        ['inspection_id' => $inspection->id, 'summary_type_id' => (int) $typeId],
+                        ['summary' => $text]
+                    );
+                } else {
+                    InspectionSummary::where('inspection_id', $inspection->id)
+                        ->where('summary_type_id', (int) $typeId)
+                        ->delete();
+                }
             }
         }
 

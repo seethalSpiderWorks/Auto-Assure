@@ -137,7 +137,6 @@
 </style>
 
 @php
-    $lead = $inspection->lead;
     $isCompleted = $inspection->status === 'completed';
     $prog = $inspection->progress();
     $statusBadge = [
@@ -591,6 +590,23 @@
                                         </div>
                                         <div class="col-md-12"><label class="form-label">Summary report</label><textarea name="summary" rows="4" class="form-control">{{ old('summary', $inspection->summary) }}</textarea></div>
                                     </div>
+
+                                    {{-- Per-type summaries. Types come from tbl_summary_type, the same
+                                         lookup the legacy /inspectionreport summary tab reads. --}}
+                                    @if (!empty($summaryTypes))
+                                        <hr class="detail-sep">
+                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary</h6>
+                                        <p class="text-muted font-size-12 mb-3">A note per area — shown on the report.</p>
+                                        <div class="row">
+                                            @foreach ($summaryTypes as $typeId => $typeName)
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">{{ $typeName }}</label>
+                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" class="form-control"
+                                                        placeholder="e.g. {{ $typeName }} is in good condition">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
 
                                     <hr class="detail-sep">
                                     <div class="d-flex justify-content-between align-items-center mb-2">

@@ -2,7 +2,6 @@
     use App\Models\Inspection;
     use Illuminate\Support\Facades\Storage;
 
-    $lead      = $inspection->lead;
     $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
