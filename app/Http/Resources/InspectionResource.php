@@ -81,15 +81,27 @@ class InspectionResource extends JsonResource
                 }
             ),
 
+            // Per-area summary notes (Exterior, Engine, Brakes, …) from tbl_summary_type.
+            'summaries' => $this->whenLoaded('summaries', function () {
+                $types = \App\Models\InspectionSummary::types();
+
+                return $this->summaries->map(fn ($s) => [
+                    'summary_type_id'   => (int) $s->summary_type_id,
+                    'summary_type_name' => $types[$s->summary_type_id] ?? null,
+                    'summary'           => $s->summary,
+                ])->values();
+            }),
+
             'type'    => new InspectionTypeResource($this->whenLoaded('type')),
             'details' => $this->whenLoaded('details', fn () => $this->details->map(fn ($detail) => [
-                'id'                  => $detail->id,
-                'inspection_step_id'  => $detail->inspection_step_id,
-                'rating'              => $detail->rating,
-                'choice'              => $detail->choice,
-                'descriptive_answer'  => $detail->descriptive_answer,
-                'remedial_suggestion' => $detail->remedial_suggestion,
-                'media'               => $detail->relationLoaded('media')
+                'id'                     => $detail->id,
+                'inspection_step_id'     => $detail->inspection_step_id,
+                'inspection_section_id'  => $detail->inspection_section_id,
+                'rating'                 => $detail->rating,
+                'choice'                 => $detail->choice,
+                'descriptive_answer'     => $detail->descriptive_answer,
+                'remedial_suggestion'    => $detail->remedial_suggestion,
+                'media'                  => $detail->relationLoaded('media')
                     ? $detail->media->map(fn ($m) => [
                         'id'   => $m->id,
                         'type' => $m->type,

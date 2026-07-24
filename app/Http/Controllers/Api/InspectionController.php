@@ -9,6 +9,7 @@ use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
 use App\Models\InspectionSection;
 use App\Models\InspectionSectionSummary;
+use App\Models\InspectionSummary;
 use App\Models\Lead;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\InspectionSummaryResource;
@@ -42,7 +43,7 @@ class InspectionController extends Controller
     public function show(Request $request, Inspection $inspection): InspectionResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries']);
+        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries']);
 
         return new InspectionResource($inspection);
     }
@@ -539,6 +540,76 @@ class InspectionController extends Controller
         return response()->json([
             'message' => 'Inspection submitted.',
             'inspection' => new InspectionResource($inspection->fresh(['lead', 'type.sections.steps', 'details.media'])),
+        ]);
+    }
+
+    /**
+     * Master list of summary areas (Exterior, Engine, Brakes, …) from
+     * tbl_summary_type — the sections shown on the per-area notes screen.
+     *
+     * GET /api/summary/list
+     */
+    public function summaryTypeList(): JsonResponse
+    {
+        $areas = \Illuminate\Support\Facades\DB::table('tbl_summary_type')
+            ->where('summary_type_status', 0)
+            ->orderBy('summary_type_id')
+            ->get()
+            ->map(fn ($t) => [
+                'id' => (int) $t->summary_type_id,
+                'summary_type_name' => $t->summary_type_name,
+            ])
+            ->values();
+
+        return response()->json(['summaries' => $areas]);
+    }
+
+    /**
+     * Save the per-area summary notes. Every summary area is required — a note
+     * must be provided for each type in tbl_summary_type.
+     *
+     * POST /api/inspections/{inspection}/summaries
+     */
+    public function saveSummaries(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        $types = InspectionSummary::types();   // [id => name]
+
+        // Build "required for every area" rules so a missing/blank note fails
+        // with a clear, per-area validation error.
+        $rules = ['summaries' => ['required', 'array']];
+        $attributes = [];
+        foreach ($types as $id => $name) {
+            $rules["summaries.{$id}"] = ['required', 'string', 'max:5000'];
+            $attributes["summaries.{$id}"] = $name;
+        }
+
+        $validator = Validator::make($request->all(), $rules, [], $attributes);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        foreach ($validator->validated()['summaries'] as $typeId => $text) {
+            InspectionSummary::updateOrCreate(
+                ['inspection_id' => $inspection->id, 'summary_type_id' => (int) $typeId],
+                ['summary' => $text]
+            );
+        }
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        $areas = $inspection->summaries()->get()->map(fn ($s) => [
+            'summary_type_id' => $s->summary_type_id,
+            'name' => $types[$s->summary_type_id] ?? null,
+            'summary' => $s->summary,
+        ])->values();
+
+        return response()->json([
+            'message' => 'Summaries saved.',
+            'summaries' => $areas,
         ]);
     }
 

@@ -47,6 +47,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inspections/{inspection}/answers', [InspectionController::class, 'saveAnswers']);       // Screen 4/5
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);
+
+    // Master list of summary areas (Exterior, Engine, Brakes, …) from tbl_summary_type.
+    Route::get('/summary/list', [InspectionController::class, 'summaryTypeList']);
+
+    // Save per-area summary notes for an inspection (a note is required for every area).
+    Route::post('/inspections/{inspection}/summaries', [InspectionController::class, 'saveSummaries']);
+
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
