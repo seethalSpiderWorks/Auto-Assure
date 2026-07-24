@@ -113,6 +113,7 @@ class InspectionController extends Controller
             'car_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
             'manufacturing_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
             'vehicle_condition' => ['nullable', 'string', 'max:20'],
+            'odometer' => ['nullable', 'integer', 'min:0'],
             // Vehicle details
             'vin' => ['nullable', 'string', 'max:50'],
             'plate_no' => ['nullable', 'string', 'max:50'],
