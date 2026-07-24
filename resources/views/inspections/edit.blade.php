@@ -350,6 +350,7 @@
                                         <div class="col-md-3 mb-3"><label class="form-label">Customer name <span class="text-danger">*</span></label><input name="customer_name" data-wreq class="form-control js-customer" value="{{ old('customer_name', $inspection->customer_name) }}" required></div>
                                         <div class="col-md-3 mb-3"><label class="form-label">Name in Arabic</label><input name="customer_name_ar" dir="rtl" class="form-control js-customer" maxlength="255" value="{{ old('customer_name_ar', $inspection->customer_name_ar) }}"></div>
                                         <div class="col-md-3 mb-3"><label class="form-label">Phone</label><input name="customer_phone" class="form-control js-customer" value="{{ old('customer_phone', $inspection->customer_phone) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label"><i class="bx bxl-whatsapp text-success"></i> WhatsApp Number</label><input name="whatsapp_number" class="form-control js-customer" maxlength="50" value="{{ old('whatsapp_number', $inspection->whatsapp_number) }}"></div>
                                         <div class="col-md-3 mb-3"><label class="form-label">Email</label><input name="customer_email" type="email" class="form-control js-customer" value="{{ old('customer_email', $inspection->customer_email) }}"></div>
                                     </div>
 
@@ -384,6 +385,7 @@
                                                 @endforeach
                                             </select>
                                         </div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Odometer (km)</label><input name="odometer" type="number" min="0" class="form-control js-customer" value="{{ old('odometer', $inspection->odometer) }}"></div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Assignment</p>
@@ -666,15 +668,15 @@
                                 <div class="card-body">
                                     <h5 class="card-title mb-3">Overall Verdict</h5>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3"><label class="form-label">Odometer (km)</label><input name="odometer" type="number" class="form-control" value="{{ old('odometer', $inspection->odometer) }}"></div>
-                                        <div class="col-md-4 mb-3">
+                                        {{-- Odometer is captured under Customer & Vehicle; verdict reads the saved value. --}}
+                                        <div class="col-md-6 mb-3">
                                             <label class="form-label">Overall condition</label>
                                             <select name="overall_condition" class="form-control form-select">
                                                 <option value="">—</option>
                                                 @foreach (\App\Models\Inspection::CONDITIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->overall_condition === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Est. repair cost</label><input name="estimated_repair_cost" type="number" step="0.01" class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost</label><input name="estimated_repair_cost" type="number" step="0.01" class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
                                         <div class="col-md-12 mb-3">
                                             <label class="form-label">Recommendation</label>
                                             <select name="recommendation" data-wreq class="form-control form-select">

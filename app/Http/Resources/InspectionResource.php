@@ -26,6 +26,7 @@ class InspectionResource extends JsonResource
             'customer_name_ar' => $this->customer_name_ar,
             'customer_email'   => $this->customer_email,
             'customer_phone'   => $this->customer_phone,
+            'whatsapp_number'  => $this->whatsapp_number,
 
             'reference'          => $this->reference,
             'date_of_inspection' => optional($this->date_of_inspection)->toDateString(),

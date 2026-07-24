@@ -105,6 +105,7 @@ class InspectionController extends Controller
             // Owner
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
+            'whatsapp_number' => ['nullable', 'string', 'max:50'],
             'customer_email' => ['nullable', 'email', 'max:255'],
             // Vehicle
             'car_make' => ['nullable', 'string', 'max:100'],

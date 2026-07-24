@@ -28,7 +28,7 @@ class Inspection extends Model
 
     protected $fillable = [
         'lead_id', 'branch_id', 'technician_id', 'inspection_type_id',
-        'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone',
+        'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone', 'whatsapp_number',
         'date_of_inspection', 'car_make', 'car_model', 'car_year',
         'status', 'scheduled_at', 'started_at', 'completed_at',
         'odometer', 'overall_condition', 'summary', 'recommendation', 'estimated_repair_cost',
