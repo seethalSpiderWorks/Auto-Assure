@@ -544,13 +544,19 @@ class InspectionController extends Controller
     }
 
     /**
-     * Master list of summary areas (Exterior, Engine, Brakes, …) from
-     * tbl_summary_type — the sections shown on the per-area notes screen.
+     * Summary areas (Exterior, Engine, Brakes, …) from tbl_summary_type for a
+     * given inspection — with the inspection details and any note already saved
+     * against each area.
      *
-     * GET /api/summary/list
+     * GET /api/inspections/{inspection}/summary/list
      */
-    public function summaryTypeList(): JsonResponse
+    public function summaryTypeList(Request $request, Inspection $inspection): JsonResponse
     {
+        $this->authorizeTechnician($request, $inspection);
+
+        // Saved notes for this inspection, keyed by summary_type_id.
+        $saved = $inspection->summaries()->pluck('summary', 'summary_type_id');
+
         $areas = \Illuminate\Support\Facades\DB::table('tbl_summary_type')
             ->where('summary_type_status', 0)
             ->orderBy('summary_type_id')
@@ -558,6 +564,7 @@ class InspectionController extends Controller
             ->map(fn ($t) => [
                 'id' => (int) $t->summary_type_id,
                 'summary_type_name' => $t->summary_type_name,
+                'summary' => $saved->get($t->summary_type_id),
             ])
             ->values();
 
