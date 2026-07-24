@@ -661,11 +661,32 @@
 
         {{-- ============================== SUMMARY BY AREA ============================== --}}
         @php
+            // Inline SVG (Lucide-style) per area — icon fonts don't embed in PDF,
+            // but inline SVG renders everywhere. Returns a 20px stroke icon.
+            $areaSvg = function ($name) {
+                $n = strtolower((string) $name);
+                $inner = match (true) {
+                    str_contains($n, 'exterior') => '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 1 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+                    str_contains($n, 'interior') => '<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2M19 18v2"/>',
+                    str_contains($n, 'engine') => '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+                    str_contains($n, 'brake') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+                    str_contains($n, 'transmission') || str_contains($n, 'gearbox') => '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+                    str_contains($n, 'suspension') || str_contains($n, 'steering') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M4.5 8.5 10 12M19.5 8.5 14 12M12 14v7"/>',
+                    str_contains($n, 'tire') || str_contains($n, 'tyre') || str_contains($n, 'wheel') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8M8 12h8"/>',
+                    str_contains($n, 'undercarriage') => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+                    str_contains($n, 'safety') => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+                    str_contains($n, 'road') || str_contains($n, 'drive') => '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+                    str_contains($n, 'electr') => '<polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+                    default => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+                };
+                return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0b8a68" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'.$inner.'</svg>';
+            };
+
             $areaNotes = [];
             foreach (($summaryTypes ?? []) as $tid => $tname) {
                 $note = $summaries[$tid] ?? null;
                 if (filled($note)) {
-                    $areaNotes[] = ['name' => $tname, 'note' => $note];
+                    $areaNotes[] = ['name' => $tname, 'note' => $note, 'svg' => $areaSvg($tname)];
                 }
             }
         @endphp
@@ -676,11 +697,14 @@
                 <span class="doc-tag">Comprehensive Inspection Report</span>
             </div>
             <div class="sec-bar"><span class="en">Summary</span></div>
-            <div class="card">
+            <div class="card" style="padding:6px 4px;">
                 @foreach ($areaNotes as $i => $an)
-                    <div style="padding:10px 0;{{ $i < count($areaNotes) - 1 ? 'border-bottom:1px solid #eef0f3;' : '' }}">
-                        <div style="font-weight:700;color:#1f2a37;font-size:13px;margin-bottom:4px;">{{ $an['name'] }}</div>
-                        <div style="white-space:pre-line;color:#3b4655;line-height:1.6;font-size:12.5px;">{{ $an['note'] }}</div>
+                    <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 12px; {{ $i < count($areaNotes) - 1 ? 'border-bottom:1px solid #eef0f3;' : '' }}">
+                        <span style="flex:0 0 auto; width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#e8f7f1; border:1px solid #cdeee1;">{!! $an['svg'] !!}</span>
+                        <div style="flex:1 1 auto; min-width:0;">
+                            <div style="font-family:'Quicksand',sans-serif; font-weight:700; color:#1c2431; font-size:14px; margin-bottom:3px;">{{ $an['name'] }}</div>
+                            <div style="white-space:pre-line; color:#3b4655; line-height:1.65; font-size:12.5px;">{{ $an['note'] }}</div>
+                        </div>
                     </div>
                 @endforeach
             </div>
