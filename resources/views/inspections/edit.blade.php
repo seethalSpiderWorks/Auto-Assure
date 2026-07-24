@@ -341,8 +341,8 @@
                                     <div class="row">
                                         {{-- Reference is the linked lead's unique id — derived, so no name attribute (nothing to post). --}}
                                         <div class="col-md-6 mb-3"><label class="form-label">Reference</label><input class="form-control text-monospace" value="{{ $inspection->reference }}" readonly></div>
-                                        {{-- Date of Inspection is set by the technician; falls back to the CRM's scheduled date until then. --}}
-                                        <div class="col-md-6 mb-3"><label class="form-label">Date of Inspection</label><input name="date_of_inspection" type="date" class="form-control js-customer" value="{{ old('date_of_inspection', optional($inspection->date_of_inspection ?? $inspection->scheduled_at)->format('Y-m-d')) }}"></div>
+                                        {{-- Inspection schedule (date + time). Stored on scheduled_at — the same field the CRM lead assignment sets. --}}
+                                        <div class="col-md-6 mb-3"><label class="form-label">Scheduled Date &amp; Time</label><input name="scheduled_at" type="datetime-local" class="form-control js-customer" value="{{ old('scheduled_at', optional($inspection->scheduled_at)->format('Y-m-d\TH:i')) }}"></div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Owner</p>

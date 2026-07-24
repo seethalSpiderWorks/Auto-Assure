@@ -471,6 +471,7 @@ class InspectionController extends Controller
             'odometer' => ['nullable', 'integer', 'min:0'],
             'technician_id' => ['nullable', 'integer', 'exists:users,id'],
             'date_of_inspection' => ['nullable', 'date'],
+            'scheduled_at' => ['nullable', 'date'],
             // Extended vehicle details
             'manufacturing_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
             'vehicle_condition' => ['nullable', 'string', 'max:20'],
@@ -659,6 +660,7 @@ class InspectionController extends Controller
             'technician_id' => ['nullable', 'integer', 'exists:users,id'],
             'inspection_type_id' => ['nullable', 'integer', 'exists:inspection_types,id'],
             'date_of_inspection' => ['nullable', 'date'],
+            'scheduled_at' => ['nullable', 'date'],
             // Extended vehicle details
             'manufacturing_year' => ['nullable', 'integer', 'min:1950', 'max:2100'],
             'vehicle_condition' => ['nullable', 'string', 'max:20'],
@@ -719,6 +721,7 @@ class InspectionController extends Controller
             'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? null,
             'summary' => $validated['summary'] ?? null,
             'date_of_inspection' => $validated['date_of_inspection'] ?? null,
+            'scheduled_at' => $validated['scheduled_at'] ?? $inspection->scheduled_at,
             // Extended vehicle details
             'manufacturing_year' => $validated['manufacturing_year'] ?? null,
             'vehicle_condition' => $validated['vehicle_condition'] ?? null,

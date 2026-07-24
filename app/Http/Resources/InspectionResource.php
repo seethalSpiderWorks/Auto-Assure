@@ -19,6 +19,8 @@ class InspectionResource extends JsonResource
 
             'status'       => $this->status,
             'scheduled_at' => optional($this->scheduled_at)->toIso8601String(),
+            // Ready-to-display schedule, e.g. "24 Jul 2026, 02:30 PM".
+            'scheduled_at_label' => optional($this->scheduled_at)->format('d M Y, h:i A'),
             'started_at'   => optional($this->started_at)->toIso8601String(),
             'completed_at' => optional($this->completed_at)->toIso8601String(),
 

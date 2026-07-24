@@ -107,6 +107,8 @@ class InspectionController extends Controller
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'whatsapp_number' => ['nullable', 'string', 'max:50'],
             'customer_email' => ['nullable', 'email', 'max:255'],
+            // Inspection schedule (date + time), e.g. 2026-07-24T14:30 or 2026-07-24 14:30:00.
+            'scheduled_at' => ['nullable', 'date'],
             // Vehicle
             'car_make' => ['nullable', 'string', 'max:100'],
             'car_model' => ['nullable', 'string', 'max:100'],

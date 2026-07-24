@@ -93,7 +93,7 @@
             <div class="ldv-assign__label"><i class="bx bx-user-plus"></i> Assign &amp; create inspection</div>
             @php
                 $curTypeId = $inspection->inspection_type_id ?? null;
-                $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d') : '';
+                $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d\TH:i') : '';
             @endphp
             <div class="ldv-assign__field">
                 <label>Inspection Template</label>
@@ -105,8 +105,8 @@
                 </select>
             </div>
             <div class="ldv-assign__field">
-                <label>Scheduled Date</label>
-                <input type="date" id="ldv_date" class="form-control" value="{{ $curSched }}">
+                <label>Scheduled Date &amp; Time</label>
+                <input type="datetime-local" id="ldv_date" class="form-control" value="{{ $curSched }}">
             </div>
             <div class="ldv-assign__field">
                 <label>Technician</label>

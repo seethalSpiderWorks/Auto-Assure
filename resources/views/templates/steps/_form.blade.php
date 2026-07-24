@@ -48,12 +48,9 @@
                         <label class="custom-control-label" for="show_multiple_choice">Multiple choice</label>
                     </div>
                 </div>
-                <div class="col-md-6 mb-2">
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="show_remedial_suggestions" name="show_remedial_suggestions" value="1" @checked(old('show_remedial_suggestions', $step->show_remedial_suggestions))>
-                        <label class="custom-control-label" for="show_remedial_suggestions">Remedial suggestions</label>
-                    </div>
-                </div>
+                {{-- Remedial suggestions option is hidden from the UI; the stored value is
+                     preserved on save via this hidden input (controller reads it with boolean()). --}}
+                <input type="hidden" name="show_remedial_suggestions" value="{{ (int) old('show_remedial_suggestions', $step->show_remedial_suggestions) }}">
             </div>
 
             @php($mcOn = old('show_multiple_choice', $step->show_multiple_choice))

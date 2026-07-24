@@ -479,8 +479,8 @@
 								</div>
 								<div class="col-md-3">
 									<div class="mb-3">
-										<label class="form-label">Scheduled Date</label>
-										<input type="date" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d') : '' }}">
+										<label class="form-label">Scheduled Date &amp; Time</label>
+										<input type="datetime-local" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d\TH:i') : '' }}">
 									</div>
 								</div>
 								<div class="col-md-1 d-flex align-items-end">
@@ -594,7 +594,7 @@
 										</div>
 										<div class="col-md-2" style="padding-top:1px;">
 											<div class="mb-3">
-												<input type="date" id="assign_insp_scheduled" class="form-control" placeholder="Scheduled (optional)" title="Scheduled (optional)">
+												<input type="datetime-local" id="assign_insp_scheduled" class="form-control" placeholder="Scheduled (optional)" title="Scheduled date &amp; time (optional)">
 											</div>
 										</div>
 										<div class="col-md-2" style="padding-top:1px; padding-left:12px">

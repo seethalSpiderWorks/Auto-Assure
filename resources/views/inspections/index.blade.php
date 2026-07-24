@@ -147,7 +147,7 @@
                                     </td>
                                     <td>
                                         @if($inspection->scheduled_at)
-                                            <span class="insp-date">{{ $inspection->scheduled_at->format('d M Y') }}</span>
+                                            <span class="insp-date">{{ $inspection->scheduled_at->format('d M Y') }}<small><i class="bx bx-time"></i> {{ $inspection->scheduled_at->format('h:i A') }}</small></span>
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif
