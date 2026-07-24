@@ -99,7 +99,7 @@
                                 <th>Phone</th>
                                 <th>Vehicle</th>
                                 <th>Technician</th>
-                                <th>Scheduled</th>
+                                <th>Inspection Date</th>
                                 <th>Status</th>
                                 <th class="text-end">Actions</th>
                             </tr>
