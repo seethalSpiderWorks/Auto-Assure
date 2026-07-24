@@ -223,9 +223,17 @@ class InspectionController extends Controller
     {
         $this->authorizeTechnician($request, $inspection);
 
-        // Section mode: files[<section_id>][] — many files across many sections
-        // in one request. Falls through to the per-step mode below when absent.
-        if (is_array($request->file('files'))) {
+        // Section mode (preferred): flat, reliable format — section_ids[] paired
+        // with files[] by index. Mirrors the web "upload per section" flow but
+        // lets the app send many files across many sections in one request.
+        if ($request->has('section_ids')) {
+            return $this->uploadSectionMediaBatch($request, $inspection);
+        }
+
+        // Section mode (legacy): nested files[<section_id>][]. Kept for backward
+        // compatibility; the nested $_FILES shape is unreliable on some PHP/
+        // Symfony configs, so new clients should use section_ids[] + files[].
+        if ($request->hasFile('files') && is_array($request->file('files'))) {
             return $this->uploadSectionMedia($request, $inspection);
         }
 
@@ -272,7 +280,10 @@ class InspectionController extends Controller
     }
 
     /**
-     * Section mode of POST /api/inspections/{inspection}/media.
+     * Upload multiple photos/videos organised by section (category).
+     *
+     * Dedicated public endpoint — use when uploading files per inspection
+     * section rather than per step.
      *
      * Files arrive keyed by section id, so one request can cover several
      * categories at once:
@@ -282,8 +293,10 @@ class InspectionController extends Controller
      *
      * Photo vs video is derived from each file's MIME type. Validation is
      * all-or-nothing — if any file or section id is rejected, nothing is stored.
+     *
+     * POST /api/inspections/{inspection}/sections/media
      */
-    private function uploadSectionMedia(Request $request, Inspection $inspection): JsonResponse
+    public function uploadSectionMedia(Request $request, Inspection $inspection): JsonResponse
     {
         $groups = $request->file('files');
 
@@ -329,6 +342,120 @@ class InspectionController extends Controller
             $items = [];
 
             foreach ($files as $file) {
+                $type = str_starts_with((string) $file->getClientMimeType(), 'video/') ? 'video' : 'photo';
+                $path = $file->store("inspections/{$inspection->id}/sections/{$sectionId}/{$type}s", 'public');
+
+                $media = $detail->media()->create([
+                    'type' => $type,
+                    'disk' => 'public',
+                    'path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(),
+                    'size' => $file->getSize(),
+                ]);
+
+                $items[] = [
+                    'id' => $media->id,
+                    'type' => $media->type,
+                    'url' => $media->url,
+                    'original_name' => $media->original_name,
+                    'size' => $media->size,
+                ];
+                $total++;
+            }
+
+            $sections[] = [
+                'section_id' => $sectionId,
+                'section_name' => $validSections->get($sectionId),
+                'uploaded' => count($items),
+                'media' => $items,
+            ];
+        }
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        return response()->json(['uploaded' => $total, 'sections' => $sections], 201);
+    }
+
+    /**
+     * Batch upload files to inspection sections using a flat, reliable request
+     * format — each file is paired with its section_id by array index.
+     *
+     * This avoids the deeply nested $_FILES structure (files[12][]) that
+     * some PHP / Symfony configurations fail to parse correctly.
+     *
+     * Request format (multipart/form-data):
+     *   section_ids[0]  (text)  = 12
+     *   section_ids[1]  (text)  = 12
+     *   section_ids[2]  (text)  = 9
+     *   files[0]        (file)  = engine-1.jpg
+     *   files[1]        (file)  = engine-2.jpg
+     *   files[2]        (file)  = exterior.jpg
+     *
+     * POST /api/inspections/{inspection}/sections/media
+     */
+    public function uploadSectionMediaBatch(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        $validator = Validator::make($request->all(), [
+            'section_ids' => ['required', 'array', 'min:1'],
+            'section_ids.*' => ['required', 'integer', 'min:1'],
+            'files' => ['required', 'array', 'min:1'],
+            'files.*' => ['required', 'file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/x-matroska'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $sectionIds = $request->input('section_ids', []);
+        $files = $request->file('files', []);
+
+        // The two arrays must be the same length — one section_id per file.
+        if (count($sectionIds) !== count($files)) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['section_ids' => ['The number of section_ids must match the number of files.']],
+            ], 422);
+        }
+
+        // Validate that all section IDs belong to this inspection's template.
+        $validSections = InspectionSection::where('inspection_type_id', $inspection->inspection_type_id)
+            ->pluck('section_name', 'id');
+
+        $validSectionIds = $validSections->keys()->all();
+
+        foreach ($sectionIds as $sid) {
+            if (! in_array((int) $sid, $validSectionIds, true)) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => ['section_ids' => ["Section ID {$sid} does not belong to this inspection template."]],
+                ], 422);
+            }
+        }
+
+        // Group files by section ID.
+        $groups = [];
+        foreach ($sectionIds as $i => $sid) {
+            $sid = (int) $sid;
+            $groups[$sid][] = $files[$i];
+        }
+
+        $sections = [];
+        $total = 0;
+
+        foreach ($groups as $sectionId => $sectionFiles) {
+            $detail = InspectionDetail::firstOrCreate([
+                'inspection_id' => $inspection->id,
+                'inspection_step_id' => null,
+                'inspection_section_id' => $sectionId,
+            ]);
+
+            $items = [];
+
+            foreach ($sectionFiles as $file) {
                 $type = str_starts_with((string) $file->getClientMimeType(), 'video/') ? 'video' : 'photo';
                 $path = $file->store("inspections/{$inspection->id}/sections/{$sectionId}/{$type}s", 'public');
 

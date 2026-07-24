@@ -44,6 +44,13 @@
         'Last Service Date'    => optional($inspection->last_service_date)->format('d-m-Y'),
     ], fn ($v) => $v !== null && $v !== '');
 
+    // Per-section (category) media — step-less uploads keyed by section id. These
+    // come from the web section picker AND the app's section batch endpoint; both
+    // store the same shape (step_id NULL, section_id set).
+    $sectionMedia = $inspection->details
+        ->filter(fn ($d) => ! is_null($d->inspection_section_id))
+        ->mapWithKeys(fn ($d) => [$d->inspection_section_id => $d->media]);
+
     // Flat gallery of every media item, in checklist order, for the lightbox.
     $gallery = [];
     foreach ($inspection->type?->sections ?? [] as $gsi => $gsection) {
@@ -59,9 +66,21 @@
                 ];
             }
         }
+        // Section-level (category) media for this section.
+        foreach (($sectionMedia[$gsection->id] ?? collect()) as $gm) {
+            $gallery[] = [
+                'id'      => $gm->id,
+                'type'    => $gm->type,
+                'url'     => $gm->url,
+                'caption' => ($gsi + 1).'. '.$gsection->section_name.' — media',
+            ];
+        }
     }
-    // Additional (step-less) media bucket.
-    $extraDetail = $inspection->details->first(fn ($d) => is_null($d->inspection_step_id));
+    // Additional (step-less AND section-less) media bucket. Must exclude section
+    // buckets, which also have a null step id — otherwise a section's photos leak
+    // into "Additional media".
+    $extraDetail = $inspection->details
+        ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
     $extraMedia = $extraDetail ? $extraDetail->media : collect();
     foreach ($extraMedia as $gm) {
         $gallery[] = ['id' => $gm->id, 'type' => $gm->type, 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
@@ -292,6 +311,25 @@
                                 </div>
                             @endforeach
                         </div>
+
+                        {{-- Section-level (category) media — uploaded against the section
+                             rather than a single question. --}}
+                        @if(($sectionMedia[$section->id] ?? collect())->count())
+                            <div class="idet-secmedia">
+                                <div class="idet-secmedia__label"><i class="bx bx-images"></i> {{ $section->section_name }} media</div>
+                                <div class="idet-media">
+                                    @foreach($sectionMedia[$section->id] as $m)
+                                        <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->type === 'photo' ? '' : 'idet-media__item--video' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                            @if($m->type === 'photo')
+                                                <img src="{{ $m->url }}" alt="" loading="lazy">
+                                            @else
+                                                <i class="bx bx-play-circle"></i>
+                                            @endif
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @empty
@@ -437,6 +475,11 @@
     .idet-media__item img { width:100%; height:100%; object-fit:cover; display:block; }
     .idet-media__item--video { background:#00263D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:30px; }
     .idet-media__item--video::after { content:'\eb75'; }
+
+    /* Section-level (category) media inside an accordion */
+    .idet-secmedia { padding:2px 18px 14px; border-top:1px dashed #e3e8ef; margin-top:6px; }
+    .idet-secmedia__label { font-size:12px; font-weight:700; color:#5b6b7d; text-transform:uppercase; letter-spacing:.03em; margin-top:12px; display:flex; align-items:center; gap:6px; }
+    .idet-secmedia .idet-media { margin-top:8px; }
 
     /* Lightbox */
     .idet-lb { position:fixed; inset:0; z-index:2000; background:rgba(8,20,33,.92); display:none; flex-direction:column; }

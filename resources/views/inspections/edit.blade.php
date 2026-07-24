@@ -23,7 +23,13 @@
     }
     .wiz-steps::-webkit-scrollbar { height: 6px; }
     .wiz-steps::-webkit-scrollbar-thumb { background: #c7ccd6; border-radius: 3px; }
-    .wiz-dot { display: flex; flex-direction: column; align-items: center; cursor: pointer; flex: 0 0 auto; }
+    .wiz-dot { display: flex; flex-direction: column; align-items: center; cursor: pointer; flex: 0 0 auto; position: relative; }
+    .wiz-dot__media {
+        position: absolute; top: -8px; right: 50%; transform: translateX(140%);
+        background: var(--brand, #04b084); color: #fff; font-size: .6rem; font-weight: 700; line-height: 1;
+        padding: 2px 4px; border-radius: 8px; display: inline-flex; align-items: center; gap: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    }
+    .wiz-dot__media i { font-size: .7rem; }
     .wiz-dot .bead {
         width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
         background: #e9edf1; color: #7a8593; font-weight: 700; font-size: .82rem; border: 2px solid #e9edf1; transition: all .18s;
@@ -223,9 +229,14 @@
                 {{-- horizontal step dots --}}
                 <div class="wiz-steps mb-2">
                     @foreach ($wsteps as $i => $ws)
+                        @php($secMediaCount = ($ws['type'] === 'section') ? ($sectionMedia[$ws['section']->id] ?? collect())->count() : 0)
                         @if ($i > 0)<div class="wiz-line" data-wsline="{{ $i }}"></div>@endif
-                        <div class="wiz-dot @if($i===0) active @endif" data-wsdot="{{ $i }}" title="{{ $ws['name'] }}">
+                        <div class="wiz-dot @if($i===0) active @endif" data-wsdot="{{ $i }}"
+                             title="{{ $ws['name'] }}{{ $secMediaCount ? ' — '.$secMediaCount.' media' : '' }}">
                             <span class="bead">{{ $i + 1 }}</span>
+                            @if ($secMediaCount)
+                                <span class="wiz-dot__media" title="{{ $secMediaCount }} media uploaded"><i class="bx bx-image"></i>{{ $secMediaCount }}</span>
+                            @endif
                         </div>
                     @endforeach
                 </div>
