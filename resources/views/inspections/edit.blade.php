@@ -112,6 +112,58 @@
     .wizard-step .card-title { margin-bottom: .6rem !important; font-size: 1rem; color: var(--brand-dark); font-weight: 700; }
     .detail-sep { margin: .35rem 0 .55rem; border: 0; border-top: 1px dashed #e2e6ec; }
 
+    /* ---- Section card header icon --------------------------------------- */
+    .sec-head-icon {
+        flex: 0 0 auto; width: 40px; height: 40px; border-radius: 11px;
+        display: inline-flex; align-items: center; justify-content: center; font-size: 1.25rem;
+        color: var(--brand-dark, #00263D);
+        background: linear-gradient(135deg, rgba(4,176,132,.16), rgba(4,176,132,.06));
+        box-shadow: inset 0 0 0 1px rgba(4,176,132,.18);
+    }
+
+    /* ---- Summary area cards (icons) ------------------------------------- */
+    .sum-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .sum-card {
+        border: 1px solid #e5e9f0; border-radius: 14px; background: #fff; padding: 12px 14px 14px;
+        transition: border-color .18s, box-shadow .18s, transform .12s;
+    }
+    .sum-card:hover { box-shadow: 0 6px 18px rgba(16,40,70,.08); transform: translateY(-1px); }
+    .sum-card:focus-within { border-color: var(--brand, #04b084); box-shadow: 0 0 0 3px rgba(4,176,132,.16); }
+    .sum-card.is-filled { border-color: rgba(4,176,132,.55); background: linear-gradient(180deg, rgba(4,176,132,.05), #fff 40%); }
+    .sum-card__head { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .sum-card__icon {
+        flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; color: #fff; background: linear-gradient(135deg, #04b084, #0f9d69);
+        box-shadow: 0 2px 6px rgba(4,176,132,.3);
+    }
+    .sum-card__title { font-weight: 700; font-size: .86rem; color: #2c3a4b; flex: 1 1 auto; min-width: 0; }
+    .sum-card__tick { color: #04b084; font-size: 1.1rem; opacity: 0; transition: opacity .18s; }
+    .sum-card.is-filled .sum-card__tick { opacity: 1; }
+    .sum-card__input { border: 0; background: #f6f8fb; border-radius: 9px; resize: vertical; font-size: .84rem; }
+    .sum-card__input:focus { background: #fff; box-shadow: none; }
+
+    /* ---- Completion-status section chips -------------------------------- */
+    .secstat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+    .secstat {
+        display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+        padding: 9px 11px; border-radius: 12px; border: 1px solid #e5e9f0; background: #fff;
+        transition: border-color .18s, box-shadow .18s, transform .12s;
+    }
+    .secstat:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(16,40,70,.1); }
+    .secstat__icon {
+        flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.05rem; color: #6b7280; background: #eef1f5;
+    }
+    .secstat__name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .84rem; color: #2c3a4b; }
+    .secstat__badge { flex: 0 0 auto; font-weight: 700; }
+    .secstat.is-done { border-color: rgba(4,176,132,.45); background: linear-gradient(180deg, rgba(4,176,132,.06), #fff 55%); }
+    .secstat.is-done .secstat__icon { color: #fff; background: linear-gradient(135deg, #04b084, #0f9d69); }
+    .secstat.is-done .secstat__badge { background: rgba(4,176,132,.15) !important; color: #0b7a5b !important; }
+    .secstat.is-partial { border-color: rgba(241,180,76,.5); }
+    .secstat.is-partial .secstat__icon { color: #b9821f; background: rgba(241,180,76,.18); }
+    .secstat.is-partial .secstat__badge { background: rgba(241,180,76,.18) !important; color: #916417 !important; }
+    .secstat.is-empty .secstat__badge { background: #eef1f5 !important; color: #7a8593 !important; }
+
     /* ---- Fixed bottom navigation ---------------------------------------- */
     .wiz-nav {
         position: fixed; left: 250px; right: 0; bottom: 0; z-index: 1000; background: #fff;
@@ -163,6 +215,31 @@
         if (in_array($o, ['pass', 'yes', 'ok', 'good', 'passed', 'available', 'working'])) return '#0f9d69';
         if (in_array($o, ['fail', 'no', 'bad', 'not ok', 'failed', 'faulty', 'damaged', 'not working', 'not available'])) return '#e43f3f';
         return '#6b7280';
+    };
+
+    // Pick a boxicon for an area/section name so summary areas and section
+    // headers read at a glance. Falls back to a notepad for anything unmapped.
+    $areaIcon = function ($name) {
+        $n = strtolower((string) $name);
+        return match (true) {
+            str_contains($n, 'exterior')                              => 'bxs-car',
+            str_contains($n, 'interior') && str_contains($n, 'enter') => 'bx-music',
+            str_contains($n, 'interior')                              => 'bx-car',
+            str_contains($n, 'engine')                                => 'bxs-cog',
+            str_contains($n, 'brake')                                 => 'bx-disc',
+            str_contains($n, 'transmission') || str_contains($n, 'gearbox') => 'bx-transfer-alt',
+            str_contains($n, 'suspension') || str_contains($n, 'steering')  => 'bxs-wrench',
+            str_contains($n, 'tire') || str_contains($n, 'tyre') || str_contains($n, 'wheel') => 'bx-loader-circle',
+            str_contains($n, 'undercarriage') || str_contains($n, 'underbody') => 'bx-wrench',
+            str_contains($n, 'safety')                                => 'bxs-shield-alt-2',
+            str_contains($n, 'road') || str_contains($n, 'test drive') || str_contains($n, 'drive') => 'bx-map',
+            str_contains($n, 'electr')                                => 'bxs-bolt',
+            str_contains($n, 'performance')                           => 'bx-run',
+            str_contains($n, 'after')                                 => 'bx-purchase-tag',
+            str_contains($n, 'entertain') || str_contains($n, 'media') || str_contains($n, 'audio') => 'bx-music',
+            str_contains($n, 'battery')                               => 'bxs-battery',
+            default                                                   => 'bx-notepad',
+        };
     };
 
     // Build the wizard step list: Details → each checklist section → Verdict.
@@ -403,11 +480,14 @@
                             @php($section = $ws['section'])
                             <div class="card" data-section="{{ $section->id }}" id="section-card-{{ $section->id }}">
                                 <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                                    <div>
-                                        @if($section->group_name)
-                                            <div class="text-uppercase text-muted font-size-11 font-weight-bold" style="letter-spacing:.04em;">{{ $section->group_name }}@if($section->group_name_ar)<span dir="rtl"> — {{ $section->group_name_ar }}</span>@endif</div>
-                                        @endif
-                                        <h5 class="mb-0">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
+                                    <div class="d-flex align-items-center" style="gap:.7rem;min-width:0;">
+                                        <span class="sec-head-icon"><i class="bx {{ $areaIcon($section->section_name) }}"></i></span>
+                                        <div style="min-width:0;">
+                                            @if($section->group_name)
+                                                <div class="text-uppercase text-muted font-size-11 font-weight-bold" style="letter-spacing:.04em;">{{ $section->group_name }}@if($section->group_name_ar)<span dir="rtl"> — {{ $section->group_name_ar }}</span>@endif</div>
+                                            @endif
+                                            <h5 class="mb-0 text-truncate">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
+                                        </div>
                                     </div>
                                     <span class="badge badge-soft-secondary font-size-12" data-section-badge="{{ $section->id }}">0/{{ $section->steps->count() }}</span>
                                 </div>
@@ -610,12 +690,18 @@
                                         <hr class="detail-sep">
                                         <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary</h6>
                                         <p class="text-muted font-size-12 mb-3">A note per area — shown on the report.</p>
-                                        <div class="row">
+                                        <div class="sum-grid">
                                             @foreach ($summaryTypes as $typeId => $typeName)
-                                                <div class="col-md-6 mb-3">
-                                                    <label class="form-label">{{ $typeName }}</label>
-                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" class="form-control"
-                                                        placeholder="e.g. {{ $typeName }} is in good condition">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
+                                                @php($hasNote = filled(old('summaries.'.$typeId, $summaries[$typeId] ?? '')))
+                                                <div class="sum-card {{ $hasNote ? 'is-filled' : '' }}" data-sum-card="{{ $typeId }}">
+                                                    <div class="sum-card__head">
+                                                        <span class="sum-card__icon"><i class="bx {{ $areaIcon($typeName) }}"></i></span>
+                                                        <span class="sum-card__title">{{ $typeName }}</span>
+                                                        <i class="bx bx-check-circle sum-card__tick"></i>
+                                                    </div>
+                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" class="form-control sum-card__input"
+                                                        placeholder="e.g. {{ $typeName }} is in good condition"
+                                                        oninput="this.closest('.sum-card').classList.toggle('is-filled', this.value.trim().length>0)">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
                                                 </div>
                                             @endforeach
                                         </div>
@@ -630,16 +716,15 @@
                                         <div id="completion-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div>
                                     </div>
                                     <p class="text-muted font-size-12 mb-3">Every section must be fully answered before the inspection can be completed. Tap a section to jump to it.</p>
-                                    <div class="row">
+                                    <div class="secstat-grid">
                                         @foreach ($sectionProgress as $sp)
-                                            <div class="col-md-6 col-lg-4 mb-2">
-                                                <button type="button" class="d-flex justify-content-between align-items-center p-2 rounded section-status-item w-100"
-                                                        data-status-sec="{{ $sp['id'] }}" data-goto-section="{{ $sp['id'] }}"
-                                                        style="border:1px solid #e5e7eb;background:#fff;gap:.5rem;">
-                                                    <span class="text-truncate text-dark" style="max-width:72%">{{ $sp['name'] }}</span>
-                                                    <span class="badge badge-soft-warning section-status-badge text-nowrap">{{ $sp['answered'] }}/{{ $sp['total'] }}</span>
-                                                </button>
-                                            </div>
+                                            @php($isDone = ($sp['total'] ?? 0) > 0 && ($sp['answered'] ?? 0) >= $sp['total'])
+                                            <button type="button" class="secstat {{ $isDone ? 'is-done' : (($sp['answered'] ?? 0) > 0 ? 'is-partial' : 'is-empty') }}"
+                                                    data-status-sec="{{ $sp['id'] }}" data-goto-section="{{ $sp['id'] }}">
+                                                <span class="secstat__icon"><i class="bx {{ $areaIcon($sp['name']) }}"></i></span>
+                                                <span class="secstat__name text-truncate">{{ $sp['name'] }}</span>
+                                                <span class="badge section-status-badge secstat__badge text-nowrap">{{ $sp['answered'] }}/{{ $sp['total'] }}</span>
+                                            </button>
                                         @endforeach
                                     </div>
                                     @if ($isCompleted)<div class="mt-2 text-success"><i class="bx bx-check-circle"></i> Completed {{ optional($inspection->completed_at)->format('d M Y, H:i') }}</div>@endif
@@ -1024,10 +1109,11 @@
             }
             const item = root.querySelector('[data-status-sec="' + sec.dataset.section + '"]');
             if (item) {
-                item.style.borderColor = done ? '#34c38f' : '#e5e7eb';
-                item.style.background = done ? '#f1fbf6' : '#fff';
+                // Reflect state on the section chip: done / partial / empty.
+                item.classList.remove('is-done', 'is-partial', 'is-empty');
+                item.classList.add(done ? 'is-done' : (a > 0 ? 'is-partial' : 'is-empty'));
                 const b = item.querySelector('.section-status-badge');
-                if (b) { b.textContent = a + '/' + steps.length; b.className = 'badge section-status-badge text-nowrap ' + (done ? 'badge-soft-success' : 'badge-soft-warning'); }
+                if (b) { b.textContent = a + '/' + steps.length; }
             }
         });
 
