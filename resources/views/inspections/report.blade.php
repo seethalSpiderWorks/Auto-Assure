@@ -659,6 +659,34 @@
         </div>
         @endif
 
+        {{-- ============================== SUMMARY BY AREA ============================== --}}
+        @php
+            $areaNotes = [];
+            foreach (($summaryTypes ?? []) as $tid => $tname) {
+                $note = $summaries[$tid] ?? null;
+                if (filled($note)) {
+                    $areaNotes[] = ['name' => $tname, 'note' => $note];
+                }
+            }
+        @endphp
+        @if (!empty($areaNotes))
+        <div class="page pb">
+            <div class="page-header">
+                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                <span class="doc-tag">Comprehensive Inspection Report</span>
+            </div>
+            <div class="sec-bar"><span class="en">Summary</span></div>
+            <div class="card">
+                @foreach ($areaNotes as $i => $an)
+                    <div style="padding:10px 0;{{ $i < count($areaNotes) - 1 ? 'border-bottom:1px solid #eef0f3;' : '' }}">
+                        <div style="font-weight:700;color:#1f2a37;font-size:13px;margin-bottom:4px;">{{ $an['name'] }}</div>
+                        <div style="white-space:pre-line;color:#3b4655;line-height:1.6;font-size:12.5px;">{{ $an['note'] }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         {{-- ============================== INSPECTOR COMMENT ============================== --}}
         <div class="page pb">
             <div class="page-header">

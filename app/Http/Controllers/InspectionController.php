@@ -195,12 +195,17 @@ class InspectionController extends Controller
             'type.sections.steps',
             'details.media',
             'sectionSummaries',
+            'summaries',
         ]);
 
         $answers = $inspection->details->keyBy('inspection_step_id');
         $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries'));
+        // Per-area summary notes (Exterior, Engine, …) shown in their own report section.
+        $summaryTypes = InspectionSummary::types();
+        $summaries = $inspection->summaries->pluck('summary', 'summary_type_id')->all();
+
+        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries'));
     }
 
     /**
