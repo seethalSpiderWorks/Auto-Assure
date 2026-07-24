@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\UserAuthController;
 use App\Http\Controllers\Api\InspectionTypeController;
 use App\Http\Controllers\Api\InspectionController;
+use App\Http\Controllers\Api\VehicleLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,6 +50,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
+
+    // Vehicle lookup dropdowns (exterior colours, fuel types, gearboxes, steering sides).
+    Route::get('/vehicle-lookups', [VehicleLookupController::class, 'index']);
+    Route::get('/vehicle-lookups/{field}', [VehicleLookupController::class, 'show']);
 
 
 });
