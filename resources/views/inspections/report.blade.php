@@ -604,7 +604,11 @@
 
                 @php
                     $secMeta = ($sectionSummaries ?? collect())->get($section->id);
-                    $secRating = Inspection::sectionRating($section, $answers, optional($secMeta)->rating);
+                    // Only the rating the technician actually recorded on the edit
+                    // screen. Deliberately NOT Inspection::sectionRating(), which
+                    // falls back to a score derived from the answers — that printed
+                    // stars nobody had assessed. No rating given = no stars shown.
+                    $secRating = (int) (optional($secMeta)->rating ?: 0);
                 @endphp
                 <div class="sec-bar" style="margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
                     <span class="en">{{ $sTitle }}</span>
