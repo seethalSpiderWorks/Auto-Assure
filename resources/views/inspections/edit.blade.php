@@ -279,6 +279,7 @@
     <div class="container-fluid">
 
         <div id="inspection-root"
+             data-completed="{{ $isCompleted ? '1' : '0' }}"
              data-step-url="{{ route('inspections.autosave.step', $inspection) }}"
              data-section-summary-url="{{ route('inspections.autosave.section-summary', $inspection) }}"
              data-customer-url="{{ route('inspections.autosave.customer', $inspection) }}"
@@ -1186,17 +1187,27 @@
         return allDone;
     }
 
-    // Overall condition, Recommendation and the Summary report are the verdict
-    // fields the printed report leads with — all three are required.
+    // Every field of the Overall Verdict block. Declared once so the Complete
+    // gate, the bead colour and the save warning can never disagree about what
+    // counts as filled in. A cost of 0 is a real answer — only an empty box is
+    // treated as missing.
+    const VERDICT_FIELDS = {
+        overall_condition: 'Overall condition',
+        estimated_repair_cost: 'Est. repair cost',
+        recommendation: 'Recommendation',
+        summary: 'Summary report',
+    };
+
     function verdictFields() {
-        return ['overall_condition', 'recommendation', 'summary']
+        return Object.keys(VERDICT_FIELDS)
             .map(n => root.querySelector('[name="' + n + '"]'))
             .filter(Boolean);
     }
 
     function verdictReady() {
         const f = verdictFields();
-        return f.length === 3 && f.every(el => (el.value || '').trim() !== '');
+        return f.length === Object.keys(VERDICT_FIELDS).length
+            && f.every(el => (el.value || '').trim() !== '');
     }
 
     // Every input the Verdict step needs — the three verdict fields plus one
@@ -1214,6 +1225,24 @@
     function summariesReady() {
         const boxes = Array.from(root.querySelectorAll('.sum-card__input'));
         return boxes.every(t => t.value.trim() !== '');
+    }
+
+    // Human-readable list of what is still blank on the Verdict card, for the
+    // warning shown when it is saved unfinished. Same fields the Complete gate
+    // and the server-side check use.
+    function verdictMissing() {
+        const out = [];
+
+        Object.keys(VERDICT_FIELDS).forEach(function (name) {
+            const el = root.querySelector('[name="' + name + '"]');
+            if (! el || (el.value || '').trim() === '') out.push(VERDICT_FIELDS[name]);
+        });
+
+        const blank = Array.from(root.querySelectorAll('.sum-card__input'))
+            .filter(t => t.value.trim() === '').length;
+        if (blank) out.push(blank + ' summary note' + (blank === 1 ? '' : 's'));
+
+        return out;
     }
     window.AA.recompute = recompute;
 
@@ -1478,7 +1507,42 @@
     if (saveBtn) {
         saveBtn.addEventListener('click', async function (e) {
             const panel = panels[cur];
-            if (!panel || panel.dataset.wtype === 'verdict') return;   // allow full submit
+            if (! panel) return;   // allow full submit
+
+            // The Verdict card always needs a real submit to persist its fields,
+            // so every path below it returns rather than falling through to the
+            // AJAX fast-save.
+            if (panel.dataset.wtype === 'verdict') {
+                // Only guard once the inspection is COMPLETED — there, blanking a
+                // field silently leaves it "completed" holding data the Complete
+                // gate would have rejected. While it is still in progress blanks
+                // are normal, so Save is left alone and Complete does the
+                // enforcing.
+                if (root.dataset.completed !== '1') return;
+
+                // Second pass, after the user chose "Save anyway" — let it through.
+                if (saveBtn.dataset.ok === '1') { saveBtn.dataset.ok = ''; return; }
+
+                const missing = verdictMissing();
+                if (! missing.length) return;                          // allow full submit
+
+                e.preventDefault();
+                const text = 'Still blank: ' + missing.join(', ') + '.';
+
+                if (! window.aaConfirm) {
+                    if (confirm(text + '\n\nSave anyway?')) { saveBtn.dataset.ok = '1'; saveBtn.click(); }
+                    return;
+                }
+                aaConfirm({
+                    title: 'Verdict not filled in',
+                    text: text,
+                    icon: 'warning', confirmColor: '#f1b44c', confirmText: 'Save anyway'
+                }).then(function (r) {
+                    if (r.isConfirmed) { saveBtn.dataset.ok = '1'; saveBtn.click(); }
+                });
+                return;
+            }
+
             // Changing the Inspection Template must reload so the new checklist's
             // questions render — let that Save go through as a full submit.
             const typeSel = panel.querySelector('select[name="inspection_type_id"]');

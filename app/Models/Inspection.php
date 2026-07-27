@@ -373,9 +373,10 @@ class Inspection extends Model
             ]);
         }
 
-        // Notify the assigned technician via push (FCM). Failures are swallowed by
-        // the service (logged to the fcm channel) so assignment never breaks.
-        \App\Services\PushNotificationService::sendToUser(
+        // Notify the assigned technician: save an in-app notification (app inbox)
+        // AND send an FCM push. Failures are logged to the fcm channel so
+        // assignment never breaks.
+        \App\Services\PushNotificationService::notifyUser(
             $technicianId,
             'New Inspection Assigned',
             'You have a new inspection: ' . ($inspection->customer_name ?: 'Vehicle inspection'),
