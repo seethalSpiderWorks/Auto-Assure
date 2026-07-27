@@ -18,8 +18,23 @@ class InspectionSummaryResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        // step id => saved answer (detail)
-        $byStep = $this->details->keyBy('inspection_step_id');
+        // step id => saved answer (detail). Section/extra media buckets carry a
+        // null step id, so they are excluded here — keyBy would collapse them all
+        // onto one key and hide their media.
+        $byStep = $this->details
+            ->filter(fn ($d) => ! is_null($d->inspection_step_id))
+            ->keyBy('inspection_step_id');
+
+        // section id => media uploaded against the section itself (not a step).
+        // These details have a null step id and a set section id.
+        $mediaBySection = $this->details
+            ->filter(fn ($d) => is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id))
+            ->mapWithKeys(fn ($d) => [$d->inspection_section_id => $this->mediaItems($d)]);
+
+        // Media with neither a step nor a section — the "extra"/additional bucket.
+        $extraMedia = $this->mediaItems(
+            $this->details->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id))
+        );
 
         // section id => per-section summary + rating
         $summaryBySection = $this->relationLoaded('sectionSummaries')
@@ -30,7 +45,7 @@ class InspectionSummaryResource extends JsonResource
         // the web details/summary screens.
         $stateOf = fn ($d): string => Inspection::choiceState($d);
 
-        $sections = collect($this->type?->sections ?? [])->map(function ($section) use ($byStep, $stateOf, $summaryBySection) {
+        $sections = collect($this->type?->sections ?? [])->map(function ($section) use ($byStep, $stateOf, $summaryBySection, $mediaBySection) {
             $steps = $section->steps->map(function ($step) use ($byStep, $stateOf) {
                 $d = $byStep->get($step->id);
 
@@ -45,13 +60,7 @@ class InspectionSummaryResource extends JsonResource
                     'choice'              => $d->choice ?? null,
                     'descriptive_answer'  => $d->descriptive_answer ?? null,
                     'remedial_suggestion' => $d->remedial_suggestion ?? null,
-                    'media'               => ($d && $d->relationLoaded('media'))
-                        ? $d->media->map(fn ($m) => [
-                            'id'   => $m->id,
-                            'type' => $m->type,
-                            'url'  => $m->url,
-                        ])->values()
-                        : [],
+                    'media'               => $this->mediaItems($d),
                 ];
             })->values();
 
@@ -68,6 +77,9 @@ class InspectionSummaryResource extends JsonResource
                 'total'        => $total,
                 'answered'     => $answered,
                 'done'         => $total > 0 && $answered >= $total,
+                // Media uploaded against the section as a whole, separate from
+                // the per-step media inside 'steps'.
+                'media'        => $mediaBySection->get($section->id, []),
                 'steps'        => $steps,
             ];
         })->values();
@@ -135,6 +147,36 @@ class InspectionSummaryResource extends JsonResource
             ],
 
             'sections' => $sections,
+
+            // Additional media not tied to any step or section (the "extra"
+            // bucket — a detail row with both ids null).
+            'extra_media' => $extraMedia,
+
+            // Every photo/video on the inspection in one flat list, so the app
+            // can show a gallery without walking sections and steps.
+            'media' => $this->details->flatMap(fn ($d) => $this->mediaItems($d))->values(),
         ];
+    }
+
+    /**
+     * Media rows of one detail, in the shape the app consumes. Returns [] when
+     * the detail is missing or its media relation was not eager-loaded.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function mediaItems($detail): array
+    {
+        if (! $detail || ! $detail->relationLoaded('media')) {
+            return [];
+        }
+
+        return $detail->media->map(fn ($m) => [
+            'id'            => $m->id,
+            'type'          => $m->type,
+            'url'           => $m->url,
+            'label'         => $m->label,
+            'original_name' => $m->original_name,
+            'size'          => $m->size,
+        ])->values()->all();
     }
 }

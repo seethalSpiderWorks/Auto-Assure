@@ -371,6 +371,19 @@ class Inspection extends Model
             ]);
         }
 
+        // Notify the assigned technician via push (FCM). Failures are swallowed by
+        // the service (logged to the fcm channel) so assignment never breaks.
+        \App\Services\PushNotificationService::sendToUser(
+            $technicianId,
+            'New Inspection Assigned',
+            'You have a new inspection: ' . ($inspection->customer_name ?: 'Vehicle inspection'),
+            [
+                'type' => 'inspection_assigned',
+                'inspection_id' => (string) $inspection->id,
+                'lead_id' => (string) $leadId,
+            ]
+        );
+
         // The inspection links back to the lead via inspections.lead_id; no separate
         // tbl_lead.inspection_assigned_id pointer is maintained.
         return $inspection;
