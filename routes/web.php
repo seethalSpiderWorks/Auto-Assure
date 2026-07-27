@@ -123,5 +123,34 @@ Route::get('/version', [App\Http\Controllers\HomeController::class,'version']);
 Route::get('/line_chart', [App\Http\Controllers\HomeController::class,'line_chart']); 
 Route::get('/line_chart_weekly', [App\Http\Controllers\HomeController::class,'line_chart_weekly']); 
 Route::get('/line_chart_monthly', [App\Http\Controllers\HomeController::class,'line_chart_monthly']); 
-Route::get('/coureLeadCount', [App\Http\Controllers\HomeController::class,'coureLeadCount']); 
+Route::get('/coureLeadCount', [App\Http\Controllers\HomeController::class,'coureLeadCount']);
 */
+
+/*
+|--------------------------------------------------------------------------
+| Pusher test route (TEMPORARY — remove after verifying)
+|--------------------------------------------------------------------------
+| Open /pusher-test  or  /pusher-test/{userId}  in a browser to fire the
+| InspectionAssigned event. Watch it appear in the Pusher Debug Console
+| (dashboard.pusher.com → your app → Debug Console) and in any subscribed app.
+*/
+Route::get('/pusher-test/{userId?}', function ($userId = null) {
+    $userId = (int) ($userId ?: \App\Models\User::where('previlage', \App\Models\User::TECHNICIAN_PRIVILEGE)->value('id'));
+
+    event(new \App\Events\InspectionAssigned(
+        $userId, 4, 1277, 'Pusher Test', 'This is a test broadcast from /pusher-test', 'inspection_assigned'
+    ));
+
+    return response()->json([
+        'status'  => 'broadcast sent',
+        'channel' => 'private-technician.' . $userId,
+        'event'   => 'inspection.assigned',
+        'payload' => [
+            'type'          => 'inspection_assigned',
+            'title'         => 'Pusher Test',
+            'body'          => 'This is a test broadcast from /pusher-test',
+            'inspection_id' => 4,
+            'lead_id'       => 1277,
+        ],
+    ]);
+});
