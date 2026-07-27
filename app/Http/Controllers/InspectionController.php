@@ -709,6 +709,7 @@ class InspectionController extends Controller
         // change, so the submitted answers are saved against the right steps.
         $stepIds = $inspection->type ? $inspection->type->steps()->pluck('inspection_steps.id')->all() : [];
         $prevTypeId = (int) $inspection->inspection_type_id;
+        $prevTechnicianId = (int) $inspection->technician_id;
 
         $inspection->fill([
             'customer_name' => $validated['customer_name'],
@@ -915,6 +916,21 @@ class InspectionController extends Controller
         }
 
         $inspection->save();
+
+        // Reassigned to a different technician from the edit screen — notify the
+        // new technician (in-app inbox + FCM push), same as the lead-assign flow.
+        if ((int) $inspection->technician_id > 0 && (int) $inspection->technician_id !== $prevTechnicianId) {
+            \App\Services\PushNotificationService::notifyUser(
+                (int) $inspection->technician_id,
+                'Inspection Reassigned to You',
+                'An inspection was reassigned to you: ' . ($inspection->customer_name ?: 'Vehicle inspection'),
+                [
+                    'type' => 'inspection_reassigned',
+                    'inspection_id' => (string) $inspection->id,
+                    'lead_id' => (string) $inspection->lead_id,
+                ]
+            );
+        }
 
         return redirect()->route('inspections.edit', $inspection)
             ->with('success', $completing ? 'Inspection completed.' : ($typeChanged ? 'Inspection template updated.' : 'Inspection saved.'));

@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\UserAuthController;
 use App\Http\Controllers\Api\InspectionTypeController;
 use App\Http\Controllers\Api\InspectionController;
 use App\Http\Controllers\Api\VehicleLookupController;
+use App\Http\Controllers\Api\DeviceTokenController;
+use App\Http\Controllers\Api\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,6 +26,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('user', [UserAuthController::class, 'getUser'])->name('app.user');
     Route::get('get-user', [UserAuthController::class, 'getUser'])->name('app.get-user');
     Route::post('logout', [UserAuthController::class, 'logout'])->name('app.logout');
+
+    // Push notification (FCM) device tokens.
+    Route::post('/device-token', [DeviceTokenController::class, 'store']);
+    Route::delete('/device-token', [DeviceTokenController::class, 'destroy']);
+
+    // Notification inbox (app only).
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy']);
     
     Route::get('/inspection-types', [InspectionTypeController::class, 'index']);
     Route::get('/inspection-types/{inspectionType}', [InspectionTypeController::class, 'show']);

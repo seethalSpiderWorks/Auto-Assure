@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // Firebase Cloud Messaging (push notifications). Point FCM_CREDENTIALS at the
+    // service-account JSON downloaded from the Firebase console.
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID'),
+        'credentials' => env('FCM_CREDENTIALS', storage_path('app/firebase/service-account.json')),
+    ],
+
 ];

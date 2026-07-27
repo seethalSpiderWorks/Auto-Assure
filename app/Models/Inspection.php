@@ -339,8 +339,12 @@ class Inspection extends Model
 
         $inspection = static::where('lead_id', $leadId)->latest('id')->first();
 
+        $isNew = ! $inspection;
+        $technicianChanged = false;
+
         if ($inspection) {
             // Re-assign: point the existing inspection at the new technician/template.
+            $technicianChanged = (int) $inspection->technician_id !== (int) $technicianId;
             $inspection->technician_id = $technicianId;
             $inspection->inspection_type_id = $typeId;
             if ($scheduledAt) {
@@ -373,19 +377,24 @@ class Inspection extends Model
             ]);
         }
 
-        // Notify the assigned technician: save an in-app notification (app inbox)
-        // AND send an FCM push. Failures are logged to the fcm channel so
-        // assignment never breaks.
-        \App\Services\PushNotificationService::notifyUser(
-            $technicianId,
-            'New Inspection Assigned',
-            'You have a new inspection: ' . ($inspection->customer_name ?: 'Vehicle inspection'),
-            [
-                'type' => 'inspection_assigned',
-                'inspection_id' => (string) $inspection->id,
-                'lead_id' => (string) $leadId,
-            ]
-        );
+        // Notify the assigned technician (in-app inbox + FCM push) on a new
+        // assignment, or on a reassignment that actually changed the technician.
+        // A no-op re-save (same technician) does not notify. Failures are logged
+        // to the fcm channel so assignment never breaks.
+        if ($isNew || $technicianChanged) {
+            $vehicle = $inspection->customer_name ?: 'Vehicle inspection';
+
+            \App\Services\PushNotificationService::notifyUser(
+                $technicianId,
+                $isNew ? 'New Inspection Assigned' : 'Inspection Reassigned to You',
+                ($isNew ? 'You have a new inspection: ' : 'An inspection was reassigned to you: ') . $vehicle,
+                [
+                    'type' => $isNew ? 'inspection_assigned' : 'inspection_reassigned',
+                    'inspection_id' => (string) $inspection->id,
+                    'lead_id' => (string) $leadId,
+                ]
+            );
+        }
 
         // The inspection links back to the lead via inspections.lead_id; no separate
         // tbl_lead.inspection_assigned_id pointer is maintained.
