@@ -144,6 +144,11 @@
     .sum-card.is-filled .sum-card__tick { opacity: 1; }
     .sum-card__input { border: 0; background: #f6f8fb; border-radius: 9px; resize: vertical; font-size: .84rem; }
     .sum-card__input:focus { background: #fff; box-shadow: none; }
+    /* Faded so the example hint never reads as an answer already typed.
+       opacity:1 is needed — Firefox dims placeholders on its own otherwise. */
+    .sum-card__input::placeholder { color: #b6c0cc; opacity: 1; }
+    .sum-card__input::-webkit-input-placeholder { color: #b6c0cc; }
+    .sum-card__input:-ms-input-placeholder { color: #b6c0cc; }
 
     /* ---- Completion-status section chips -------------------------------- */
     .secstat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
@@ -1145,14 +1150,56 @@
         const ac = document.getElementById('answered-count');
         if (ac) ac.textContent = ans;
 
+        // Completion needs the whole checklist AND the Verdict step: the overall
+        // verdict fields and a Summary note for every area. Mirrors the checks
+        // the server re-runs on submit, so the button never lies.
         const allDone = total > 0 && ans >= total;
+        const vOk = verdictReady();
+        const sOk = summariesReady();
+        const canComplete = allDone && vOk && sOk;
+
         const btn = document.getElementById('btn-complete');
-        if (btn) btn.disabled = !allDone;
+        if (btn) btn.disabled = !canComplete;
         const hint = document.getElementById('complete-hint');
-        if (hint) hint.style.display = allDone ? 'none' : '';
+        if (hint) {
+            hint.style.display = canComplete ? 'none' : '';
+            hint.textContent = !allDone ? '⚠ Answer all questions first.'
+                : (!vOk ? '⚠ Fill the Overall Verdict.'
+                        : '⚠ Add a Summary note for every area.');
+        }
 
         recomputeStepper();
         return allDone;
+    }
+
+    // Overall condition, Recommendation and the Summary report are the verdict
+    // fields the printed report leads with — all three are required.
+    function verdictFields() {
+        return ['overall_condition', 'recommendation', 'summary']
+            .map(n => root.querySelector('[name="' + n + '"]'))
+            .filter(Boolean);
+    }
+
+    function verdictReady() {
+        const f = verdictFields();
+        return f.length === 3 && f.every(el => (el.value || '').trim() !== '');
+    }
+
+    // Every input the Verdict step needs — the three verdict fields plus one
+    // note per summary area — so the bead can show partial progress.
+    function verdictCounts() {
+        const all = verdictFields().concat(Array.from(root.querySelectorAll('.sum-card__input')));
+        return {
+            filled: all.filter(el => (el.value || '').trim() !== '').length,
+            total: all.length,
+        };
+    }
+
+    // A note per summary area (Exterior, Engine, …). Templates with no areas
+    // configured pass trivially.
+    function summariesReady() {
+        const boxes = Array.from(root.querySelectorAll('.sum-card__input'));
+        return boxes.every(t => t.value.trim() !== '');
     }
     window.AA.recompute = recompute;
 
@@ -1266,6 +1313,17 @@
             const a = Array.from(steps).filter(stepAnswered).length;
             return a >= steps.length ? 'done' : (a > 0 ? 'partial' : 'empty');
         }
+
+        // The Verdict panel has no question cards, so counting [data-wreq]
+        // alone would call it done as soon as Recommendation was picked — with
+        // the rest of the verdict and every area note still blank. Score it on
+        // everything completion actually requires.
+        if (p.dataset.wtype === 'verdict') {
+            const c = verdictCounts();
+            if (c.total === 0) return 'empty';
+            return c.filled >= c.total ? 'done' : (c.filled > 0 ? 'partial' : 'empty');
+        }
+
         const req = p.querySelector('[data-wreq]');
         return (req && req.value.trim() !== '') ? 'done' : 'empty';
     }

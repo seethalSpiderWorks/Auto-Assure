@@ -863,6 +863,39 @@ class InspectionController extends Controller
                 return back()->withErrors(['complete' => 'Cannot complete — answer all questions first. Pending: '.$names.$more.'.']);
             }
 
+            // The Overall Verdict block drives the report headline and cannot be
+            // derived from the answers, so it has to be filled in by hand.
+            $verdictMissing = [];
+            if (blank($inspection->overall_condition)) { $verdictMissing[] = 'Overall condition'; }
+            if (blank($inspection->recommendation))    { $verdictMissing[] = 'Recommendation'; }
+            if (blank($inspection->summary))           { $verdictMissing[] = 'Summary report'; }
+
+            if ($verdictMissing !== []) {
+                $inspection->save();
+
+                return back()->withErrors(['complete' => 'Cannot complete — fill the Overall Verdict first. Missing: '.implode(', ', $verdictMissing).'.']);
+            }
+
+            // Every summary area (Exterior, Engine, Brakes, …) needs its note —
+            // the report prints one per area, and the technician API enforces
+            // the same "a note for every area" rule.
+            $noted = $inspection->summaries()
+                ->pluck('summary', 'summary_type_id')
+                ->filter(fn ($text) => filled($text));
+
+            $missingNotes = collect(InspectionSummary::types())
+                ->reject(fn ($name, $typeId) => $noted->has($typeId))
+                ->values();
+
+            if ($missingNotes->isNotEmpty()) {
+                $inspection->save();
+
+                $names = $missingNotes->take(4)->implode(', ');
+                $more = $missingNotes->count() > 4 ? ' …and '.($missingNotes->count() - 4).' more' : '';
+
+                return back()->withErrors(['complete' => 'Cannot complete — add a Summary note for every area. Missing: '.$names.$more.'.']);
+            }
+
             if ($missing = $inspection->missingMandatoryMedia()) {
                 $inspection->save();
 
