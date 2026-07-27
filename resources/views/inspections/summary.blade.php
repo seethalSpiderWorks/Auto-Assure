@@ -10,6 +10,11 @@
         : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'));
     $goodCount = collect($sections)->where('status','Completed')->count();
     $naCount   = collect($sections)->where('status','Not answered')->count();
+    // Drives whether the tile row and breakdown legend show the part-filled
+    // state at all; the row is 4 tiles wide while it does, 3 once everything
+    // is finished.
+    $inProgressCount = collect($sections)->where('status','In Progress')->count();
+    $tileCol = $inProgressCount ? 'col-md-3' : 'col-md-4';
 @endphp
 
 <div class="page-content">
@@ -84,16 +89,23 @@
 
             {{-- ===== Section status tallies ===== --}}
             <div class="row g-3 mt-4">
-                <div class="col-md-4 col-6"><div class="insp-stat insp-stat--total"><span class="insp-stat__num">{{ count($sections) }}</span><span class="insp-stat__lbl">Sections</span></div></div>
-                <div class="col-md-4 col-6"><div class="insp-stat insp-stat--good"><span class="insp-stat__num">{{ $goodCount }}</span><span class="insp-stat__lbl">Completed</span></div></div>
-                <div class="col-md-4 col-6"><div class="insp-stat insp-stat--na"><span class="insp-stat__num">{{ $naCount }}</span><span class="insp-stat__lbl">Not Answered</span></div></div>
+                <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--total"><span class="insp-stat__num">{{ count($sections) }}</span><span class="insp-stat__lbl">Sections</span></div></div>
+                <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--good"><span class="insp-stat__num">{{ $goodCount }}</span><span class="insp-stat__lbl">Completed</span></div></div>
+                @if($inProgressCount)
+                    <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--warn"><span class="insp-stat__num">{{ $inProgressCount }}</span><span class="insp-stat__lbl">In Progress</span></div></div>
+                @endif
+                <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--na"><span class="insp-stat__num">{{ $naCount }}</span><span class="insp-stat__lbl">Not Answered</span></div></div>
             </div>
 
             <div class="insp-breakdown-head">
                 <h5 class="insp-section-title mb-0">INSPECTION BREAKDOWN</h5>
                 <div class="insp-legend">
                     <span><i class="dot dot--good"></i> Completed</span>
-                    <span><i class="dot dot--warn"></i> Need Attention</span>
+                    {{-- Only worth a legend entry while a section is actually
+                         part-filled; once everything is done it is just noise. --}}
+                    @if($inProgressCount)
+                        <span><i class="dot dot--warn"></i> In Progress</span>
+                    @endif
                     <span><i class="dot dot--none"></i> Not answered</span>
                 </div>
             </div>
@@ -113,7 +125,7 @@
                         <tbody>
                             @forelse($sections as $s)
                                 @php
-                                    $stClass = $s['status'] === 'Completed' ? 'good' : ($s['status'] === 'Need Attention' ? 'warn' : 'none');
+                                    $stClass = $s['status'] === 'Completed' ? 'good' : ($s['status'] === 'In Progress' ? 'warn' : 'none');
                                     $pct = $s['total'] > 0 ? (int) round($s['answered'] / $s['total'] * 100) : 0;
                                 @endphp
                                 <tr class="insp-brow insp-brow--{{ $stClass }}">
@@ -139,7 +151,7 @@
                                     <td class="c-status">
                                         <span class="insp-btstatus insp-btstatus--{{ $stClass }}">
                                             @if($s['status'] === 'Completed')<i class="bx bxs-check-circle"></i>
-                                            @elseif($s['status'] === 'Need Attention')<i class="bx bxs-error"></i>
+                                            @elseif($s['status'] === 'In Progress')<i class="bx bx-time-five"></i>
                                             @else<i class="bx bx-circle"></i>@endif
                                             {{ $s['status'] }}
                                         </span>

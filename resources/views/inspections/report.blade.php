@@ -6,7 +6,9 @@
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
     $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
-    $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? '—';
+    // The technician's verdict from the edit screen's Overall Verdict box.
+    // Null when it was never set — the cover falls back to the gauge band then.
+    $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
     $typeName  = optional($inspection->type)->name ?: 'Inspection';
@@ -362,6 +364,14 @@
                     $cond = 'Bad'; $cColor = '#e0483d';
                     foreach ($bands as $b) { if ($scoreF >= $b[1] && $scoreF < $b[2]) { $cond = $b[0]; $cColor = $b[3]; break; } }
 
+                    // The printed condition is the TECHNICIAN'S verdict, not the gauge
+                    // band. The gauge measures a different thing (share of passed items),
+                    // so the two can legitimately differ. The band is only a fallback for
+                    // inspections saved before the verdict was made mandatory.
+                    $condColors = ['excellent' => '#2fa84f', 'good' => '#f2903f', 'fair' => '#efb008', 'poor' => '#e0483d'];
+                    $condColor  = $condColors[$inspection->overall_condition] ?? $cColor;
+                    $condition  = $condition ?: $cond;
+
                     $cx = 200; $cy = 170;
                     $rBand = 150; $rMinO = 133; $rMinI = 126; $rMajI = 116; $rLabel = 102; $rNeedle = 112;
                     $ang = fn ($v) => deg2rad(225 - 2.7 * max(0, min(100, $v)));
@@ -404,8 +414,8 @@
                     <div class="cover-score-num" style="font-size:34px; font-weight:800; color:#fff; line-height:1; font-family:'Poppins',sans-serif;">
                         {{ $scoreLbl }}<span style="font-size:18px; font-weight:700; color:#8ea3b5;"> / 100</span>
                     </div>
-                    <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $cColor }}; background:{{ $cColor }}22; border:1px solid {{ $cColor }};">
-                        {{ $cond }} Condition
+                    <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $condColor }}; background:{{ $condColor }}22; border:1px solid {{ $condColor }};">
+                        {{ $condition }} Condition
                     </div>
                 </div>
 
@@ -423,7 +433,7 @@
               
                 <div class="card tight" style=" width :350px;">
                     <div class="facts">
-                        <div class="fact"><div class="fl">Overall Condition</div><div class="fv"> {{ $cond }}</div></div>
+                        <div class="fact"><div class="fl">Overall Condition</div><div class="fv"> {{ $condition }}</div></div>
                         <div class="fact"><div class="fl">Recommendation</div><div class="fv">{{ $recommend }}</div></div>
                     </div>
                 </div>

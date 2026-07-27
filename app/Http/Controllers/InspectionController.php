@@ -308,13 +308,15 @@ class InspectionController extends Controller
             }
 
             // Completion-based status: fully answered = Completed (green),
-            // partially answered = Need Attention (yellow), none = Not answered.
+            // partially answered = In Progress (yellow), none = Not answered.
+            // These describe data entry, not vehicle condition — a section can
+            // be Completed and still contain failed items.
             if ($answered === 0) {
                 $status = 'Not answered';
             } elseif ($answered >= $total) {
                 $status = 'Completed';
             } else {
-                $status = 'Need Attention';
+                $status = 'In Progress';
             }
 
             $sections[] = [
