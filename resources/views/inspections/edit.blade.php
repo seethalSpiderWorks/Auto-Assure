@@ -702,39 +702,39 @@
                                     <div class="row">
                                         {{-- Odometer is captured under Customer & Vehicle; verdict reads the saved value. --}}
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Overall condition</label>
-                                            <select name="overall_condition" class="form-control form-select">
+                                            <label class="form-label">Overall condition <span class="text-danger">*</span></label>
+                                            <select name="overall_condition" data-wreq required class="form-control form-select">
                                                 <option value="">—</option>
                                                 @foreach (\App\Models\Inspection::CONDITIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->overall_condition === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost</label><input name="estimated_repair_cost" type="number" step="0.01" class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><input name="estimated_repair_cost" type="number" step="0.01" min="0" required class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
                                         <div class="col-md-12 mb-3">
-                                            <label class="form-label">Recommendation</label>
-                                            <select name="recommendation" data-wreq class="form-control form-select">
+                                            <label class="form-label">Recommendation <span class="text-danger">*</span></label>
+                                            <select name="recommendation" data-wreq required class="form-control form-select">
                                                 <option value="">—</option>
                                                 @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-12"><label class="form-label">Summary report</label><textarea name="summary" rows="4" class="form-control">{{ old('summary', $inspection->summary) }}</textarea></div>
+                                        <div class="col-md-12"><label class="form-label">Summary report <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control">{{ old('summary', $inspection->summary) }}</textarea></div>
                                     </div>
 
                                     {{-- Per-type summaries. Types come from tbl_summary_type, the same
                                          lookup the legacy /inspectionreport summary tab reads. --}}
                                     @if (!empty($summaryTypes))
                                         <hr class="detail-sep">
-                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary</h6>
-                                        <p class="text-muted font-size-12 mb-3">A note per area — shown on the report.</p>
+                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary <span class="text-danger">*</span></h6>
+                                        <p class="text-muted font-size-12 mb-3">A note per area — all are required and shown on the report.</p>
                                         <div class="sum-grid">
                                             @foreach ($summaryTypes as $typeId => $typeName)
                                                 @php($hasNote = filled(old('summaries.'.$typeId, $summaries[$typeId] ?? '')))
                                                 <div class="sum-card {{ $hasNote ? 'is-filled' : '' }}" data-sum-card="{{ $typeId }}">
                                                     <div class="sum-card__head">
                                                         <span class="sum-card__icon"><i class="bx {{ $areaIcon($typeName) }}"></i></span>
-                                                        <span class="sum-card__title">{{ $typeName }}</span>
+                                                        <span class="sum-card__title">{{ $typeName }} <span class="text-danger">*</span></span>
                                                         <i class="bx bx-check-circle sum-card__tick"></i>
                                                     </div>
-                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" class="form-control sum-card__input"
+                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" required class="form-control sum-card__input"
                                                         placeholder="e.g. {{ $typeName }} is in good condition"
                                                         oninput="this.closest('.sum-card').classList.toggle('is-filled', this.value.trim().length>0)">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
                                                 </div>
@@ -825,7 +825,11 @@
                 <div class="wiz-nav">
                     <button type="button" id="wiz-prev" class="btn btn-outline-secondary" disabled><i class="bx bx-chevron-left"></i> Previous</button>
                     <div class="wiz-spacer"></div>
-                    <button type="submit" name="complete" value="0" class="btn btn-light"><i class="bx bx-save"></i> Save</button>
+                    {{-- Draft save: the Verdict step's fields are required, but they are only
+                         mandatory to COMPLETE. formnovalidate keeps a half-filled inspection
+                         savable (and avoids the browser refusing to submit over a required
+                         field sitting on a hidden step). The server still validates. --}}
+                    <button type="submit" name="complete" value="0" formnovalidate class="btn btn-light"><i class="bx bx-save"></i> Save</button>
                     <button type="button" id="wiz-next" class="btn btn-primary btn-next">Next <i class="bx bx-chevron-right"></i></button>
                     <span id="wiz-finish" style="display:none;">
                         @unless($isCompleted)
