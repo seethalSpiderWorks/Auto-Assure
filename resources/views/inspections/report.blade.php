@@ -337,7 +337,9 @@
             .sheet{ max-width:none; }
             .page,.cover,.thanks{ margin-bottom:0; border-radius:0; }
             .pb{ page-break-before:always; }
-            .card,.item-card,.sec-bar,.badge,.plg,.brand-pill,.gauge,.cover,.thanks{
+            {{-- .star is in this list because a fractional star is drawn with a
+                 background gradient, which print drops without colour-adjust. --}}
+            .card,.item-card,.sec-bar,.badge,.plg,.brand-pill,.gauge,.cover,.thanks,.star{
                 -webkit-print-color-adjust:exact; print-color-adjust:exact; }
         }
     </style>
@@ -608,14 +610,19 @@
                     // screen. Deliberately NOT Inspection::sectionRating(), which
                     // falls back to a score derived from the answers — that printed
                     // stars nobody had assessed. No rating given = no stars shown.
-                    $secRating = (int) (optional($secMeta)->rating ?: 0);
+                    $secRating = (float) (optional($secMeta)->rating ?: 0);
+                    // 4.0 prints as "4", 4.6 stays "4.6".
+                    $secRatingLbl = rtrim(rtrim(number_format($secRating, 1), '0'), '.');
                 @endphp
                 <div class="sec-bar" style="margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
                     <span class="en">{{ $sTitle }}</span>
                     @if ($secRating || optional($secMeta)->summary)
                         <span class="sec-summary" style="font-size:12px; color:#cfd4dc; display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; text-align:right;">
                             @if ($secRating)
-                                <span style="white-space:nowrap;">@for($i=1;$i<=5;$i++)<span style="color:{{ $i <= $secRating ? '#f1b44c' : 'rgba(255,255,255,.3)' }};">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRating }}/5</span></span>
+                                {{-- Partial star for a fractional rating: 3.5 draws three full
+                                     stars plus a half-filled fourth. The fraction is a gold/dim
+                                     gradient clipped to the glyph. --}}
+                                <span style="white-space:nowrap;">@for($i = 1; $i <= 5; $i++)@php $fill = max(0, min(1, $secRating - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span class="star" style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:rgba(255,255,255,.3);' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,rgba(255,255,255,.3) '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRatingLbl }}/5</span></span>
                             @endif
                             @if (optional($secMeta)->summary)<span style="font-style:italic;white-space:pre-line;">{{ $secMeta->summary }}</span>@endif
                         </span>

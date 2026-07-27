@@ -77,6 +77,12 @@
 
     /* Star rating */
     .js-star, .js-secstar { cursor: pointer; font-size: 1.35rem; line-height: 1; }
+    /* Section rating row: label · stars · number box · readout. Spaced with a
+       flex gap so the parts never run together, and free to wrap on narrow
+       cards instead of squashing the number box. */
+    .sec-rating { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+    .sec-rating__stars { display: inline-flex; align-items: center; gap: .3rem; }
+    .sec-rating__box { width: 78px; }
 
     /* Dashed upload area */
     .upload-drop {
@@ -655,7 +661,7 @@
 
                                     {{-- Section-level summary + optional rating (shown on the report's Inspection Summary) --}}
                                     @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
-                                    @php($secRating = (int) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
+                                    @php($secRating = (float) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
                                     <div class="border-top pt-3 mt-2" data-section-summary="{{ $section->id }}">
                                         <label class="form-label font-size-13 font-weight-bold mb-1">
                                             {{ $section->section_name }} summary
@@ -666,14 +672,22 @@
                                             oninput="AA.debounceSectionSummary({{ $section->id }})"
                                             class="form-control">{{ old('section_summaries.'.$section->id, $sectionSummary->summary ?? '') }}</textarea>
 
-                                        <div class="d-inline-flex align-items-center mt-2" data-section-rating="{{ $section->id }}">
-                                            <span class="font-size-12 text-muted mr-2">Section rating <span class="text-muted">(optional)</span>:</span>
-                                            <input type="hidden" name="section_ratings[{{ $section->id }}]" value="{{ $secRating ?: '' }}">
-                                            @for ($n = 1; $n <= 5; $n++)
-                                                <span class="js-secstar" data-section="{{ $section->id }}" data-val="{{ $n }}"
-                                                      style="color:{{ $n <= $secRating ? '#f1b44c' : '#ccc' }};">★</span>
-                                            @endfor
-                                            <small class="text-muted ml-2 js-secrating-label" data-section="{{ $section->id }}">{{ $secRating ? $secRating.'/5' : '' }}</small>
+                                        <div class="sec-rating mt-2" data-section-rating="{{ $section->id }}">
+                                            <span class="font-size-12 text-muted">Section rating <span class="text-muted">(optional)</span>:</span>
+                                            {{-- Stars set whole values; the box beside them takes any
+                                                 0.1 step (0.5, 4.6). Both write to the same input. --}}
+                                            <input type="hidden" name="section_ratings[{{ $section->id }}]" value="{{ $secRating ? rtrim(rtrim(number_format($secRating, 1), '0'), '.') : '' }}">
+                                            <span class="sec-rating__stars">
+                                                @for ($n = 1; $n <= 5; $n++)
+                                                    <span class="js-secstar" data-section="{{ $section->id }}" data-val="{{ $n }}"
+                                                          style="color:#ccc;">★</span>
+                                                @endfor
+                                            </span>
+                                            <input type="number" class="form-control form-control-sm js-secrating-input sec-rating__box"
+                                                   data-section="{{ $section->id }}" step="0.1" min="0" max="5"
+                                                   placeholder="0.0" aria-label="{{ $section->section_name }} rating out of 5"
+                                                   value="{{ $secRating ? rtrim(rtrim(number_format($secRating, 1), '0'), '.') : '' }}">
+                                            <small class="text-muted js-secrating-label" data-section="{{ $section->id }}"></small>
                                         </div>
                                     </div>
                                 </div>
@@ -918,7 +932,7 @@
                 await post(urls.sectionSummary, {
                     section_id: sectionId,
                     summary: el ? el.value : null,
-                    rating: rt && rt.value ? parseInt(rt.value, 10) : null,
+                    rating: rt && rt.value ? parseFloat(rt.value) : null,   // decimal, e.g. 4.6
                 });
                 saved();
             } catch (e) { failed(); }
@@ -1259,25 +1273,71 @@
         });
     });
 
-    // Optional per-section rating stars.
+    // Optional per-section rating. The stars set whole values; the number box
+    // beside them takes any 0.1 step (0.5, 4.6). Both write the same hidden
+    // section_ratings[...] field, which is what the form actually posts.
+
+    // Paint one star as empty, full, or partially filled. A fraction is drawn
+    // by clipping a gold/grey gradient to the glyph, so 4.6 reads as four full
+    // stars plus a 60%-filled fifth.
+    function fillStar(el, fill) {
+        if (fill >= 0.999 || fill <= 0.001) {
+            el.style.background = '';
+            el.style.webkitBackgroundClip = '';
+            el.style.backgroundClip = '';
+            el.style.color = fill >= 0.999 ? '#f1b44c' : '#ccc';
+            return;
+        }
+        const pct = (fill * 100).toFixed(1) + '%';
+        el.style.background = 'linear-gradient(90deg,#f1b44c ' + pct + ',#ccc ' + pct + ')';
+        el.style.webkitBackgroundClip = 'text';
+        el.style.backgroundClip = 'text';
+        el.style.color = 'transparent';
+    }
+
     function paintSecStars(sectionId, val) {
         root.querySelectorAll('.js-secstar[data-section="' + sectionId + '"]').forEach(s => {
-            s.style.color = parseInt(s.dataset.val, 10) <= val ? '#f1b44c' : '#ccc';
+            fillStar(s, val - (parseInt(s.dataset.val, 10) - 1));
         });
         const label = root.querySelector('.js-secrating-label[data-section="' + sectionId + '"]');
         if (label) label.textContent = val ? val + '/5' : '';
     }
+
+    // Clamp to 0–5 at one decimal, then push the value everywhere it is shown.
+    // skipBox leaves the number input alone so it does not fight the typist.
+    function setSecRating(sectionId, raw, skipBox) {
+        const val = Math.max(0, Math.min(5, Math.round((parseFloat(raw) || 0) * 10) / 10));
+        const hidden = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
+        if (hidden) hidden.value = val ? String(val) : '';
+        if (! skipBox) {
+            const box = root.querySelector('.js-secrating-input[data-section="' + sectionId + '"]');
+            if (box) box.value = val ? String(val) : '';
+        }
+        paintSecStars(sectionId, val);
+        return val;
+    }
+
     root.querySelectorAll('.js-secstar').forEach(star => {
         star.addEventListener('click', () => {
             const sectionId = star.dataset.section;
             const val = parseInt(star.dataset.val, 10);
             const hidden = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
-            const current = hidden.value ? parseInt(hidden.value, 10) : 0;
-            const next = current === val ? 0 : val;       // click same star again to clear
-            hidden.value = next || '';
-            paintSecStars(sectionId, next);
+            const current = parseFloat(hidden && hidden.value) || 0;
+            setSecRating(sectionId, current === val ? 0 : val);   // click same star again to clear
             AA.saveSectionSummary(sectionId);
         });
+    });
+
+    root.querySelectorAll('.js-secrating-input').forEach(box => {
+        const sectionId = box.dataset.section;
+        box.addEventListener('input', () => {
+            setSecRating(sectionId, box.value, true);
+            AA.debounceSectionSummary(sectionId);
+        });
+        // Normalise on blur, so "4.63" or "9" settles to 4.6 / 5 on screen.
+        box.addEventListener('blur', () => setSecRating(sectionId, box.value));
+        // Initial paint — partial fills cannot be rendered from Blade.
+        paintSecStars(sectionId, parseFloat(box.value) || 0);
     });
 
     // Customer/vehicle/assignment field auto-save (all fields except the

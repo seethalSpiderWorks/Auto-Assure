@@ -165,7 +165,9 @@ class InspectionController extends Controller
             'sections' => ['nullable', 'array'],
             'sections.*.section_id' => ['required_with:sections', 'integer'],
             'sections.*.summary' => ['nullable', 'string', 'max:5000'],
-            'sections.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            // Section ratings take one decimal place (0.5, 4.6); per-step
+            // ratings above stay whole 1–5 stars.
+            'sections.*.rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
         ]);
 
         if ($validator->fails()) {

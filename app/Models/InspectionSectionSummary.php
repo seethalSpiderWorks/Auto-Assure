@@ -17,7 +17,9 @@ class InspectionSectionSummary extends Model
 
     protected function casts(): array
     {
-        return ['rating' => 'integer'];
+        // Float, not decimal:1 — decimal casts to a string, which would print
+        // "4.6" fine but break the numeric comparisons the star loops rely on.
+        return ['rating' => 'float'];
     }
 
     public function inspection(): BelongsTo

@@ -208,10 +208,12 @@ class Inspection extends Model
      *
      * @param  \Illuminate\Support\Collection  $byStep  answers keyed by inspection_step_id
      */
-    public static function sectionRating($section, $byStep, ?int $manual = null): ?int
+    public static function sectionRating($section, $byStep, float|int|string|null $manual = null): ?float
     {
-        if ($manual) {
-            return max(1, min(5, $manual));
+        // A rating the technician actually recorded wins, and keeps its decimal
+        // place (4.6 stays 4.6). Only the derived fallback below is whole.
+        if (filled($manual) && (float) $manual > 0) {
+            return round(max(0.5, min(5, (float) $manual)), 1);
         }
 
         $answered = 0;

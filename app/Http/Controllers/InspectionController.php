@@ -430,7 +430,8 @@ class InspectionController extends Controller
         $data = $request->validate([
             'section_id' => ['required', 'integer'],
             'summary' => ['nullable', 'string', 'max:5000'],
-            'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            // Decimal to one place, e.g. 0.5 / 4.6. Stored in a decimal(2,1).
+            'rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
         ]);
 
         $sectionId = (int) $data['section_id'];
@@ -697,7 +698,8 @@ class InspectionController extends Controller
             'summaries' => ['nullable', 'array'],
             'summaries.*' => ['nullable', 'string', 'max:5000'],
             'section_ratings' => ['nullable', 'array'],
-            'section_ratings.*' => ['nullable', 'integer', 'min:1', 'max:5'],
+            // Decimal to one place, e.g. 0.5 / 4.6. Stored in a decimal(2,1).
+            'section_ratings.*' => ['nullable', 'numeric', 'min:0', 'max:5'],
             // Media
             'photos.*.*' => ['nullable', 'image', 'max:10240'],
             'videos.*.*' => ['nullable', 'mimetypes:video/mp4,video/quicktime,video/x-matroska', 'max:102400'],
@@ -817,7 +819,7 @@ class InspectionController extends Controller
                     ['inspection_id' => $inspection->id, 'inspection_section_id' => (int) $sectionId],
                     [
                         'summary' => filled($text) ? $text : null,
-                        'rating' => filled($rating) ? (int) $rating : null,
+                        'rating' => filled($rating) ? round((float) $rating, 1) : null,
                     ]
                 );
             }
