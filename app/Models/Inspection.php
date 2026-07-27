@@ -377,22 +377,26 @@ class Inspection extends Model
             ]);
         }
 
-        // Notify the assigned technician (in-app inbox + FCM push) on a new
-        // assignment, or on a reassignment that actually changed the technician.
-        // A no-op re-save (same technician) does not notify. Failures are logged
-        // to the fcm channel so assignment never breaks.
+        // Push-notify the assigned technician on a new assignment, or on a
+        // reassignment that actually changed the technician. A no-op re-save
+        // (same technician) does not notify. Failures are logged to the fcm
+        // channel so assignment never breaks.
         if ($isNew || $technicianChanged) {
             $vehicle = $inspection->customer_name ?: 'Vehicle inspection';
+            $title = $isNew ? 'New Inspection Assigned' : 'Inspection Reassigned to You';
+            $body  = ($isNew ? 'You have a new inspection: ' : 'An inspection was reassigned to you: ') . $vehicle;
+            $type  = $isNew ? 'inspection_assigned' : 'inspection_reassigned';
 
-            \App\Services\PushNotificationService::notifyUser(
-                $technicianId,
-                $isNew ? 'New Inspection Assigned' : 'Inspection Reassigned to You',
-                ($isNew ? 'You have a new inspection: ' : 'An inspection was reassigned to you: ') . $vehicle,
-                [
-                    'type' => $isNew ? 'inspection_assigned' : 'inspection_reassigned',
-                    'inspection_id' => (string) $inspection->id,
-                    'lead_id' => (string) $leadId,
-                ]
+            // FCM push — reaches the technician's device even when the app is closed.
+            \App\Services\PushNotificationService::sendToUser($technicianId, $title, $body, [
+                'type' => $type,
+                'inspection_id' => (string) $inspection->id,
+                'lead_id' => (string) $leadId,
+            ]);
+
+            // Pusher broadcast — live in-app update while the app is open.
+            \App\Events\InspectionAssigned::dispatch(
+                $technicianId, (int) $inspection->id, (int) $leadId, $title, $body, $type
             );
         }
 

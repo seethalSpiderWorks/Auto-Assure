@@ -35,6 +35,7 @@
     31 => 'Nwidart\\Modules\\LaravelModulesServiceProvider',
     32 => 'Spatie\\Html\\HtmlServiceProvider',
     33 => 'App\\Providers\\AppServiceProvider',
+    34 => 'App\\Providers\\BroadcastServiceProvider',
   ),
   'eager' => 
   array (
@@ -57,6 +58,7 @@
     16 => 'Nwidart\\Modules\\LaravelModulesServiceProvider',
     17 => 'Spatie\\Html\\HtmlServiceProvider',
     18 => 'App\\Providers\\AppServiceProvider',
+    19 => 'App\\Providers\\BroadcastServiceProvider',
   ),
   'deferred' => 
   array (

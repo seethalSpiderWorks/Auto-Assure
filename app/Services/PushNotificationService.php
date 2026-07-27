@@ -2,47 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\AppNotification;
 use App\Models\DeviceToken;
-use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PushNotificationService
 {
-    /**
-     * Notify a user: save an in-app notification (for the app's notification
-     * list) AND send an FCM push. Use this for anything the app should both
-     * show in the inbox and push. Returns the stored notification, or null if
-     * the recipient isn't a technician.
-     *
-     * Notifications are APP-ONLY: they are only ever created/sent for technician
-     * users (the app audience). CRM/web users never receive them.
-     */
-    public static function notifyUser(int $userId, string $title, string $body, array $data = [], ?string $type = null): ?AppNotification
-    {
-        $user = User::find($userId);
-        if (! $user || ! $user->isTechnician()) {
-            Log::channel('fcm')->info("FCM: Skipped notify — user {$userId} is not a technician (app-only).");
-            return null;
-        }
-
-        $notification = AppNotification::create([
-            'user_id' => $userId,
-            'type' => $type ?? ($data['type'] ?? null),
-            'title' => $title,
-            'body' => $body,
-            'data' => $data ?: null,
-        ]);
-
-        // Deliver the push (include the notification id so the app can deep-link).
-        self::sendToUser($userId, $title, $body, array_merge($data, [
-            'notification_id' => (string) $notification->id,
-        ]));
-
-        return $notification;
-    }
-
     /**
      * Send push notification to a single user.
      */

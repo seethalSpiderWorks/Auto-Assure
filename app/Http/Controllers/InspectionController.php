@@ -917,10 +917,10 @@ class InspectionController extends Controller
 
         $inspection->save();
 
-        // Reassigned to a different technician from the edit screen — notify the
-        // new technician (in-app inbox + FCM push), same as the lead-assign flow.
+        // Reassigned to a different technician from the edit screen — push-notify
+        // the new technician, same as the lead-assign flow.
         if ((int) $inspection->technician_id > 0 && (int) $inspection->technician_id !== $prevTechnicianId) {
-            \App\Services\PushNotificationService::notifyUser(
+            \App\Services\PushNotificationService::sendToUser(
                 (int) $inspection->technician_id,
                 'Inspection Reassigned to You',
                 'An inspection was reassigned to you: ' . ($inspection->customer_name ?: 'Vehicle inspection'),
