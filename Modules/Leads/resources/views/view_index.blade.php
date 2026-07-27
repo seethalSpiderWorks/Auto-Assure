@@ -399,8 +399,8 @@
 
     .mla-list-wrap { max-height:300px; overflow-y:auto; border:1px solid #eef1f5; border-radius:12px; padding:6px; margin-bottom:16px; background:#f9fbfc; }
     .mla-list { margin:0; padding:0; }
-    .mla-row { display:grid; grid-template-columns:1.4fr 1.2fr 1fr; gap:10px; align-items:center; padding:7px 10px; border-radius:8px; }
-    .mla-list.mla-mode-each .mla-row { grid-template-columns:1.3fr 1fr .9fr 1fr; }
+    .mla-row { display:grid; grid-template-columns:1.3fr 1.1fr 1.5fr; gap:10px; align-items:center; padding:7px 10px; border-radius:8px; }
+    .mla-list.mla-mode-each .mla-row { grid-template-columns:1.2fr .9fr 1.4fr 1fr; }
     .mla-row + .mla-row { border-top:1px solid #eef1f5; }
     .mla-row--head { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; border-bottom:1px solid #eef1f5; }
     .mla-row__name { display:flex; align-items:center; gap:6px; font-size:13.5px; color:#344054; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -521,7 +521,7 @@
 		
 	   	<!-- parsleyjs -->
 		<script src="{{asset('assets/libs/parsleyjs/parsley.min.js')}}"></script>
-		<script src="{{asset('module.js/Leads/index_leads.js?ver=3.6')}}"></script>
+		<script src="{{asset('module.js/Leads/index_leads.js?ver=3.7')}}"></script>
 		<script src="{{asset('module.js/Leads/main.js?ver=1.2') }}"></script>  
 		<script src="{{asset('module.js/main.js?ver=1.3')}}"></script>
 <script>
@@ -1042,12 +1042,12 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
                 list.innerHTML = '<div class="text-muted p-2">No leads selected. Tick the checkboxes in the list first.</div>';
             } else {
                 list.innerHTML =
-                    '<div class="mla-row mla-row--head"><span>Lead</span><span>Template</span><span>Date</span><span class="mla-row__staff">Staff</span></div>' +
+                    '<div class="mla-row mla-row--head"><span>Lead</span><span>Template</span><span>Date &amp; Time</span><span class="mla-row__staff">Staff</span></div>' +
                     leads.map(function (l) {
                         return '<div class="mla-row" data-lead-id="' + l.id + '">' +
                             '<span class="mla-row__name" title="' + l.name + '"><i class="bx bx-user"></i> ' + l.name + '</span>' +
                             '<select class="form-select form-select-sm mla-row__type">' + typeOptions() + '</select>' +
-                            '<input type="date" class="form-control form-control-sm mla-row__date">' +
+                            '<input type="datetime-local" class="form-control form-control-sm mla-row__date">' +
                             '<select class="form-select form-select-sm mla-row__staff">' + staffOptions() + '</select>' +
                             '</div>';
                     }).join('');
@@ -1072,7 +1072,8 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
             rows.forEach(function (row) {
                 var id = row.getAttribute('data-lead-id');
                 var type = row.querySelector('.mla-row__type').value;
-                var date = row.querySelector('.mla-row__date').value;
+                var date = row.querySelector('.mla-row__date').value;          // "2026-07-27T14:30" (date + time)
+                var dateOnly = date ? date.split('T')[0] : '';                  // "2026-07-27" for the follow-up date
                 var staff = row.querySelector('.mla-row__staff').value;
                 row.classList.toggle('mla-row--err', !type);
                 row.classList.toggle('mla-row--err-staff', each && !staff);
@@ -1080,8 +1081,8 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
                 if (each && !staff) { missingStaff = true; return; }
                 body.append('leads[]', id);
                 body.append('inspection_type_id[' + id + ']', type);
-                body.append('scheduled_at[' + id + ']', date);
-                body.append('date[' + id + ']', date);
+                body.append('scheduled_at[' + id + ']', date);                 // full date + time -> inspections.scheduled_at
+                body.append('date[' + id + ']', dateOnly);                     // date only -> follow-up next date
                 if (each) { body.append('user_id[' + id + ']', staff); }
             });
             if (missingType)  { err.textContent = 'Please choose a template for each lead.'; return; }

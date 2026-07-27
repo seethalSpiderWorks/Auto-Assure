@@ -122,14 +122,19 @@ var dTable = $('#lead_table').DataTable({
 		
 		$('td:eq(7)', nRow).html(lead_form).addClass('center');
 
-		// Scheduled Date (inspection scheduled_at) — shown after "Assign To".
+		// Scheduled Date + time (inspection scheduled_at) — matches the /inspections list.
 		var schedHtml = '';
 		if(aData.inspection_scheduled_at)
 		{
 			var sd = new Date(String(aData.inspection_scheduled_at).replace(' ', 'T'));
 			if(!isNaN(sd.getTime()))
 			{
-				schedHtml = sd.getDate().toString().padStart(2, '0') + '-' + (sd.getMonth()+1).toString().padStart(2, '0') + '-' + sd.getFullYear();
+				var _mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+				var _dateStr = sd.getDate().toString().padStart(2, '0') + ' ' + _mo[sd.getMonth()] + ' ' + sd.getFullYear();
+				var _h = sd.getHours(), _m = sd.getMinutes().toString().padStart(2, '0');
+				var _ampm = _h >= 12 ? 'PM' : 'AM', _h12 = (_h % 12) || 12;
+				var _timeStr = _h12.toString().padStart(2, '0') + ':' + _m + ' ' + _ampm;
+				schedHtml = _dateStr + '<br><small style="color:#98a2b3"><i class="bx bx-time"></i> ' + _timeStr + '</small>';
 			}
 		}
 		if(schedHtml === '') { schedHtml = '<span style="color:#98a2b3">—</span>'; }
