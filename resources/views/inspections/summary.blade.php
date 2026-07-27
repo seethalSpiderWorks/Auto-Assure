@@ -9,7 +9,6 @@
         : (str_contains($cond,'fair') ? 'is-fair'
         : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'));
     $goodCount = collect($sections)->where('status','Completed')->count();
-    $warnCount = collect($sections)->where('status','Need Attention')->count();
     $naCount   = collect($sections)->where('status','Not answered')->count();
 @endphp
 
@@ -85,10 +84,9 @@
 
             {{-- ===== Section status tallies ===== --}}
             <div class="row g-3 mt-4">
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--total"><span class="insp-stat__num">{{ count($sections) }}</span><span class="insp-stat__lbl">Sections</span></div></div>
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--good"><span class="insp-stat__num">{{ $goodCount }}</span><span class="insp-stat__lbl">Completed</span></div></div>
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--warn"><span class="insp-stat__num">{{ $warnCount }}</span><span class="insp-stat__lbl">Need Attention</span></div></div>
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--na"><span class="insp-stat__num">{{ $naCount }}</span><span class="insp-stat__lbl">Not Answered</span></div></div>
+                <div class="col-md-4 col-6"><div class="insp-stat insp-stat--total"><span class="insp-stat__num">{{ count($sections) }}</span><span class="insp-stat__lbl">Sections</span></div></div>
+                <div class="col-md-4 col-6"><div class="insp-stat insp-stat--good"><span class="insp-stat__num">{{ $goodCount }}</span><span class="insp-stat__lbl">Completed</span></div></div>
+                <div class="col-md-4 col-6"><div class="insp-stat insp-stat--na"><span class="insp-stat__num">{{ $naCount }}</span><span class="insp-stat__lbl">Not Answered</span></div></div>
             </div>
 
             <div class="insp-breakdown-head">

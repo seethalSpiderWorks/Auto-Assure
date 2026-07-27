@@ -38,6 +38,9 @@
     .wiz-dot.active .bead { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; box-shadow: 0 0 0 4px rgba(4,176,132,.22); }
     .wiz-dot.active .lbl { color: var(--brand-dark); font-weight: 600; }
     .wiz-dot.done .bead { background: var(--brand); border-color: var(--brand); color: #fff; }
+    /* Partially answered — some questions filled, section not finished yet. */
+    .wiz-dot.partial .bead { background: #f1b44c; border-color: #f1b44c; color: #fff; }
+    .wiz-dot.partial .lbl { color: #916417; }
     .wiz-line { flex: 0 0 20px; width: 20px; height: 2px; background: #e5e7eb; }
     .wiz-line.done { background: var(--brand); }
 
@@ -251,6 +254,14 @@
     $wsteps[] = ['type' => 'verdict', 'name' => 'Verdict & Complete'];
     $totalW = count($wsteps);
     $sectionProgress = $inspection->sectionProgress();
+    // Keyed by section id so the section card headers can print their own
+    // answered/total without re-walking the steps.
+    $secProgById = collect($sectionProgress)->keyBy('id');
+    // Completion Status totals, summed from the same per-section counts the JS
+    // recomputes live, so the server-rendered badge matches what JS paints.
+    $doneAnswered = (int) collect($sectionProgress)->sum('answered');
+    $doneTotal    = (int) collect($sectionProgress)->sum('total');
+    $donePercent  = $doneTotal > 0 ? (int) round($doneAnswered / $doneTotal * 100) : 0;
 @endphp
 
 <div class="page-content">
@@ -492,7 +503,8 @@
                                             <h5 class="mb-0 text-truncate">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
                                         </div>
                                     </div>
-                                    <span class="badge badge-soft-secondary font-size-12" data-section-badge="{{ $section->id }}">0/{{ $section->steps->count() }}</span>
+                                    @php($secProg = $secProgById->get($section->id, ['answered' => 0, 'total' => $section->steps->count(), 'done' => false]))
+                                    <span class="badge {{ $secProg['done'] ? 'badge-soft-success' : 'badge-soft-secondary' }} font-size-12" data-section-badge="{{ $section->id }}">{{ $secProg['answered'] }}/{{ $secProg['total'] }}</span>
                                 </div>
                                 <div class="card-body">
                                     @forelse ($section->steps as $step)
@@ -713,10 +725,10 @@
                                     <hr class="detail-sep">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <h6 class="mb-0"><i class="bx bx-list-check text-success"></i> Completion Status</h6>
-                                        <span class="badge badge-soft-info font-size-13" id="overall-badge">0/0 answered</span>
+                                        <span class="badge badge-soft-info font-size-13" id="overall-badge">{{ $doneAnswered }}/{{ $doneTotal }} answered</span>
                                     </div>
                                     <div class="progress mb-3" style="height:10px;">
-                                        <div id="completion-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div>
+                                        <div id="completion-bar" class="progress-bar bg-success" role="progressbar" style="width:{{ $donePercent }}%"></div>
                                     </div>
                                     <p class="text-muted font-size-12 mb-3">Every section must be fully answered before the inspection can be completed. Tap a section to jump to it.</p>
                                     <div class="secstat-grid">
@@ -1096,7 +1108,11 @@
 
     function recompute() {
         let total = 0, ans = 0;
-        root.querySelectorAll('[data-section]').forEach(function (sec) {
+        // Only the section CARDS — the section-rating stars (.js-secstar) and
+        // their label (.js-secrating-label) also carry data-section. Matching
+        // those too would re-resolve the same badge with zero question cards
+        // inside and overwrite the real count with 0/0.
+        root.querySelectorAll('.card[data-section]').forEach(function (sec) {
             // Only count question cards — rating stars & labels also carry
             // data-step, which would otherwise inflate the section total.
             const steps = sec.querySelectorAll('.q-card[data-step]');
@@ -1241,19 +1257,33 @@
     const RESUME_KEY = 'aaInspStep:{{ $inspection->id }}';
     function rememberStep(i) { try { localStorage.setItem(RESUME_KEY, String(i)); } catch (e) {} }
 
-    function panelDone(p, idx) {
+    // 'done' (all answered) | 'partial' (some answered) | 'empty' (none).
+    // Panels without question cards (media, verdict) fall back to their single
+    // required field, which can only be filled or not.
+    function panelState(p) {
         const steps = p.querySelectorAll('.q-card[data-step]');
-        if (steps.length) return Array.from(steps).every(stepAnswered);
+        if (steps.length) {
+            const a = Array.from(steps).filter(stepAnswered).length;
+            return a >= steps.length ? 'done' : (a > 0 ? 'partial' : 'empty');
+        }
         const req = p.querySelector('[data-wreq]');
-        return req ? req.value.trim() !== '' : false;
+        return (req && req.value.trim() !== '') ? 'done' : 'empty';
+    }
+
+    function panelDone(p, idx) {
+        return panelState(p) === 'done';
     }
 
     function recomputeStepper() {
         panels.forEach(function (p, idx) {
             const dot = dots[idx];
             if (!dot) return;
-            const done = panelDone(p, idx);
+            const state = panelState(p);
+            const done = state === 'done';
+            // The active bead keeps its own styling, so done/partial are only
+            // painted on the beads the user is not currently standing on.
             dot.classList.toggle('done', done && idx !== cur);
+            dot.classList.toggle('partial', state === 'partial' && idx !== cur);
             if (lines[idx - 1]) lines[idx - 1].classList.toggle('done', done);
         });
     }
@@ -1285,7 +1315,7 @@
     root.querySelectorAll('[data-goto-section]').forEach(function (el) {
         el.addEventListener('click', function () {
             const secId = el.dataset.gotoSection;
-            const panel = root.querySelector('[data-wstep] [data-section="' + secId + '"]');
+            const panel = root.querySelector('[data-wstep] .card[data-section="' + secId + '"]');
             if (!panel) return;
             const step = panel.closest('[data-wstep]');
             showStep(panels.indexOf(step));
@@ -1369,6 +1399,7 @@
             });
         });
     }
+
 })();
 </script>
 @endsection
