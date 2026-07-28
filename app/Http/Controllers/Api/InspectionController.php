@@ -36,11 +36,12 @@ class InspectionController extends Controller
         // Active inspections assigned to the authenticated technician (from the token).
         $query = Inspection::where('technician_id', $request->user()->id)
             ->with(['lead'])
-            // Newest schedule slot first, so several leads booked on the same day
-            // come back latest time → earliest. MySQL sorts NULLs last on DESC,
-            // which puts jobs with no slot yet at the end; id breaks exact ties.
-            ->orderByDesc('scheduled_at')
-            ->orderByDesc('id');
+            // Earliest schedule slot first, so a day reads chronologically
+            // (10:00 before 11:00). Jobs with no slot yet are pushed to the end;
+            // id breaks exact ties.
+            ->orderByRaw('scheduled_at IS NULL')   // 0 (has slot) before 1 (no slot)
+            ->orderBy('scheduled_at')              // earliest time first
+            ->orderBy('id');
 
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);          // explicit filter still works
