@@ -1050,6 +1050,13 @@ class LeadsController extends Controller
 						  'lead_followupcreated'=> Auth::user()->id]);
 		}
        
+		// Create/reassign the inspection for this lead so the per-row "Assign To"
+		// dropdown behaves like the other assign flows — this fires the technician
+		// notification (FCM push + Pusher) on a new assignment or technician change.
+		if ((int) $staffId > 0) {
+			\App\Models\Inspection::createForLead((int) $lead_data->lead_id, (int) $staffId);
+		}
+
 		$ip = $request->ip();
 		$action = '';
 		$user_name = Auth::user()->name;
