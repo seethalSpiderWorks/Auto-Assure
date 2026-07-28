@@ -347,6 +347,11 @@ class Inspection extends Model
             return $inspection;
         }
 
+        // Fetch the basic registration record — needed in both the new-inspection
+        // path (to snapshot customer details) and the reassign path (to fill any
+        // fields that were empty on the first assignment).
+        $basicReg = DB::table('tbl_basic_registration')->where('breg_id', $lead->lead_reg_id)->first();
+
         $isNew = ! $inspection;
         $technicianChanged = false;
 
@@ -358,9 +363,34 @@ class Inspection extends Model
             if ($scheduledAt) {
                 $inspection->scheduled_at = $scheduledAt;
             }
+            // Fill in customer/vehicle fields that may still be empty from
+            // an earlier assignment when the lead didn't have them yet.
+            if (! $inspection->customer_name_ar && ($basicReg?->breg_fname_ar ?? null)) {
+                $inspection->customer_name_ar = $basicReg?->breg_fname_ar;
+            }
+            if (! $inspection->whatsapp_number && ($basicReg?->breg_whatsapp ?? null)) {
+                $inspection->whatsapp_number = $basicReg?->breg_whatsapp;
+            }
+            if (! $inspection->car_make && ($lead->lead_make ?? null)) {
+                $inspection->car_make = static::resolveName('tbl_make', 'make_id', 'make_name', $lead->lead_make);
+            }
+            if (! $inspection->car_model && ($lead->lead_model ?? null)) {
+                $inspection->car_model = static::resolveName('tbl_model', 'model_id', 'model_name', $lead->lead_model);
+            }
+            if (! $inspection->car_year && ! empty($lead->lead_year)) {
+                $inspection->car_year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
+            }
+            if (! $inspection->manufacturing_year && ! empty($lead->lead_year)) {
+                $inspection->manufacturing_year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
+            }
+            if (! $inspection->plate_no && ($lead->lead_vehicle_plate_no ?? null)) {
+                $inspection->plate_no = $lead->lead_vehicle_plate_no;
+            }
+            if (! $inspection->exterior_color && ($lead->lead_color ?? null)) {
+                $inspection->exterior_color = $lead->lead_color;
+            }
             $inspection->save();
         } else {
-            $basicReg = DB::table('tbl_basic_registration')->where('breg_id', $lead->lead_reg_id)->first();
             $branchId = $lead->lead_branch_id ?: (session('application_branch') ?: 1);
             $year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
 
@@ -375,11 +405,16 @@ class Inspection extends Model
                 'technician_id'      => $technicianId,
                 'inspection_type_id' => $typeId,
                 'customer_name'      => ($basicReg?->breg_fname) ?: ($lead->lead_seller_name ?: 'N/A'),
+                'customer_name_ar'   => $basicReg?->breg_fname_ar,
                 'customer_email'     => $basicReg?->breg_email,
                 'customer_phone'     => ($basicReg?->breg_mob) ?: ($lead->lead_seller_mobile ?? null),
+                'whatsapp_number'    => $basicReg?->breg_whatsapp,
                 'car_make'           => $carMake,
                 'car_model'          => $carModel,
                 'car_year'           => $year,
+                'manufacturing_year' => $year,
+                'plate_no'           => $lead->lead_vehicle_plate_no,
+                'exterior_color'     => $lead->lead_color,
                 'status'             => static::STATUS_PENDING,
                 'scheduled_at'       => $scheduledAt ?: null,
             ]);
@@ -433,10 +468,15 @@ class Inspection extends Model
     }
 
     /**
-     * Resolve a lookup id (e.g. a make/model id stored on the lead) to its name.
-     * Returns null when the value is empty or no matching row exists, so we never
-     * store the raw id in place of a missing name. A non-numeric value is assumed
-     * to already be a name and is passed through unchanged.
+     * Resolve a lookup id (or comma-separated ids — the model field stores
+     * multiple selections) to its name(s).
+     *
+     * - A single numeric id (e.g. "5") is looked up and the name returned.
+     * - A comma-separated list (e.g. "3,5,8") resolves each id individually
+     *   and returns the names joined by ", ".
+     * - A non-numeric value is assumed to already be a name and is passed
+     *   through unchanged.
+     * - Returns null when the value is empty or none of the ids resolve.
      */
     protected static function resolveName(string $table, string $idColumn, string $nameColumn, $value): ?string
     {
@@ -444,10 +484,27 @@ class Inspection extends Model
             return null;
         }
 
-        if (! is_numeric($value)) {
+        // Already a name (non-numeric without commas) — pass through.
+        if (! is_numeric($value) && ! str_contains($value, ',')) {
             return (string) $value;
         }
 
+        // Comma-separated ids: resolve each one and join the names.
+        if (str_contains($value, ',')) {
+            $ids = array_filter(array_map('trim', explode(',', $value)));
+            $names = [];
+            foreach ($ids as $id) {
+                if (is_numeric($id)) {
+                    $name = DB::table($table)->where($idColumn, $id)->value($nameColumn);
+                    if ($name !== null && $name !== '') {
+                        $names[] = (string) $name;
+                    }
+                }
+            }
+            return ! empty($names) ? implode(', ', $names) : null;
+        }
+
+        // Single numeric id.
         $name = DB::table($table)->where($idColumn, $value)->value($nameColumn);
 
         return $name !== null && $name !== '' ? (string) $name : null;
