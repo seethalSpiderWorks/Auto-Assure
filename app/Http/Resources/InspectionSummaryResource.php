@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Inspection;
+use App\Models\InspectionSummary;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -89,6 +90,18 @@ class InspectionSummaryResource extends JsonResource
         // (Inspection::detailIsAnswered). This deliberately does NOT use the
         // model's progress(), which counts raw detail rows (incl. empty ones and
         // answers for steps outside the current type) and can disagree.
+        // Saved per-area summary notes (inspection_summaries), keyed by summary_type_id.
+        $savedSummaries = $this->relationLoaded('summaries')
+            ? $this->summaries->pluck('summary', 'summary_type_id')
+            : collect();
+
+        // All active summary types with their saved notes, in lookup order.
+        $summaryAreas = collect(InspectionSummary::types())->map(fn ($name, $id) => [
+            'id'      => $id,
+            'name'    => $name,
+            'summary' => $savedSummaries->get($id),
+        ])->values();
+
         $progressTotal    = (int) $sections->sum('total');
         $progressAnswered = (int) $sections->sum('answered');
 
@@ -147,6 +160,9 @@ class InspectionSummaryResource extends JsonResource
             ],
 
             'sections' => $sections,
+
+            // Per-area summary notes from inspection_summaries (Exterior, Interior, Engine, Brakes, …).
+            'summary_areas' => $summaryAreas,
 
             // Additional media not tied to any step or section (the "extra"
             // bucket — a detail row with both ids null).

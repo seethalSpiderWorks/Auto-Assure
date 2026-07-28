@@ -212,6 +212,50 @@
     .wiz-head .btn-info:hover { background: var(--brand); border-color: var(--brand); }
     .wiz-head .btn-primary { background: var(--brand-dark); border-color: var(--brand-dark); }
     .wiz-head .btn-primary:hover { background: var(--brand); border-color: var(--brand); }
+
+    /* ---- Stat badge tooltips (CSS-only, no title attribute needed) ------- */
+    .stat-badge {
+        position: relative;
+        cursor: default;
+    }
+    .stat-badge::after {
+        content: attr(data-label);
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1f2a37;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 5px;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .14s;
+    }
+    .stat-badge:hover::after {
+        opacity: 1;
+    }
+
+    /* ---- Faded stat badge colors ---------------------------------------- */
+    .stat-badge.badge-soft-success {
+        background: rgba(15, 157, 105, .18) !important;
+        color: rgba(15, 157, 105, .85) !important;
+    }
+    .stat-badge.badge-soft-danger {
+        background: rgba(228, 63, 63, .18) !important;
+        color: rgba(228, 63, 63, .85) !important;
+    }
+    .stat-badge.badge-soft-warning {
+        background: rgba(241, 180, 76, .22) !important;
+        color: rgba(180, 120, 30, .85) !important;
+    }
+    .stat-badge.badge-soft-secondary {
+        background: rgba(108, 117, 125, .18) !important;
+        color: rgba(108, 117, 125, .8) !important;
+    }
 </style>
 
 @php
@@ -222,6 +266,53 @@
         'in_progress' => 'badge-soft-warning',
         'completed'   => 'badge-soft-success',
     ];
+
+    // Build the wizard step list: Details → each checklist section → Verdict.
+    $sections = $inspection->type->sections;
+    $wsteps = [['type' => 'details', 'name' => 'Customer & Vehicle']];
+    foreach ($sections as $s) {
+        $wsteps[] = ['type' => 'section', 'name' => $s->sequence . '. ' . $s->section_name, 'section' => $s];
+    }
+    $wsteps[] = ['type' => 'verdict', 'name' => 'Verdict & Complete'];
+    $totalW = count($wsteps);
+    $sectionProgress = $inspection->sectionProgress();
+    // Keyed by section id so the section card headers can print their own
+    // answered/total without re-walking the steps.
+    $secProgById = collect($sectionProgress)->keyBy('id');
+    // Completion Status totals, summed from the same per-section counts the JS
+    // recomputes live, so the server-rendered badge matches what JS paints.
+    $doneAnswered = (int) collect($sectionProgress)->sum('answered');
+    $doneTotal    = (int) collect($sectionProgress)->sum('total');    $donePercent  = $doneTotal > 0 ? (int) round($doneAnswered / $doneTotal * 100) : 0;
+
+    // Per-section answer breakdown (good / bad / avg / na).
+    $sectionStats = [];
+    foreach ($sections as $sec) {
+        $p = $f = $a = $n = 0;
+        foreach ($sec->steps as $step) {
+            $detail = $answers->get($step->id);
+            if (! \App\Models\Inspection::detailIsAnswered($detail)) {
+                continue; // unanswered — don't count as N/A
+            }
+            $choice = $detail->choice ?? '';
+            if (in_array($choice, \App\Models\Inspection::POSITIVE_CHOICES, true)) {
+                $p++;
+            } elseif ($choice === 'Average') {
+                $a++;
+            } elseif (in_array($choice, \App\Models\Inspection::NEGATIVE_CHOICES, true)) {
+                $f++;
+            } else {
+                $n++;
+            }
+        }
+        $sectionStats[$sec->id] = ['pass' => $p, 'fail' => $f, 'avg' => $a, 'na' => $n];
+    }
+
+    // Section name → stats lookup for the Summary area cards.
+    $sectionStatsByName = [];
+    foreach ($sections as $sec) {
+        $sectionStatsByName[strtolower(trim($sec->section_name))] =
+            $sectionStats[$sec->id] ?? ['pass'=>0,'fail'=>0,'avg'=>0,'na'=>0];
+    }
 
     // Colour for a choice option so Pass/Fail/N-A read at a glance.
     $choiceColor = function ($opt) {
@@ -255,24 +346,6 @@
             default                                                   => 'bx-notepad',
         };
     };
-
-    // Build the wizard step list: Details → each checklist section → Verdict.
-    $sections = $inspection->type->sections;
-    $wsteps = [['type' => 'details', 'name' => 'Customer & Vehicle']];
-    foreach ($sections as $s) {
-        $wsteps[] = ['type' => 'section', 'name' => $s->sequence . '. ' . $s->section_name, 'section' => $s];
-    }
-    $wsteps[] = ['type' => 'verdict', 'name' => 'Verdict & Complete'];
-    $totalW = count($wsteps);
-    $sectionProgress = $inspection->sectionProgress();
-    // Keyed by section id so the section card headers can print their own
-    // answered/total without re-walking the steps.
-    $secProgById = collect($sectionProgress)->keyBy('id');
-    // Completion Status totals, summed from the same per-section counts the JS
-    // recomputes live, so the server-rendered badge matches what JS paints.
-    $doneAnswered = (int) collect($sectionProgress)->sum('answered');
-    $doneTotal    = (int) collect($sectionProgress)->sum('total');
-    $donePercent  = $doneTotal > 0 ? (int) round($doneAnswered / $doneTotal * 100) : 0;
 @endphp
 
 <div class="page-content">
@@ -516,10 +589,26 @@
                                                 <div class="text-uppercase text-muted font-size-11 font-weight-bold" style="letter-spacing:.04em;">{{ $section->group_name }}@if($section->group_name_ar)<span dir="rtl"> — {{ $section->group_name_ar }}</span>@endif</div>
                                             @endif
                                             <h5 class="mb-0 text-truncate">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
-                                        </div>
-                                    </div>
+                                        </div>                     </div>
                                     @php($secProg = $secProgById->get($section->id, ['answered' => 0, 'total' => $section->steps->count(), 'done' => false]))
-                                    <span class="badge {{ $secProg['done'] ? 'badge-soft-success' : 'badge-soft-secondary' }} font-size-12" data-section-badge="{{ $section->id }}">{{ $secProg['answered'] }}/{{ $secProg['total'] }}</span>
+                                    @php($ss = $sectionStats[$section->id] ?? ['pass'=>0,'fail'=>0,'avg'=>0,'na'=>0])
+                                    @php($hasChoices = $section->steps->contains(fn($s) => $s->show_multiple_choice))
+                                    @php($hasAnswers = ($ss['pass'] + $ss['fail'] + $ss['avg'] + $ss['na']) > 0)
+                                    <span class="d-flex align-items-center" style="gap:12px;">
+                                        @if($hasChoices && $hasAnswers && $ss['pass'])
+                                            <span class="stat-badge badge badge-soft-success font-size-11" data-label="Good">{{ $ss['pass'] }}</span>
+                                        @endif
+                                        @if($hasChoices && $hasAnswers && $ss['fail'])
+                                            <span class="stat-badge badge badge-soft-danger font-size-11" data-label="Bad">{{ $ss['fail'] }}</span>
+                                        @endif
+                                        @if($hasChoices && $hasAnswers && $ss['na'])
+                                            <span class="stat-badge badge badge-soft-warning font-size-11" data-label="N/A">{{ $ss['na'] }}</span>
+                                        @endif
+                                        @if($hasChoices && $hasAnswers && $ss['avg'])
+                                            <span class="stat-badge badge badge-soft-secondary font-size-11" data-label="Average">{{ $ss['avg'] }}</span>
+                                        @endif
+                                        <span class="badge {{ $secProg['done'] ? 'badge-soft-success' : 'badge-soft-secondary' }} font-size-12" data-section-badge="{{ $section->id }}">{{ $secProg['answered'] }}/{{ $secProg['total'] }}</span>
+                                    </span>
                                 </div>
                                 <div class="card-body">
                                     @forelse ($section->steps as $step)
