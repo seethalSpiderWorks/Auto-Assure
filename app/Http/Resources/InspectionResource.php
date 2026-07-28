@@ -21,11 +21,6 @@ class InspectionResource extends JsonResource
             'scheduled_at' => optional($this->scheduled_at)->toIso8601String(),
             // Ready-to-display schedule, e.g. "24 Jul 2026, 02:30 PM".
             'scheduled_at_label' => optional($this->scheduled_at)->format('d M Y, h:i A'),
-            // Split date/time so a day-grouped list can print just the slot time
-            // under its date header, e.g. "2026-07-24" + "02:30 PM".
-            'scheduled_date'       => optional($this->scheduled_at)->toDateString(),
-            'scheduled_date_label' => optional($this->scheduled_at)->format('d M Y'),
-            'scheduled_time_label' => optional($this->scheduled_at)->format('h:i A'),
             'started_at'   => optional($this->started_at)->toIso8601String(),
             'completed_at' => optional($this->completed_at)->toIso8601String(),
 
