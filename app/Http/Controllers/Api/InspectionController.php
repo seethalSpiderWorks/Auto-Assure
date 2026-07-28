@@ -11,6 +11,7 @@ use App\Models\InspectionSection;
 use App\Models\InspectionSectionSummary;
 use App\Models\InspectionSummary;
 use App\Models\Lead;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\InspectionSummaryResource;
 use Illuminate\Http\Request;
@@ -22,14 +23,26 @@ use App\Http\Resources\InspectionHistoryResource;
 class InspectionController extends Controller
 {
     /**
-     * Technician's assigned jobs (optionally filtered by status).
+     * Technician's assigned jobs, grouped by scheduled day and ordered by time.
+     *
+     * A technician can be assigned several leads on the same date at different
+     * times, so the list is returned as one bucket per day — earliest day first,
+     * and inside a day the slots run earliest to latest. Jobs with no schedule
+     * yet fall into a trailing "Unscheduled" bucket rather than being dropped.
+     *
+     * Query params:
+     *   status  explicit status filter (default: anything but completed)
+     *   date    limit to a single day — a Y-m-d date, or the literal "today"
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request): JsonResponse
     {
         // Active inspections assigned to the authenticated technician (from the token).
         $query = Inspection::where('technician_id', $request->user()->id)
             ->with(['lead'])
-            ->latest();
+            // Schedule order: earliest slot first, unscheduled jobs pushed to the end.
+            ->orderByRaw('scheduled_at IS NULL')
+            ->orderBy('scheduled_at')
+            ->orderBy('id');
 
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);          // explicit filter still works
@@ -37,7 +50,53 @@ class InspectionController extends Controller
             $query->where('status', '!=', Inspection::STATUS_COMPLETED);   // hide completed by default
         }
 
-        return InspectionResource::collection($query->get());
+        if ($date = $request->string('date')->toString()) {
+            $day = $date === 'today' ? now()->toDateString() : $date;
+            $query->whereDate('scheduled_at', $day);
+        }
+
+        $inspections = $query->get();
+
+        // The query is already in schedule order, so groupBy keeps the days in
+        // that order too — no re-sorting of the buckets needed.
+        $groups = $inspections
+            ->groupBy(fn (Inspection $i) => optional($i->scheduled_at)->toDateString() ?? '')
+            ->map(function ($items, $day) use ($request) {
+                $date = $day !== '' ? Carbon::parse($day) : null;
+
+                return [
+                    'date'         => optional($date)->toDateString(),
+                    'date_label'   => $date ? $date->format('d M Y') : 'Unscheduled',
+                    'day_label'    => $date ? $this->dayLabel($date) : null,
+                    'is_today'     => $date ? $date->isToday() : false,
+                    'count'        => $items->count(),
+                    'inspections'  => InspectionResource::collection($items->values())->toArray($request),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'data' => $groups,
+            'meta' => [
+                'total'  => $inspections->count(),
+                'days'   => $groups->count(),
+                'today'  => now()->toDateString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Friendly name for a schedule day — "Today" / "Tomorrow" / "Yesterday",
+     * falling back to the weekday ("Monday") for anything else.
+     */
+    private function dayLabel(Carbon $date): string
+    {
+        return match (true) {
+            $date->isToday()     => 'Today',
+            $date->isTomorrow()  => 'Tomorrow',
+            $date->isYesterday() => 'Yesterday',
+            default              => $date->format('l'),
+        };
     }
 
     public function show(Request $request, Inspection $inspection): InspectionResource

@@ -917,18 +917,21 @@ class InspectionController extends Controller
 
         $inspection->save();
 
-        // Reassigned to a different technician from the edit screen — push-notify
-        // the new technician, same as the lead-assign flow.
+        // Reassigned to a different technician from the edit screen — notify the
+        // new technician via FCM push AND Pusher broadcast, same as the lead-assign flow.
         if ((int) $inspection->technician_id > 0 && (int) $inspection->technician_id !== $prevTechnicianId) {
-            \App\Services\PushNotificationService::sendToUser(
-                (int) $inspection->technician_id,
-                'Inspection Reassigned to You',
-                'An inspection was reassigned to you: ' . ($inspection->customer_name ?: 'Vehicle inspection'),
-                [
-                    'type' => 'inspection_reassigned',
-                    'inspection_id' => (string) $inspection->id,
-                    'lead_id' => (string) $inspection->lead_id,
-                ]
+            $techId = (int) $inspection->technician_id;
+            $title  = 'Inspection Reassigned to You';
+            $body   = 'An inspection was reassigned to you: ' . ($inspection->customer_name ?: 'Vehicle inspection');
+
+            \App\Services\PushNotificationService::sendToUser($techId, $title, $body, [
+                'type' => 'inspection_reassigned',
+                'inspection_id' => (string) $inspection->id,
+                'lead_id' => (string) $inspection->lead_id,
+            ]);
+
+            \App\Events\InspectionAssigned::dispatch(
+                $techId, (int) $inspection->id, (int) $inspection->lead_id, $title, $body, 'inspection_reassigned'
             );
         }
 
