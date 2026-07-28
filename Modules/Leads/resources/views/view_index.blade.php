@@ -167,7 +167,7 @@
                 <!-- End Page-content -->
           
 <!------------------------  Multiple Lead Assignment modal  ---------------------->
-	<div class="modal fade" id="multiAssignModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal fade" id="multiAssignModal" tabindex="-1" role="dialog" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
 		<div class="modal-dialog modal-dialog-centered modal-lg">
 			<div class="modal-content mla-modal">
 				<div class="modal-header">
@@ -521,7 +521,7 @@
 		
 	   	<!-- parsleyjs -->
 		<script src="{{asset('assets/libs/parsleyjs/parsley.min.js')}}"></script>
-		<script src="{{asset('module.js/Leads/index_leads.js?ver=3.7')}}"></script>
+		<script src="{{asset('module.js/Leads/index_leads.js?ver=4.0')}}"></script>
 		<script src="{{asset('module.js/Leads/main.js?ver=1.2') }}"></script>  
 		<script src="{{asset('module.js/main.js?ver=1.3')}}"></script>
 <script>
@@ -1054,7 +1054,10 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
             }
             document.querySelector('input[name="mla_mode"][value="all"]').checked = true;
             applyMode();
-            new bootstrap.Modal(modalEl).show();
+            // Static backdrop + no keyboard dismiss so clicking the native
+            // date/time picker (which renders outside the modal) doesn't close it
+            // and wipe the entered values.
+            bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false }).show();
         });
 
         document.getElementById('mla_submit').addEventListener('click', function () {

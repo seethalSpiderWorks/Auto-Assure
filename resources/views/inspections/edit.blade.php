@@ -414,13 +414,17 @@
                                     <p class="detail-group-title mt-2">Assignment</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Assigned Technician</label>
-                                            <select name="technician_id" class="form-control form-select">
+                                            <label class="form-label">Assigned Technician @if($isCompleted)<small class="text-success"><i class="bx bx-lock-alt"></i> locked (completed)</small>@endif</label>
+                                            <select name="technician_id" class="form-control form-select" @disabled($isCompleted)>
                                                 <option value="">Select Technician</option>
                                                 @foreach ($technicians as $technician)
                                                     <option value="{{ $technician->id }}" @selected(old('technician_id', $inspection->technician_id) == $technician->id)>{{ $technician->name }}</option>
                                                 @endforeach
                                             </select>
+                                            @if($isCompleted)
+                                                {{-- A disabled select posts nothing; keep the current technician on save. --}}
+                                                <input type="hidden" name="technician_id" value="{{ $inspection->technician_id }}">
+                                            @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">Inspection Template</label>

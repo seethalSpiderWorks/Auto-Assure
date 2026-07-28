@@ -89,12 +89,15 @@
         </div>
 
         {{-- Assignment option — assigns the lead & opens an inspection --}}
-        <div class="ldv-card ldv-assign mb-3">
+        @php
+            $curTypeId = $inspection->inspection_type_id ?? null;
+            $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d\TH:i') : '';
+            // Locked when the inspection is completed OR the lead is "Inspection Completed".
+            $inspLocked = (optional($inspection)->status === 'completed')
+                || ((optional($data)->lead_assigned_status ?? null) === 'Inspection Completed');
+        @endphp
+        <div class="ldv-card ldv-assign ldv-assign--highlight mb-3">
             <div class="ldv-assign__label"><i class="bx bx-user-plus"></i> Assign &amp; create inspection</div>
-            @php
-                $curTypeId = $inspection->inspection_type_id ?? null;
-                $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d\TH:i') : '';
-            @endphp
             <div class="ldv-assign__field">
                 <label>Inspection Template</label>
                 <select id="ldv_type" class="form-select">
@@ -117,7 +120,7 @@
                     @endforeach
                 </select>
             </div>
-            <button type="button" id="ldv_assign_btn" class="btn btn-brand"><i class="bx bx-check"></i> Assign</button>
+            <button type="button" id="ldv_assign_btn" class="btn btn-brand" @disabled($inspLocked)><i class="bx bx-check"></i> Assign</button>
             <span id="ldv_assign_msg" class="ldv-assign__msg"></span>
         </div>
 
@@ -298,13 +301,26 @@
 
     /* Assign option */
     .ldv-assign { display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; padding:18px 22px; }
+    /* Highlighted assign card — draws attention to the primary action. */
+    .ldv-assign--highlight { border:1.5px solid var(--ld-brand); background:linear-gradient(180deg, rgba(4,176,132,.06), #fff 60%); box-shadow:0 4px 16px rgba(4,176,132,.12); }
     .ldv-assign__label { font-weight:700; color:var(--ld-dark); display:flex; align-items:center; gap:8px; flex:1 1 100%; }
     .ldv-assign__label i { color:var(--ld-brand); font-size:18px; }
     .ldv-assign__field { display:flex; flex-direction:column; gap:5px; flex:1 1 190px; min-width:160px; }
     .ldv-assign__field > label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin:0; }
     .ldv-assign .form-select, .ldv-assign .form-control { border:1px solid #e4e8ee; border-radius:10px; height:40px; }
     .ldv-assign .form-select:focus, .ldv-assign .form-control:focus { border-color:var(--ld-brand); box-shadow:0 0 0 .18rem rgba(4,176,132,.15); }
-    .ldv-assign #ldv_assign_btn { height:40px; }
+    /* Highlighted primary Assign button */
+    .ldv-assign #ldv_assign_btn {
+        height:42px; padding:0 22px; border:0; border-radius:10px; font-weight:700; letter-spacing:.2px;
+        color:#fff; background:linear-gradient(135deg, var(--ld-brand) 0%, var(--ld-dark) 100%);
+        box-shadow:0 6px 16px rgba(4,176,132,.35); display:inline-flex; align-items:center; gap:7px;
+        transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+    }
+    .ldv-assign #ldv_assign_btn i { font-size:18px; }
+    .ldv-assign #ldv_assign_btn:hover { transform:translateY(-2px); box-shadow:0 10px 22px rgba(4,176,132,.45); filter:brightness(1.05); }
+    .ldv-assign #ldv_assign_btn:active { transform:translateY(0); box-shadow:0 4px 10px rgba(4,176,132,.35); }
+    /* Completed → button disabled: flat grey, no glow/hover. */
+    .ldv-assign #ldv_assign_btn:disabled { background:#cfd4dc; box-shadow:none; transform:none; filter:none; cursor:not-allowed; }
     .btn-brand { background:var(--ld-dark); border-color:var(--ld-dark); color:#fff; border-radius:10px; font-weight:600; }
     .btn-brand:hover { background:var(--ld-brand); border-color:var(--ld-brand); color:#fff; }
     .ldv-assign__msg { font-size:13px; font-weight:600; }

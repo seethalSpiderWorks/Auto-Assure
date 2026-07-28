@@ -339,6 +339,14 @@ class Inspection extends Model
 
         $inspection = static::where('lead_id', $leadId)->latest('id')->first();
 
+        // A completed inspection is locked — never (re)assign or notify. This is the
+        // single source of truth guarding every assign entry point. "Completed" =
+        // the inspection status OR the lead's "Inspection Completed" label.
+        $leadCompleted = ($lead->lead_assigned_status ?? null) === 'Inspection Completed';
+        if (($inspection && $inspection->status === static::STATUS_COMPLETED) || $leadCompleted) {
+            return $inspection;
+        }
+
         $isNew = ! $inspection;
         $technicianChanged = false;
 

@@ -941,10 +941,23 @@ class LeadsController extends Controller
     }
 	
 	/********************** Lead assign in table start **********************/
-	public function assignEnqueryDataAction(Request $request)  
+	public function assignEnqueryDataAction(Request $request)
     {
 		$lead_id = $request->enq_id;
 		$staffId = $request->staff_id;
+
+		// A completed inspection is locked — it can no longer be (re)assigned.
+		// "Completed" = the inspection status OR the lead's "Inspection Completed" label.
+		$latestInspStatus = \App\Models\Inspection::where('lead_id', $lead_id)
+			->orderByDesc('id')->value('status');
+		$leadStatus = LeadsModel::where('lead_id', $lead_id)->value('lead_assigned_status');
+		if ($latestInspStatus === \App\Models\Inspection::STATUS_COMPLETED || $leadStatus === 'Inspection Completed') {
+			return response()->json([
+				'heading' => 'Not allowed',
+				'text'    => 'This inspection is completed and can no longer be reassigned.',
+				'icon'    => 'error',
+			], 422);
+		}
 
 		$unq_id  = '';
 		$old_staus ='';
@@ -1625,6 +1638,12 @@ class LeadsController extends Controller
 		$sched  = $request->scheduled_at ?: null;
 
 		$inspection = \App\Models\Inspection::where('lead_id', $leadId)->latest('id')->first();
+
+		// A completed inspection is locked — no template/technician/date changes.
+		$leadStatus = LeadsModel::where('lead_id', $leadId)->value('lead_assigned_status');
+		if ((optional($inspection)->status === \App\Models\Inspection::STATUS_COMPLETED) || $leadStatus === 'Inspection Completed') {
+			return response()->json(['status' => 0, 'text' => 'This inspection is completed and can no longer be changed.'], 422);
+		}
 
 		if($tech > 0)
 		{

@@ -78,31 +78,49 @@ var dTable = $('#lead_table').DataTable({
 		var viewUrl = public_path + '/leads/view/' + aData.lead_id;
 		$('td:eq(4)', nRow).html('<a href="'+viewUrl+'" class="lead-name-link" title="View lead details">'+ (aData.breg_fname || '-') +'</a>');
 
-		var assign = '<select class="change_staff form-control form-select select2" data-enq_id='+ aData.lead_id +'  style="border: 1px solid #08406330;color: #101010;cursor:pointer; padding-top:2px;padding-bottom:2px;width:110px"><option value="">Select Staff</option>' ;
+		// A completed inspection is locked — show the assigned technician's name as
+		// plain read-only text instead of the assign dropdown. "Completed" means the
+		// inspection status OR the lead's "Inspection Completed" label (the badge shown).
+		var isCompleted = (aData.inspection_status === 'completed')
+			|| (aData.lead_assigned_status === 'Inspection Completed');
         $.ajax({
                type: 'POST',
                 data:{'_token':token,'branch_id':$('#branch_name_data').val()},
                 url: url_staffData,
-                success: function (data) 
+                success: function (data)
 				{
 					var name = aData.lead_assigned_users;  //alert(name);
-					 
-                    $.each(data.result,function(index, item) 
-					{			
+
+					if (isCompleted) {
+						// Just the assigned user's name, read-only.
+						var assignedName = '';
+						$.each(data.result, function(index, item) {
+							if (name == item.staff_id) { assignedName = item.name + ' ' + item.lname; }
+						});
+						var readonly = assignedName
+							? '<span title="Inspection completed — locked" style="color:#101010;font-weight:500;"><i class="bx bx-user-check" style="color:#08a05b;"></i> ' + assignedName + '</span>'
+							: '<span class="text-muted">—</span>';
+						$('td:eq(9)', nRow).html(readonly).addClass('center');
+						return;
+					}
+
+					var assign = '<select class="change_staff form-control form-select select2" data-enq_id='+ aData.lead_id +'  style="border: 1px solid #08406330;color: #101010;cursor:pointer; padding-top:2px;padding-bottom:2px;width:110px"><option value="">Select Staff</option>' ;
+                    $.each(data.result,function(index, item)
+					{
 						var staffFullname = item.name + ' '+item.lname ;
-						if(name == item.staff_id) 
-						{ 
-							 var sel_status = "selected" ; 
+						if(name == item.staff_id)
+						{
+							 var sel_status = "selected" ;
 						}
 						else
-						{ 
-							var sel_status = ''; 
+						{
+							var sel_status = '';
 						}
-						 
+
                         assign += '<option value='+item.staff_id+ '  '+sel_status+'>'+staffFullname+'</option>';
                     });
                     assign +='</select>';
-                   
+
 					$('td:eq(9)', nRow).html(assign).addClass('center');
 				}
 		});	 

@@ -710,6 +710,8 @@ class InspectionController extends Controller
         $stepIds = $inspection->type ? $inspection->type->steps()->pluck('inspection_steps.id')->all() : [];
         $prevTypeId = (int) $inspection->inspection_type_id;
         $prevTechnicianId = (int) $inspection->technician_id;
+        // A completed inspection is locked — its technician can no longer change.
+        $wasCompleted = $inspection->status === Inspection::STATUS_COMPLETED;
 
         $inspection->fill([
             'customer_name' => $validated['customer_name'],
@@ -744,7 +746,8 @@ class InspectionController extends Controller
             'last_service_date' => $validated['last_service_date'] ?? null,
         ]);
 
-        if (! empty($validated['technician_id'])) {
+        // Technician can only be (re)assigned while the inspection isn't completed.
+        if (! $wasCompleted && ! empty($validated['technician_id'])) {
             $inspection->technician_id = $validated['technician_id'];
         }
 

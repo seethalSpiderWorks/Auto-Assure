@@ -448,11 +448,17 @@
 							<div class="insp-block" style="padding:6px 14px 0 14px;">
 							<div class="row"><div class="mb-3"> <h5> Inspection </h5> </div></div>
 							<input type="hidden" id="insp_lead_id" value="{{ $data->lead_id }}">
+							@php
+								// A completed inspection is locked: the inspection status is
+								// "completed" OR the lead is marked "Inspection Completed".
+								$inspLocked = (optional($leadInspection)->status === 'completed')
+									|| ((optional($data)->lead_assigned_status ?? null) === 'Inspection Completed');
+							@endphp
 							<div class="row">
 								<div class="col-md-4">
 									<div class="mb-3">
 										<label class="form-label">Inspection Template</label>
-										<select id="insp_type" class="form-control form-select">
+										<select id="insp_type" class="form-control form-select" @disabled($inspLocked)>
 											<option value="">Select Template</option>
 											@foreach(($inspectionTypes ?? []) as $tid => $tname)
 												<option value="{{ $tid }}" {{ (optional($leadInspection)->inspection_type_id == $tid) ? 'selected' : '' }}>{{ $tname }}</option>
@@ -469,7 +475,7 @@
 												// lead's assigned user so the technician is still shown here.
 												$assignedTech = optional($leadInspection)->technician_id ?: (optional($data)->lead_assigned_users ?? '');
 											@endphp
-										<select id="insp_staff" class="form-control form-select">
+										<select id="insp_staff" class="form-control form-select" @disabled($inspLocked)>
 											<option value="">Select Staff</option>
 											@foreach(($users ?? []) as $uid => $uname)
 												<option value="{{ $uid }}" {{ ($assignedTech && $assignedTech == $uid) ? 'selected' : '' }}>{{ $uname }}</option>
@@ -480,12 +486,12 @@
 								<div class="col-md-3">
 									<div class="mb-3">
 										<label class="form-label">Scheduled Date &amp; Time</label>
-										<input type="datetime-local" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d\TH:i') : '' }}">
+										<input type="datetime-local" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d\TH:i') : '' }}" @disabled($inspLocked)>
 									</div>
 								</div>
 								<div class="col-md-1 d-flex align-items-end">
 									<div class="mb-3 w-100">
-										<button type="button" id="insp_update_btn" class="btn btn-primary w-100" title="Update Inspection"><i class="bx bx-save"></i></button>
+										<button type="button" id="insp_update_btn" class="btn btn-primary w-100" title="Update Inspection" @disabled($inspLocked)><i class="bx bx-save"></i></button>
 									</div>
 								</div>
 							</div>
