@@ -35,11 +35,13 @@ return [
         ],
     ],
 
-    // Firebase Cloud Messaging (push notifications). Point FCM_CREDENTIALS at the
-    // service-account JSON downloaded from the Firebase console.
+    // Firebase Cloud Messaging (push notifications). Leave FCM_CREDENTIALS unset
+    // (or empty) to use the portable default path under storage/ — so it works on
+    // every environment without hardcoding an absolute path. Only set it if the
+    // JSON lives somewhere else.
     'fcm' => [
         'project_id' => env('FCM_PROJECT_ID'),
-        'credentials' => env('FCM_CREDENTIALS', storage_path('app/firebase/service-account.json')),
+        'credentials' => env('FCM_CREDENTIALS') ?: storage_path('app/firebase/service-account.json'),
     ],
 
 ];
