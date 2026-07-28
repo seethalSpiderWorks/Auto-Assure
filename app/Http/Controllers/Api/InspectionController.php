@@ -11,6 +11,7 @@ use App\Models\InspectionSection;
 use App\Models\InspectionSectionSummary;
 use App\Models\InspectionSummary;
 use App\Models\Lead;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\InspectionSummaryResource;
 use Illuminate\Http\Request;
@@ -22,9 +23,15 @@ use App\Http\Resources\InspectionHistoryResource;
 class InspectionController extends Controller
 {
     /**
-     * Technician's assigned jobs (optionally filtered by status).
+     * Technician's assigned jobs (optionally filtered by status and day).
+     *
+     * Query params:
+     *   status  explicit status filter (default: anything but completed)
+     *   date    limit to one scheduled day — "today" or a Y-m-d date. Filters on
+     *           scheduled_at, the same column the list is ordered by, so jobs
+     *           with no slot yet are excluded from a day filter.
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
         // Active inspections assigned to the authenticated technician (from the token).
         $query = Inspection::where('technician_id', $request->user()->id)
@@ -41,7 +48,42 @@ class InspectionController extends Controller
             $query->where('status', '!=', Inspection::STATUS_COMPLETED);   // hide completed by default
         }
 
+        if ($date = $request->string('date')->toString()) {
+            // A day the DB can't read would silently match nothing, which reads
+            // as "no jobs today" — reject it instead so the app sees the typo.
+            $day = $this->resolveDay($date);
+
+            if ($day === null) {
+                return response()->json([
+                    'message' => 'Invalid date filter. Use "today" or a YYYY-MM-DD date.',
+                    'errors'  => ['date' => ['The date filter must be "today" or a YYYY-MM-DD date.']],
+                ], 422);
+            }
+
+            $query->whereDate('scheduled_at', $day);
+        }
+
         return InspectionResource::collection($query->get());
+    }
+
+    /**
+     * Normalise the ?date= filter to a Y-m-d string, or null when unparseable.
+     */
+    private function resolveDay(string $date): ?string
+    {
+        if ($date === 'today') {
+            return now()->toDateString();
+        }
+
+        try {
+            $day = Carbon::createFromFormat('Y-m-d', $date)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        // createFromFormat overflows rather than throwing — "2026-13-45" quietly
+        // becomes 2027-02-14. Only accept a date that round-trips unchanged.
+        return $day === $date ? $day : null;
     }
 
     public function show(Request $request, Inspection $inspection): InspectionResource

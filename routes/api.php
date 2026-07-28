@@ -33,7 +33,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inspection-types', [InspectionTypeController::class, 'index']);
     Route::get('/inspection-types/{inspectionType}', [InspectionTypeController::class, 'show']);
 
-    // List inspections (pass ?technician_id=.. to filter; falls back to the auth user).
+    // List inspections for the authenticated technician, newest schedule slot first.
+    //   ?status=pending          filter by status (default: everything but completed)
+    //   ?date=today              only jobs scheduled today
+    //   ?date=2026-07-28         only jobs scheduled on that day
     Route::get('/inspections', [InspectionController::class, 'index']);
 
     // Full technician history — every inspection with sections, steps, answers & customer details.
