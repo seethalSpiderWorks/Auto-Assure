@@ -275,7 +275,7 @@
 										<div class="col-md-3" id="year_div" style="margin-top:-9px">
 											<div class="mb-3">
 												<label for="year">Year</label>
-												<input type="text" name="year" id="year" value="<?= !empty($data->lead_year) ? $data->lead_year : '' ?>" class="form-control form-select">
+												<input type="text" name="year" id="year" value="<?= !empty($data->lead_year) ? $data->lead_year : '' ?>" class="form-control">
 											 
 											</div>
 										</div>
