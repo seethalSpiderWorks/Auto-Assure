@@ -35,7 +35,7 @@ class Inspection extends Model
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
         'exterior_color', 'region',
-        'fuel_type', 'gearbox', 'cylinders', 'steering_side', 'body_type',
+        'fuel_type', 'gearbox', 'steering_side', 'body_type',
         'number_of_keys', 'with_service_history', 'last_service_date',
     ];
 
@@ -377,11 +377,13 @@ class Inspection extends Model
             if (! $inspection->car_model && ($lead->lead_model ?? null)) {
                 $inspection->car_model = static::resolveName('tbl_model', 'model_id', 'model_name', $lead->lead_model);
             }
-            if (! $inspection->car_year && ! empty($lead->lead_year)) {
-                $inspection->car_year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
+            // Model year from make_model_year (the free-text combined field).
+            if (! $inspection->car_year) {
+                $inspection->car_year = static::extractYearFromMakeModel($lead->make_model_year ?? null);
             }
-            if (! $inspection->manufacturing_year && ! empty($lead->lead_year)) {
-                $inspection->manufacturing_year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
+            // Manufacturing year from the dedicated lead_year field.
+            if (! $inspection->manufacturing_year) {
+                $inspection->manufacturing_year = static::resolveLeadYear($lead->lead_year ?? null);
             }
             if (! $inspection->plate_no && ($lead->lead_vehicle_plate_no ?? null)) {
                 $inspection->plate_no = $lead->lead_vehicle_plate_no;
@@ -392,7 +394,6 @@ class Inspection extends Model
             $inspection->save();
         } else {
             $branchId = $lead->lead_branch_id ?: (session('application_branch') ?: 1);
-            $year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
 
             // lead_make / lead_model hold lookup IDs — resolve them to names so the
             // inspection stores the make/model name, not the raw id.
@@ -411,8 +412,10 @@ class Inspection extends Model
                 'whatsapp_number'    => $basicReg?->breg_whatsapp,
                 'car_make'           => $carMake,
                 'car_model'          => $carModel,
-                'car_year'           => $year,
-                'manufacturing_year' => $year,
+                // Model year from make_model_year (the free-text combined field).
+                'car_year'           => static::extractYearFromMakeModel($lead->make_model_year ?? null),
+                // Manufacturing year from the dedicated lead_year field.
+                'manufacturing_year' => static::resolveLeadYear($lead->lead_year ?? null),
                 'plate_no'           => $lead->lead_vehicle_plate_no,
                 'exterior_color'     => $lead->lead_color,
                 'status'             => static::STATUS_PENDING,
@@ -508,6 +511,47 @@ class Inspection extends Model
         $name = DB::table($table)->where($idColumn, $value)->value($nameColumn);
 
         return $name !== null && $name !== '' ? (string) $name : null;
+    }
+
+    /**
+     * Resolve the manufacturing year from the lead's dedicated year field.
+     *
+     * @param  mixed  $leadYear  tbl_lead.lead_year
+     * @return int|null
+     */
+    protected static function resolveLeadYear(mixed $leadYear): ?int
+    {
+        if (filled($leadYear) && is_numeric($leadYear)) {
+            $y = (int) $leadYear;
+            if ($y >= 1950 && $y <= 2099) {
+                return $y;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract a 4-digit model year from the free-text make_model_year field
+     * (e.g. "2020" from "Toyota Camry 2020").
+     *
+     * @param  string|null  $makeModelYear  tbl_lead.make_model_year
+     * @return int|null
+     */
+    protected static function extractYearFromMakeModel(?string $makeModelYear): ?int
+    {
+        if (empty($makeModelYear)) {
+            return null;
+        }
+
+        if (preg_match('/\b(\d{4})\b/', $makeModelYear, $m)) {
+            $y = (int) $m[1];
+            if ($y >= 1950 && $y <= 2099) {
+                return $y;
+            }
+        }
+
+        return null;
     }
 
     public function statusColor(): string

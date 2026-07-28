@@ -479,7 +479,6 @@
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Cylinders</label><input name="cylinders" class="form-control" maxlength="50" value="{{ old('cylinders', $inspection->cylinders) }}"></div>
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Steering Side</label>
                                             <select name="steering_side" class="form-control form-select">
