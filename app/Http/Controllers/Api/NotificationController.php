@@ -67,4 +67,28 @@ class NotificationController extends Controller
 
         return response()->json(['unread_count' => $count]);
     }
+
+    public function destroy(Request $request): JsonResponse
+    {
+        $ids = $request->input('ids', $request->input('id', []));
+
+        if (! is_array($ids)) {
+            $ids = [$ids];
+        }
+
+        $ids = array_filter($ids, fn ($v) => is_numeric($v));
+
+        if (empty($ids)) {
+            return response()->json(['message' => 'No notification IDs provided.'], 422);
+        }
+
+        $deleted = Notification::whereIn('id', $ids)
+            ->where('user_id', $request->user()->id)
+            ->delete();
+
+        return response()->json([
+            'message' => $deleted.' notification(s) deleted.',
+            'deleted' => $deleted,
+        ]);
+    }
 }
