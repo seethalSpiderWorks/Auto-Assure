@@ -926,8 +926,7 @@
                                                     </span>
                                                     <span class="overall-rating-pct-badge {{ $overallRatingBadgeClass }}" id="overall-pct-badge">
                                                         <i class="bx bx-pie-chart-alt"></i>
-                                                        <span id="overall-pct-text">{{ $overallRating ? round(($overallRating / 5) * 100) . '%' : '0%' }}</span>
-                                                    </span>
+                                                        <span id="overall-pct-text">{{ $overallRating ? round(($overallRating / 5) * 100) . '%' : '0%' }}</span>                                                     </span>
                                                 </div>
                                                 <div class="overall-rating-wrap__body">
                                                     <input type="hidden" name="overall_rating" id="overall_rating_hidden" value="{{ $overallRating ? rtrim(rtrim(number_format($overallRating, 1), '0'), '.') : '' }}">

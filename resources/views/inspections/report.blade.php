@@ -15,12 +15,14 @@
     $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
     $overallRatingPct = $overallRatingVal > 0 ? round(($overallRatingVal / 5) * 100) : 0;
     $overallRatingBadge = match (true) {
-        $overallRatingVal >= 4.6 => 'Excellent',
-        $overallRatingVal >= 1.6 => 'Very Good',
+        $overallRatingVal >= 4.5 => 'Excellent',
+        $overallRatingVal >= 3.5 => 'Very Good',
+        $overallRatingVal >= 2.5 => 'Good',
+        $overallRatingVal >= 1.5 => 'Fair',
         $overallRatingVal > 0    => 'Poor',
         default                  => null,
     };
-    $ratingColors = ['Excellent' => '#2fa84f', 'Very Good' => '#5ab84d', 'Poor' => '#e0483d'];
+    $ratingColors = ['Excellent' => '#2fa84f', 'Very Good' => '#5ab84d', 'Good' => '#f2903f', 'Fair' => '#efb008', 'Poor' => '#e0483d'];
     $ratingColor  = $ratingColors[$overallRatingBadge] ?? '#8ea3b5';
     $condition    = $overallRatingBadge;
     $overallCond  = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;

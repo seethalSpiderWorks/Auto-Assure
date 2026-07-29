@@ -358,17 +358,17 @@ class InspectionController extends Controller
         $rating = (float) ($inspection->overall_rating ?? 0);
         if ($rating > 0) {
             $condition = match (true) {
-                $rating >= 4.6 => 'Excellent',
-                $rating >= 3.6 => 'Very Good',
-                $rating >= 2.6 => 'Good',
-                $rating >= 1.6 => 'Fair',
+                $rating >= 4.5 => 'Excellent',
+                $rating >= 3.5 => 'Very Good',
+                $rating >= 2.5 => 'Good',
+                $rating >= 1.5 => 'Fair',
                 default        => 'Poor',
             };
             $stars = match (true) {
-                $rating >= 4.6 => 5,
-                $rating >= 3.6 => 4,
-                $rating >= 2.6 => 3,
-                $rating >= 1.6 => 2,
+                $rating >= 4.5 => 5,
+                $rating >= 3.5 => 4,
+                $rating >= 2.5 => 3,
+                $rating >= 1.5 => 2,
                 default        => 1,
             };
         } else {

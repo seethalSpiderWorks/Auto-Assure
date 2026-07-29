@@ -16,10 +16,10 @@
 
     $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
     $condition = match (true) {
-        $overallRatingVal >= 4.6 => 'Excellent',
-        $overallRatingVal >= 3.6 => 'Very Good',
-        $overallRatingVal >= 2.6 => 'Good',
-        $overallRatingVal >= 1.6 => 'Fair',
+        $overallRatingVal >= 4.5 => 'Excellent',
+        $overallRatingVal >= 3.5 => 'Very Good',
+        $overallRatingVal >= 2.5 => 'Good',
+        $overallRatingVal >= 1.5 => 'Fair',
         $overallRatingVal > 0    => 'Poor',
         default                  => Inspection::CONDITIONS[$inspection->overall_condition] ?? null,
     };
