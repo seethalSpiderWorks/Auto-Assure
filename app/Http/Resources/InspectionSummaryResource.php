@@ -146,7 +146,17 @@ class InspectionSummaryResource extends JsonResource
 
             'verdict' => [
                 'overall_condition'       => $this->overall_condition,
-                'overall_condition_label' => Inspection::CONDITIONS[$this->overall_condition] ?? null,
+                'overall_condition_label' => (function () {
+                    $rating = (float) ($this->overall_rating ?? 0);
+                    return match (true) {
+                        $rating >= 4.5 => 'Excellent',
+                        $rating >= 3.5 => 'Very Good',
+                        $rating >= 2.5 => 'Good',
+                        $rating >= 1.5 => 'Fair',
+                        $rating > 0    => 'Poor',
+                        default        => Inspection::CONDITIONS[$this->overall_condition] ?? null,
+                    };
+                })(),
                 'overall_rating'          => $this->overall_rating,
                 'recommendation'          => $this->recommendation,
                 'recommendation_label'    => Inspection::RECOMMENDATIONS[$this->recommendation] ?? null,
