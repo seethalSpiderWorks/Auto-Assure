@@ -6,13 +6,26 @@
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
     $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
-    // The technician's verdict from the edit screen's Overall Verdict box.
-    // Null when it was never set — the cover falls back to the gauge band then.
-    $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
     $typeName  = optional($inspection->type)->name ?: 'Inspection';
     $val = fn ($v) => ($v === null || $v === '') ? 'N/A' : e($v);
+
+    // Technician's overall rating (0–5, decimal) converted to % for the cover.
+    $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
+    $overallRatingPct = $overallRatingVal > 0 ? round(($overallRatingVal / 5) * 100) : 0;
+    $overallRatingBadge = match (true) {
+        $overallRatingVal >= 4.6 => 'Excellent',
+        $overallRatingVal >= 3.6 => 'Very Good',
+        $overallRatingVal >= 2.6 => 'Good',
+        $overallRatingVal >= 1.6 => 'Fair',
+        $overallRatingVal > 0    => 'Poor',
+        default                  => null,
+    };
+    $ratingColors = ['Excellent' => '#2fa84f', 'Very Good' => '#5ab84d', 'Good' => '#f2903f', 'Fair' => '#efb008', 'Poor' => '#e0483d'];
+    $ratingColor  = $ratingColors[$overallRatingBadge] ?? '#8ea3b5';
+    $condition    = $overallRatingBadge;
+    $overallCond  = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
 
     // question -> answer (detail) lookup, for the EV & Technical special blocks
     $qa = [];
@@ -357,21 +370,21 @@
 
                 {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
                 @php
-                    $scoreF = round($tally['pass'] / $tTot * 100, 1);
-                    $scoreLbl = rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
+                    $scoreF = $overallRatingVal > 0 ? $overallRatingPct : round($tally['pass'] / $tTot * 100, 1);
+                    $scoreLbl = $overallRatingVal > 0 ? (string) $overallRatingPct : rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
                     $bands = [
-                        ['Bad', 0, 25, '#e0483d'], ['Fair', 25, 50, '#efb008'],
-                        ['Good', 50, 75, '#f2903f'], ['Excellent', 75, 100.01, '#2fa84f'],
+                        ['Poor', 0, 20, '#e0483d'], ['Fair', 20, 40, '#efb008'],
+                        ['Good', 40, 60, '#f2903f'], ['Very Good', 60, 80, '#5ab84d'],
+                        ['Excellent', 80, 100.01, '#2fa84f'],
                     ];
-                    $cond = 'Bad'; $cColor = '#e0483d';
+                    $cond = 'Poor'; $cColor = '#e0483d';
                     foreach ($bands as $b) { if ($scoreF >= $b[1] && $scoreF < $b[2]) { $cond = $b[0]; $cColor = $b[3]; break; } }
 
                     // The printed condition is the TECHNICIAN'S verdict, not the gauge
                     // band. The gauge measures a different thing (share of passed items),
                     // so the two can legitimately differ. The band is only a fallback for
                     // inspections saved before the verdict was made mandatory.
-                    $condColors = ['excellent' => '#2fa84f', 'good' => '#f2903f', 'fair' => '#efb008', 'poor' => '#e0483d'];
-                    $condColor  = $condColors[$inspection->overall_condition] ?? $cColor;
+                    $condColor  = $ratingColors[$overallRatingBadge] ?? $cColor;
                     $condition  = $condition ?: $cond;
 
                     $cx = 200; $cy = 170;
@@ -417,17 +430,18 @@
                         {{ $scoreLbl }}<span style="font-size:18px; font-weight:700; color:#8ea3b5;"> / 100</span>
                     </div>
                     <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $condColor }}; background:{{ $condColor }}22; border:1px solid {{ $condColor }};">
-                        {{ $condition }} Condition
+                        {{ $condition }}
                     </div>
                 </div>
 
                 <div class="cover-cond-legend">
-                    <span><i style="background:#e0483d"></i>Bad</span>
+                    <span><i style="background:#e0483d"></i>Poor</span>
                     <span><i style="background:#efb008"></i>Fair</span>
                     <span><i style="background:#f2903f"></i>Good</span>
+                    <span><i style="background:#5ab84d"></i>Very Good</span>
                     <span><i style="background:#2fa84f"></i>Excellent</span>
                 </div>
-                <div class="cover-rating-title">Overall Rating</div>
+                <div class="cover-rating-title">Overall Verdict</div>
 
                
 
@@ -435,7 +449,7 @@
               
                 <div class="card tight" style=" width :350px;">
                     <div class="facts">
-                        <div class="fact"><div class="fl">Overall Condition</div><div class="fv"> {{ $condition }}</div></div>
+                        <div class="fact"><div class="fl">Overall Condition</div><div class="fv"> {{ $overallCond ?? $condition }}</div></div>
                         <div class="fact"><div class="fl">Recommendation</div><div class="fv">{{ $recommend }}</div></div>
                     </div>
                 </div>

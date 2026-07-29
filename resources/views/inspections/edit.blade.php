@@ -256,6 +256,123 @@
         background: rgba(108, 117, 125, .18) !important;
         color: rgba(108, 117, 125, .8) !important;
     }
+
+    /* ---- Highlighted Overall Rating block in the Verdict step ----------- */
+    .overall-rating-wrap {
+        background: linear-gradient(135deg, #f0faf7 0%, #e8f5fe 100%);
+        border: 2px solid #04b084;
+        border-radius: 14px;
+        padding: 14px 18px 16px;
+        box-shadow: 0 0 0 3px rgba(4,176,132,.1), 0 4px 16px rgba(4,176,132,.08);
+        transition: box-shadow .2s;
+    }
+    .overall-rating-wrap:hover {
+        box-shadow: 0 0 0 3px rgba(4,176,132,.18), 0 6px 20px rgba(4,176,132,.12);
+    }
+    .overall-rating-wrap__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-weight: 700;
+        font-size: .95rem;
+        color: #00263d;
+        margin-bottom: 10px;
+    }
+    .overall-rating-wrap__header i {
+        color: #f1b44c;
+        font-size: 1.2rem;
+    }
+    .overall-rating-pct-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #fff;
+        font-size: .82rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 20px;
+        line-height: 1.3;
+        transition: background .15s, box-shadow .15s;
+    }
+    .overall-rating-pct-badge i {
+        color: #fff !important;
+        font-size: .9rem;
+    }
+    .overall-rating-pct-badge.is-zero {
+        background: #b0b8c4;
+        box-shadow: none;
+    }
+    .overall-rating-pct-badge.is-poor { background: #e0483d; box-shadow: 0 2px 6px rgba(224,72,61,.3); }
+    .overall-rating-pct-badge.is-fair { background: #efb008; box-shadow: 0 2px 6px rgba(239,176,8,.3); }
+    .overall-rating-pct-badge.is-good { background: #f2903f; box-shadow: 0 2px 6px rgba(242,144,63,.3); }
+    .overall-rating-pct-badge.is-very-good { background: #5ab84d; box-shadow: 0 2px 6px rgba(90,184,77,.3); }
+    .overall-rating-pct-badge.is-excellent { background: #2fa84f; box-shadow: 0 2px 6px rgba(47,168,79,.3); }
+    .overall-rating-wrap__body {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .85rem .65rem;
+    }
+    .overall-rating-grid {
+        display: inline-flex;
+        align-items: flex-start;
+        gap: 2px;
+    }
+    .overall-rating-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 10px 8px;
+        border-radius: 12px;
+        background: transparent;
+        cursor: pointer;
+        transition: background .15s, transform .12s;
+        min-width: 66px;
+    }
+    .overall-rating-cell:hover {
+        background: rgba(241,180,76,.08);
+        transform: translateY(-2px);
+    }
+    .overall-rating-cell.is-active {
+        background: rgba(241,180,76,.14);
+    }
+    .overall-rating-cell:hover .overall-star {
+        text-shadow: 0 1px 4px rgba(241,180,76,.4);
+    }
+    .overall-badge {
+        font-size: .68rem;
+        font-weight: 700;
+        color: #7a8593;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+        line-height: 1.1;
+        transition: color .15s;
+    }
+    .overall-badge.is-active {
+        color: #00263d;
+    }
+    .overall-pct {
+        font-size: .7rem;
+        font-weight: 600;
+        color: #9ba5b3;
+        line-height: 1;
+        transition: color .15s;
+    }
+    .overall-pct.is-active {
+        color: #04b084;
+    }
+    .overall-rating-input {
+        width: 82px;
+        border-radius: 10px;
+        border: 1px solid #d0d7e2;
+        background: #fff;
+    }
+    .overall-rating-input:focus {
+        border-color: #f1b44c;
+        box-shadow: 0 0 0 .2rem rgba(241,180,76,.25);
+    }
 </style>
 
 @php
@@ -801,6 +918,43 @@
                                             </select>
                                         </div>
                                         <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><input name="estimated_repair_cost" type="number" step="0.01" min="0" required class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
+                                        {{-- Overall Rating — highlighted section --}}
+                                        @php($overallRating = (float) old('overall_rating', $inspection->overall_rating ?? 0))
+                                        @php($labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'])
+                                        @php($pcts = [20, 40, 60, 80, 100])
+                                        @php($overallRatingBadgeClass = $overallRating == 0 ? 'is-zero' : ($overallRating >= 4.6 ? 'is-excellent' : ($overallRating >= 3.6 ? 'is-very-good' : ($overallRating >= 2.6 ? 'is-good' : ($overallRating >= 1.6 ? 'is-fair' : 'is-poor')))))
+                                        <div class="col-12 mb-3">
+                                            <div class="overall-rating-wrap">
+                                                <div class="overall-rating-wrap__header">
+                                                    <span>
+                                                        <i class="bx bxs-star"></i>
+                                                        <span>Overall Rating</span>
+                                                    </span>
+                                                    <span class="overall-rating-pct-badge {{ $overallRatingBadgeClass }}" id="overall-pct-badge">
+                                                        <i class="bx bx-pie-chart-alt"></i>
+                                                        <span id="overall-pct-text">{{ $overallRating ? round(($overallRating / 5) * 100) . '%' : '0%' }}</span>
+                                                    </span>
+                                                </div>
+                                                <div class="overall-rating-wrap__body">
+                                                    <input type="hidden" name="overall_rating" id="overall_rating_hidden" value="{{ $overallRating ? rtrim(rtrim(number_format($overallRating, 1), '0'), '.') : '' }}">
+                                                    <div class="overall-rating-grid" id="overall-rating-grid">
+                                                        @for ($n = 1; $n <= 5; $n++)
+                                                            <div class="overall-rating-cell" data-val="{{ $n }}">
+                                                                <span class="overall-star" data-val="{{ $n }}"
+                                                                      style="font-size:1.65rem; cursor:pointer; transition:color .12s;">★</span>
+                                                                <span class="overall-badge" data-val="{{ $n }}">{{ $labels[$n - 1] }}</span>
+                                                                <span class="overall-pct" data-val="{{ $n }}">{{ $pcts[$n - 1] }}%</span>
+                                                            </div>
+                                                        @endfor
+                                                    </div>
+                                                    <input type="number" class="form-control form-control-sm overall-rating-input"
+                                                           id="overall_rating_input" step="0.1" min="0" max="5"
+                                                           placeholder="0.0" aria-label="Overall rating out of 5"
+                                                           value="{{ $overallRating ? rtrim(rtrim(number_format($overallRating, 1), '0'), '.') : '' }}">
+                                                    <small class="text-muted" id="overall-rating-label"></small>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <div class="col-md-12 mb-3">
                                             <label class="form-label">Recommendation <span class="text-danger">*</span></label>
                                             <select name="recommendation" data-wreq required class="form-control form-select">
@@ -1464,6 +1618,75 @@
         // Initial paint — partial fills cannot be rendered from Blade.
         paintSecStars(sectionId, parseFloat(box.value) || 0);
     });
+
+    // ---- Overall Rating (stars + badges + %, supports partial fills) -----
+    const overallHidden = document.getElementById('overall_rating_hidden');
+    const overallGrid = document.getElementById('overall-rating-grid');
+    const overallInput = document.getElementById('overall_rating_input');
+    const overallLabel = document.getElementById('overall-rating-label');
+    const overallPctBadge = document.getElementById('overall-pct-badge');
+    const overallPctText = document.getElementById('overall-pct-text');
+
+    function paintOverallStars(val) {
+        if (!overallGrid) return;
+        overallGrid.querySelectorAll('.overall-rating-cell').forEach(cell => {
+            const n = parseInt(cell.dataset.val, 10);
+            // fill: 1.0 for fully covered, (val%1) for the partial star, 0.0 for untouched
+            const fill = Math.max(0, Math.min(1, val - (n - 1)));
+            const active = fill >= 0.5;
+            const star = cell.querySelector('.overall-star');
+            const badge = cell.querySelector('.overall-badge');
+            const pct = cell.querySelector('.overall-pct');
+
+            cell.classList.toggle('is-active', active);
+
+            // Reuse the section-rating fillStar function for partial fills
+            if (star) fillStar(star, fill);
+            if (badge) badge.classList.toggle('is-active', active);
+            if (pct) pct.classList.toggle('is-active', active);
+        });
+        if (overallLabel) overallLabel.textContent = val ? val + '/5' : '';
+
+        // Update the percentage badge at top right
+        const pctVal = val ? Math.round((val / 5) * 100) : 0;
+        if (overallPctText) overallPctText.textContent = pctVal + '%';
+        if (overallPctBadge) {
+            overallPctBadge.classList.toggle('is-zero', pctVal === 0);
+            overallPctBadge.classList.remove('is-poor', 'is-fair', 'is-good', 'is-very-good', 'is-excellent');
+            if (val >= 4.6) overallPctBadge.classList.add('is-excellent');
+            else if (val >= 3.6) overallPctBadge.classList.add('is-very-good');
+            else if (val >= 2.6) overallPctBadge.classList.add('is-good');
+            else if (val >= 1.6) overallPctBadge.classList.add('is-fair');
+            else if (val > 0) overallPctBadge.classList.add('is-poor');
+        }
+    }
+
+    function setOverallRating(raw, skipInput) {
+        const val = Math.max(0, Math.min(5, Math.round((parseFloat(raw) || 0) * 10) / 10));
+        if (overallHidden) overallHidden.value = val ? String(val) : '';
+        if (!skipInput && overallInput) overallInput.value = val ? String(val) : '';
+        paintOverallStars(val);
+        return val;
+    }
+
+    if (overallGrid) {
+        overallGrid.querySelectorAll('.overall-rating-cell').forEach(cell => {
+            cell.addEventListener('click', () => {
+                const val = parseInt(cell.dataset.val, 10);
+                const current = parseFloat(overallHidden && overallHidden.value) || 0;
+                setOverallRating(current === val ? 0 : val);
+            });
+        });
+    }
+
+    if (overallInput) {
+        overallInput.addEventListener('input', () => {
+            setOverallRating(overallInput.value, true);
+        });
+        overallInput.addEventListener('blur', () => setOverallRating(overallInput.value));
+        // Initial paint
+        paintOverallStars(parseFloat(overallInput.value) || 0);
+    }
 
     // Customer/vehicle/assignment field auto-save (all fields except the
     // template selector, which is applied on full submit).

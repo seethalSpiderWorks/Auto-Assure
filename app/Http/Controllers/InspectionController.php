@@ -371,6 +371,7 @@ class InspectionController extends Controller
             'total' => $totalSteps,
             'allAnswered' => $totalSteps > 0 && $totalAnswered >= $totalSteps,
             'recommendation' => Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? null,
+            'overall_rating' => $inspection->overall_rating,
         ];
 
         return view('inspections.summary', compact('inspection', 'overview', 'sections'));
@@ -680,6 +681,7 @@ class InspectionController extends Controller
             // Overall verdict
             'odometer' => ['nullable', 'integer', 'min:0'],
             'overall_condition' => ['nullable', 'in:'.implode(',', array_keys(Inspection::CONDITIONS))],
+            'overall_rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'recommendation' => ['nullable', 'in:'.implode(',', array_keys(Inspection::RECOMMENDATIONS))],
             'estimated_repair_cost' => ['nullable', 'numeric', 'min:0'],
             'summary' => ['nullable', 'string', 'max:5000'],
@@ -722,6 +724,7 @@ class InspectionController extends Controller
             'car_year' => $validated['car_year'] ?? null,
             'odometer' => $validated['odometer'] ?? null,
             'overall_condition' => $validated['overall_condition'] ?? null,
+            'overall_rating' => $validated['overall_rating'] ?? null,
             'recommendation' => $validated['recommendation'] ?? null,
             'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? null,
             'summary' => $validated['summary'] ?? null,

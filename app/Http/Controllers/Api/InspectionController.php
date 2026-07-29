@@ -567,6 +567,7 @@ class InspectionController extends Controller
         $validator = Validator::make($request->all(), [
             'odometer' => ['nullable', 'integer', 'min:0'],
             'overall_condition' => ['nullable', 'in:'.implode(',', array_keys(Inspection::CONDITIONS))],
+            'overall_rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'recommendation' => ['nullable', 'string', 'max:255'],
             'estimated_repair_cost' => ['nullable', 'numeric', 'min:0'],
             'summary' => ['nullable', 'string', 'max:5000'],
