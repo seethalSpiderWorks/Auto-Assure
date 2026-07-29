@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DeviceToken;
+use App\Models\Notification;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -13,6 +14,8 @@ class PushNotificationService
      */
     public static function sendToUser(int $userId, string $title, string $body, array $data = []): void
     {
+        self::storeNotification($userId, $title, $body, $data);
+
         $tokens = DeviceToken::where('user_id', $userId)->pluck('token')->toArray();
 
         Log::channel('fcm')->info("FCM: Sending to user {$userId} | Title: {$title} | Body: {$body} | Tokens: " . count($tokens));
@@ -30,11 +33,36 @@ class PushNotificationService
      */
     public static function sendToUsers(array $userIds, string $title, string $body, array $data = []): void
     {
+        foreach ($userIds as $userId) {
+            self::storeNotification($userId, $title, $body, $data);
+        }
+
         $tokens = DeviceToken::whereIn('user_id', $userIds)->pluck('token')->toArray();
 
         if (empty($tokens)) return;
 
         self::sendToTokens($tokens, $title, $body, $data);
+    }
+
+    /**
+     * Store a notification record in the app_notifications table.
+     */
+    private static function storeNotification(int $userId, string $title, string $body, array $data = []): void
+    {
+        $type = $data['type'] ?? null;
+        $payload = $type ? array_filter($data, fn ($k) => $k !== 'type', ARRAY_FILTER_USE_KEY) : $data;
+
+        try {
+            Notification::create([
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'body' => $body,
+                'data' => $payload ?: null,
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('fcm')->error("FCM: Failed to store notification for user {$userId}: {$e->getMessage()}");
+        }
     }
 
     /**

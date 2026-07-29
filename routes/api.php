@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\InspectionTypeController;
 use App\Http\Controllers\Api\InspectionController;
 use App\Http\Controllers\Api\VehicleLookupController;
 use App\Http\Controllers\Api\DeviceTokenController;
+use App\Http\Controllers\Api\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +30,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Push notification (FCM) device tokens.
     Route::post('/device-token', [DeviceTokenController::class, 'store']);
     Route::delete('/device-token', [DeviceTokenController::class, 'destroy']);
+
+    // In-app notifications (stored in app_notifications table).
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
     
     Route::get('/inspection-types', [InspectionTypeController::class, 'index']);
     Route::get('/inspection-types/{inspectionType}', [InspectionTypeController::class, 'show']);
