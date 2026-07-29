@@ -910,13 +910,7 @@
                                     <h5 class="card-title mb-3">Overall Verdict</h5>
                                     <div class="row">
                                         {{-- Odometer is captured under Customer & Vehicle; verdict reads the saved value. --}}
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">Overall condition <span class="text-danger">*</span></label>
-                                            <select name="overall_condition" data-wreq required class="form-control form-select">
-                                                <option value="">—</option>
-                                                @foreach (\App\Models\Inspection::CONDITIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->overall_condition === $v)>{{ $l }}</option>@endforeach
-                                            </select>
-                                        </div>
+                                        <input type="hidden" name="overall_condition" value="{{ $inspection->overall_condition ?? '' }}">
                                         <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><input name="estimated_repair_cost" type="number" step="0.01" min="0" required class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
                                         {{-- Overall Rating — highlighted section --}}
                                         @php($overallRating = (float) old('overall_rating', $inspection->overall_rating ?? 0))
@@ -962,7 +956,7 @@
                                                 @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-12"><label class="form-label">Summary report <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control">{{ old('summary', $inspection->summary) }}</textarea></div>
+                                        <div class="col-md-12"><label class="form-label">Technician note <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter technician's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
                                     </div>
 
                                     {{-- Per-type summaries. Types come from tbl_summary_type, the same
@@ -1445,7 +1439,7 @@
         overall_condition: 'Overall condition',
         estimated_repair_cost: 'Est. repair cost',
         recommendation: 'Recommendation',
-        summary: 'Summary report',
+        summary: 'Technician note',
     };
 
     function verdictFields() {

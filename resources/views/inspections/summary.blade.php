@@ -5,9 +5,20 @@
     $vehicleName = trim(($inspection->car_make ?? '').' '.($inspection->car_model ?? ''));
     if ($vehicleName === '') { $vehicleName = 'Vehicle'; }
     $cond = strtolower($overview['condition']);
-    $condClass = (str_contains($cond,'excellent') || str_contains($cond,'good')) ? 'is-good'
+    $condClass = str_contains($cond,'excellent') ? 'is-excellent'
+        : (str_contains($cond,'very good') ? 'is-very-good'
+        : (str_contains($cond,'good') ? 'is-good'
         : (str_contains($cond,'fair') ? 'is-fair'
-        : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'));
+        : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'))));
+    // Gauge colour based on condition rating.
+    $gaugeColor = match ($condClass) {
+        'is-excellent' => '#22c55e',
+        'is-very-good' => '#5ab84d',
+        'is-good'      => '#f5a623',
+        'is-fair'      => '#fbbf24',
+        'is-poor'      => '#ef4444',
+        default        => '#94a3b8',
+    };
     $goodCount = collect($sections)->where('status','Completed')->count();
     $naCount   = collect($sections)->where('status','Not answered')->count();
     // Drives whether the tile row and breakdown legend show the part-filled
@@ -63,18 +74,29 @@
                 <div class="col-xl-7 col-lg-6">
                     <div class="insp-card insp-condition h-100">
                         <div class="insp-condition__gauge">
-                            <div class="insp-gauge" style="--pct: {{ $overview['percent'] }}; --gc: {{ ($overview['allAnswered'] ?? ($overview['percent'] >= 100)) ? '#22c55e' : '#f5a623' }};">
-                                <span class="insp-gauge__val">{{ $overview['percent'] }}<small>%</small></span>
-                                <span class="insp-gauge__sub">{{ $overview['completed'] }} / {{ $overview['total'] }}</span>
-                                <span class="insp-gauge__lbl">STEPS COMPLETED</span>
+                            <div class="insp-gauge" style="--pct: {{ $overview['ratingPercent'] }}; --gc: {{ $gaugeColor }};">
+                                <span class="insp-gauge__val">{{ $overview['ratingPercent'] }}<small>%</small></span>
+                                <span class="insp-gauge__sub">{{ number_format($overview['overall_rating'] ?? 0, 1) }} / 5</span>
+                                <span class="insp-gauge__lbl">OVERALL CONDITION</span>
                             </div>
                         </div>
                         <div class="insp-condition__body">
                             <div class="insp-condition__title {{ $condClass }}">{{ $overview['condition'] }} @if($condClass !== 'is-none')Condition @endif</div>
                             <div class="insp-condition__row">
                                 <div class="insp-stars">
+                                    @php
+                                        $rawRating = (float) ($overview['overall_rating'] ?? 0);
+                                    @endphp
                                     @for($i = 1; $i <= 5; $i++)
-                                        <i class="bx bxs-star {{ $i <= $overview['stars'] ? 'on' : '' }}"></i>
+                                        @php
+                                            $fill = min(max($rawRating - ($i - 1), 0), 1) * 100;
+                                        @endphp
+                                        <span class="insp-star-wrap">
+                                            <i class="bx bxs-star"></i>
+                                            @if($fill > 0)
+                                                <span class="insp-star-fill" style="width:{{ $fill }}%;"><i class="bx bxs-star"></i></span>
+                                            @endif
+                                        </span>
                                     @endfor
                                 </div>
                             </div>
@@ -235,8 +257,14 @@
     .insp-badge { display: inline-block; font-size: 12px; padding: 5px 14px; border-radius: 20px; }
     .insp-badge--warn { background: rgba(255,255,255,.12); color: #fff; }
     .insp-badge--ok { background: rgba(52,211,153,.18); color: #17BC8D; }
-    .insp-stars .bxs-star { color: rgba(255,255,255,.25); font-size: 18px; }
-    .insp-stars .bxs-star.on { color: #f5a623; }
+    .insp-stars { display: inline-flex; align-items: center; gap: 1px; }
+    .insp-star-wrap { position: relative; display: inline-flex; font-size: 18px; line-height: 1; }
+    .insp-star-wrap .bxs-star { color: rgba(255,255,255,.25); }
+    .insp-star-fill {
+        position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap;
+        color: #f5a623; pointer-events: none;
+    }
+    .insp-star-fill .bxs-star { color: inherit; }
     .insp-condition__note { font-size: 13.5px; opacity: .85; margin: 12px 0 0; }
     .insp-condition__rec { font-size: 13.5px; margin: 8px 0 0; color: #17BC8D; }
 

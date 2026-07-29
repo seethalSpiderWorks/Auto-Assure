@@ -14,7 +14,15 @@
     ];
     [$statusLabel, $statusClass] = $statusMap[$inspection->status] ?? [ucfirst($inspection->status), 'is-pending'];
 
-    $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
+    $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
+    $condition = match (true) {
+        $overallRatingVal >= 4.6 => 'Excellent',
+        $overallRatingVal >= 3.6 => 'Very Good',
+        $overallRatingVal >= 2.6 => 'Good',
+        $overallRatingVal >= 1.6 => 'Fair',
+        $overallRatingVal > 0    => 'Poor',
+        default                  => Inspection::CONDITIONS[$inspection->overall_condition] ?? null,
+    };
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? null;
 
     // Pass / Fail / N-A for a saved answer (same rule as the report).
@@ -168,9 +176,9 @@
                         <div class="idet-fact"><span class="idet-fact__k">Technician</span><span class="idet-fact__v">{{ optional($inspection->technician)->name ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Branch</span><span class="idet-fact__v">{{ optional($inspection->branch)->branch_name ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Template</span><span class="idet-fact__v">{{ optional($inspection->type)->name ?? '—' }}</span></div>
-                        <div class="idet-fact"><span class="idet-fact__k">Scheduled</span><span class="idet-fact__v">{{ optional($inspection->scheduled_at)->format('d M Y, H:i') ?? '—' }}</span></div>
-                        <div class="idet-fact"><span class="idet-fact__k">Started</span><span class="idet-fact__v">{{ optional($inspection->started_at)->format('d M Y, H:i') ?? '—' }}</span></div>
-                        <div class="idet-fact"><span class="idet-fact__k">Completed</span><span class="idet-fact__v">{{ optional($inspection->completed_at)->format('d M Y, H:i') ?? '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Scheduled</span><span class="idet-fact__v">{{ optional($inspection->scheduled_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Started</span><span class="idet-fact__v">{{ optional($inspection->started_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Completed</span><span class="idet-fact__v">{{ optional($inspection->completed_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
                     </div>
                 </div>
             </div>
@@ -218,6 +226,60 @@
                                 @endif
                             </a>
                             <span class="idet-extra__label" title="{{ $m->label }}">{{ $m->label ?: '—' }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- ===== Summary notes (per area) ===== --}}
+        @if (!empty($summaryTypes))
+            @php
+                $areaIcons = [
+                    'exterior' => 'bxs-car',
+                    'interior' => 'bx-car',
+                    'engine' => 'bxs-cog',
+                    'brake' => 'bx-disc',
+                    'transmission' => 'bx-transfer-alt',
+                    'suspension' => 'bxs-wrench',
+                    'tire' => 'bx-loader-circle',
+                    'wheel' => 'bx-loader-circle',
+                    'undercarriage' => 'bx-wrench',
+                    'safety' => 'bxs-shield-alt-2',
+                    'road' => 'bx-map',
+                    'test drive' => 'bx-map',
+                    'drive' => 'bx-map',
+                    'electr' => 'bxs-bolt',
+                    'performance' => 'bx-run',
+                    'battery' => 'bxs-battery',
+                ];
+                $pickIcon = function ($name) use ($areaIcons) {
+                    $n = strtolower((string) $name);
+                    foreach ($areaIcons as $kw => $icon) {
+                        if (str_contains($n, $kw)) return $icon;
+                    }
+                    return 'bx-notepad';
+                };
+            @endphp
+            <div class="idet-card mt-3" style="padding:18px 20px;">
+                <div class="idet-card__title"><i class="bx bx-notepad"></i> Summary</div>
+                <div class="sum-grid">
+                    @foreach ($summaryTypes as $typeId => $typeName)
+                        @php
+                            $note = isset($summaries[$typeId]) && filled($summaries[$typeId]) ? $summaries[$typeId] : null;
+                            $icon = $pickIcon($typeName);
+                        @endphp
+                        <div class="sum-card {{ $note ? 'is-filled' : '' }}">
+                            <div class="sum-card__head">
+                                <span class="sum-card__icon"><i class="bx {{ $icon }}"></i></span>
+                                <span class="sum-card__title">{{ $typeName }}</span>
+                                <i class="bx bx-check-circle sum-card__tick"></i>
+                            </div>
+                            @if($note)
+                                <textarea readonly rows="2" class="form-control sum-card__input" style="resize:vertical;overflow-y:auto;cursor:text;color:#475467;min-height:44px;">{{ $note }}</textarea>
+                            @else
+                                <p style="font-size:.82rem;color:#b6c0cc;margin:0;font-style:italic;">Not provided</p>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -475,6 +537,23 @@
     .idet-media__item img { width:100%; height:100%; object-fit:cover; display:block; }
     .idet-media__item--video { background:#00263D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:30px; }
     .idet-media__item--video::after { content:'\eb75'; }
+
+    /* Summary area cards (reusing the same design as the edit page) */
+    .sum-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .sum-card {
+        border: 1px solid #e5e9f0; border-radius: 14px; background: #fff; padding: 12px 14px 14px;
+        transition: border-color .18s, box-shadow .18s, transform .12s;
+    }
+    .sum-card:hover { box-shadow: 0 6px 18px rgba(16,40,70,.08); transform: translateY(-1px); }
+    .sum-card.is-filled { border-color: rgba(4,176,132,.55); background: linear-gradient(180deg, rgba(4,176,132,.05), #fff 40%); }
+    .sum-card__head { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .sum-card__icon {
+        flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; color: #fff; background: linear-gradient(135deg, #04b084, #0f9d69);
+        box-shadow: 0 2px 6px rgba(4,176,132,.3);
+    }
+    .sum-card__title { font-weight: 700; font-size: .86rem; color: #2c3a4b; flex: 1 1 auto; min-width: 0; }
+    .sum-card__tick { color: #04b084; font-size: 1.1rem; transition: opacity .18s; }
 
     /* Section-level (category) media inside an accordion */
     .idet-secmedia { padding:2px 18px 14px; border-top:1px dashed #e3e8ef; margin-top:6px; }

@@ -241,11 +241,16 @@ class InspectionController extends Controller
             'lead', 'technician', 'branch',
             'type.sections.steps',
             'details.media',
+            'summaries',
         ]);
 
         $answers = $inspection->details->keyBy('inspection_step_id');
         $progress = $inspection->progress();
         $sections = $inspection->sectionProgress();
+
+        // Summary types (Exterior, Engine, Brakes, …) and this inspection's notes.
+        $summaryTypes = InspectionSummary::types();
+        $summaries = $inspection->summaries()->pluck('summary', 'summary_type_id')->all();
 
         // Inspection templates (active + this inspection's own type, even if now
         // inactive) with their full section/step tree. The Completion card and the
@@ -257,7 +262,7 @@ class InspectionController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view('inspections.show', compact('inspection', 'answers', 'progress', 'sections', 'inspectionTypes'));
+        return view('inspections.show', compact('inspection', 'answers', 'progress', 'sections', 'inspectionTypes', 'summaryTypes', 'summaries'));
     }
 
     /**
@@ -344,29 +349,47 @@ class InspectionController extends Controller
         // Progress bar = how many checklist questions have been answered.
         $percent = $totalSteps > 0 ? (int) round($totalAnswered / $totalSteps * 100) : 0;
 
-        // Overall condition comes ONLY from the technician's verdict
-        // (inspections.overall_condition) — it is not derived from the answers.
-        $stars = 0;
-        if ($inspection->overall_condition) {
-            $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? ucfirst($inspection->overall_condition);
-            $stars = ['excellent' => 5, 'good' => 4, 'fair' => 3, 'poor' => 2][$inspection->overall_condition] ?? 0;
+        // Overall condition comes from the technician's star rating
+        // (inspections.overall_rating).
+        $rating = (float) ($inspection->overall_rating ?? 0);
+        if ($rating > 0) {
+            $condition = match (true) {
+                $rating >= 4.6 => 'Excellent',
+                $rating >= 3.6 => 'Very Good',
+                $rating >= 2.6 => 'Good',
+                $rating >= 1.6 => 'Fair',
+                default        => 'Poor',
+            };
+            $stars = match (true) {
+                $rating >= 4.6 => 5,
+                $rating >= 3.6 => 4,
+                $rating >= 2.6 => 3,
+                $rating >= 1.6 => 2,
+                default        => 1,
+            };
         } else {
             $condition = 'Not Assessed';
+            $stars = 0;
         }
 
-        $conditionNote = match ($inspection->overall_condition) {
-            'excellent' => 'Vehicle is in excellent condition.',
-            'good' => 'Vehicle is in good condition. Minor attention may be needed.',
-            'fair' => 'Vehicle needs attention on several items.',
-            'poor' => 'Vehicle requires significant attention.',
+        $conditionNote = match ($condition) {
+            'Excellent' => 'Vehicle is in excellent condition.',
+            'Very Good' => 'Vehicle is in very good condition.',
+            'Good' => 'Vehicle is in good condition. Minor attention may be needed.',
+            'Fair' => 'Vehicle needs attention on several items.',
+            'Poor' => 'Vehicle requires significant attention.',
             default => 'Overall condition has not been set yet.',
         };
+
+        // Rating as a percentage (same formula as the edit page & report).
+        $ratingPercent = $rating > 0 ? (int) round(($rating / 5) * 100) : 0;
 
         $overview = [
             'condition' => $condition,
             'conditionNote' => $inspection->summary ?: $conditionNote,
             'stars' => $stars,
             'percent' => $percent,
+            'ratingPercent' => $ratingPercent,
             'completed' => $totalAnswered,
             'total' => $totalSteps,
             'allAnswered' => $totalSteps > 0 && $totalAnswered >= $totalSteps,
@@ -879,7 +902,7 @@ class InspectionController extends Controller
             if (blank($inspection->overall_condition))     { $verdictMissing[] = 'Overall condition'; }
             if (blank($inspection->estimated_repair_cost)) { $verdictMissing[] = 'Est. repair cost'; }
             if (blank($inspection->recommendation))        { $verdictMissing[] = 'Recommendation'; }
-            if (blank($inspection->summary))               { $verdictMissing[] = 'Summary report'; }
+            if (blank($inspection->summary))               { $verdictMissing[] = 'Technician note'; }
 
             if ($verdictMissing !== []) {
                 $inspection->save();
