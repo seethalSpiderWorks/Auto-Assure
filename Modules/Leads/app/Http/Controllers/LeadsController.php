@@ -215,16 +215,15 @@ class LeadsController extends Controller
 					->get();
 			/************************ Admin add lead ***********************/
 			
-			$makeArray  = $request->make;     
-			$make = $request->make;
-			/*if($makeArray)
+			$makeArray  = $request->make;
+			if(is_array($makeArray))
 			{
-				$make = implode(',', $request->make);   
+				$make = implode(',', $request->make);
 			}
 			else
 			{
-				$make = '';
-			}*/
+				$make = (string) $request->make;
+			}
 			
 			$modelArray = $request->model;
 			if($modelArray)
@@ -272,10 +271,11 @@ class LeadsController extends Controller
 							
 							'lead_year_from' => $request->yearfrom,					
 							'lead_year_to'   => $request->yearto,					
-							'lead_budget'    => $request->budget,
- 							'lead_know_more' => $request->knowmore,	
+							'lead_budget'    => $request->budget,							'lead_know_more' => $request->knowmore,	
+							'make_model_year'=> $request->make_model_year,
 							
-							/**	'lead_assigned_status' => $leadolddatass->lead_assigned_status,
+							/**
+							'lead_assigned_status' => $leadolddatass->lead_assigned_status,
 							'lead_followup_type'   => $leadolddatass->lead_followup_type,
 							'lead_followupcreated' => $leadolddatass->lead_followupcreated,                    
 							'lead_assigned_users'  => $leadolddatass->lead_assigned_users, **/
@@ -291,15 +291,15 @@ class LeadsController extends Controller
 					$mode_pay    = $request->payment;
 					$package_id  = $request->lpackage;  // package ID // lead pachage for Book inspection
 			 
-					if($package_id != null || $package_id != '' )
+					if($package_id != null && $package_id != '' )
 					{
 						$packname = DB::table('tbl_package')
 							->select('package_name','package_id','package_payable')
 							->where('package_status',0)
 							->where('package_id',$package_id)
-							->first(); 
-						$package_name = $packname->package_name; //package Name
-						$package_pay  = $packname->package_payable; //package Name
+							->first();
+						$package_name = $packname->package_name ?? ''; //package Name
+						$package_pay  = $packname->package_payable ?? ''; //package Name
 					
 						$packagedata = ['lead_pack_ip'      => $request->ip(),
 										'lead_pack_date'    => date('Y-m-d'),
@@ -359,6 +359,7 @@ class LeadsController extends Controller
 							'lead_year_to'   => $request->yearto,					
 							'lead_budget'    => $request->budget,
  							'lead_know_more' => $request->knowmore,
+							'make_model_year'=> $request->make_model_year,
 							//'lead_assigned_users'=> '',
 							//'lead_branch_id'=>session('application_branch'),
 						];
@@ -372,15 +373,15 @@ class LeadsController extends Controller
 					$mode_pay    = $request->payment;
 					$package_id  = $request->lpackage;  // package ID // lead pachage for Book inspection
 			 
-					if($package_id != null || $package_id != '' )
+					if($package_id != null && $package_id != '' )
 					{
 						$packname = DB::table('tbl_package')
 							->select('package_name','package_id','package_payable')
 							->where('package_status',0)
 							->where('package_id',$package_id)
-							->first(); 
-						$package_name = $packname->package_name; //package Name
-						$package_pay  = $packname->package_payable; //package Name
+							->first();
+						$package_name = $packname->package_name ?? ''; //package Name
+						$package_pay  = $packname->package_payable ?? ''; //package Name
 					
 						$packagedata = ['lead_pack_ip'      => $request->ip(),
 										'lead_pack_date'    => date('Y-m-d'),
@@ -741,20 +742,16 @@ class LeadsController extends Controller
 				$basic_arr       = RegistrationModel::create($basic_data);
                 $registrtaion_id = $basic_arr->id;
                 $activity        = 'New Basic Reg ID '.$registrtaion_id.' Has been added By '.Auth::user()->name.' ';
-			}
-			
-			
-			/**** lead start ****/
-			/*$makeArray  = $request->make;     
-			if($makeArray)
+			}			/**** lead start ****/
+			$makeArray  = $request->make;
+			if(is_array($makeArray))
 			{
-				$make = implode(',', $request->make);   
+				$make = implode(',', $request->make);
 			}
 			else
 			{
-				$make = '';
-			}140325*/
-			$make  = $request->make; 
+				$make = (string) $request->make;
+			} 
 			
 			$modelArray = $request->model;  
 			if($modelArray)

@@ -28,6 +28,9 @@ class NotificationController extends Controller
                 $data['inspection_scheduled_at'] = $inspection->scheduled_at?->format('Y-m-d H:i:s');
                 $data['inspection_date'] = $inspection->scheduled_at?->format('Y-m-d');
                 $data['inspection_time'] = $inspection->scheduled_at?->format('H:i');
+                $data['car_make'] = $inspection->car_make;
+                $data['car_model'] = $inspection->car_model;
+                $data['car_year'] = $inspection->car_year;
                 $notification->data = $data;
             }
             return $notification;

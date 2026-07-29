@@ -242,15 +242,19 @@ class InspectionController extends Controller
             'type.sections.steps',
             'details.media',
             'summaries',
+            'sectionSummaries',
         ]);
 
         $answers = $inspection->details->keyBy('inspection_step_id');
         $progress = $inspection->progress();
         $sections = $inspection->sectionProgress();
 
+        // Section-level summaries/ratings, keyed by section id.
+        $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
+
         // Summary types (Exterior, Engine, Brakes, …) and this inspection's notes.
         $summaryTypes = InspectionSummary::types();
-        $summaries = $inspection->summaries()->pluck('summary', 'summary_type_id')->all();
+        $summaries = $inspection->summaries->pluck('summary', 'summary_type_id')->all();
 
         // Inspection templates (active + this inspection's own type, even if now
         // inactive) with their full section/step tree. The Completion card and the
@@ -262,7 +266,7 @@ class InspectionController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view('inspections.show', compact('inspection', 'answers', 'progress', 'sections', 'inspectionTypes', 'summaryTypes', 'summaries'));
+        return view('inspections.show', compact('inspection', 'answers', 'progress', 'sections', 'inspectionTypes', 'summaryTypes', 'summaries', 'sectionSummaries'));
     }
 
     /**

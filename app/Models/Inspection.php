@@ -429,7 +429,7 @@ class Inspection extends Model
         // (same technician) does not notify. Failures are logged to the fcm
         // channel so assignment never breaks.
         if ($isNew || $technicianChanged) {
-            $vehicle = $inspection->car_make ?: 'Vehicle inspection';
+            $vehicle = trim(($inspection->car_make ?? '').' '.($inspection->car_model ?? '')) ?: 'Vehicle inspection';
             $title = $isNew ? 'New Inspection Assigned' : 'Inspection Reassigned to You';
             $body  = ($isNew ? 'You have a new inspection: ' : 'An inspection was reassigned to you: ') . $vehicle;
             $type  = $isNew ? 'inspection_assigned' : 'inspection_reassigned';

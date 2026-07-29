@@ -121,6 +121,23 @@
         ? $currentTypeId
         : optional(($inspectionTypes ?? collect())->first())->id;
     $selStats  = $typeStats[$selTypeId] ?? ['answered' => 0, 'total' => 0, 'percent' => 0];
+
+    // Render fractional stars with CSS gradient clip (same technique as edit page's fillStar).
+    $renderStars = function ($rating) {
+        $html = '';
+        for ($r = 1; $r <= 5; $r++) {
+            $fill = max(0, min(1, $rating - ($r - 1)));
+            if ($fill >= 0.999) {
+                $html .= '<i class="bx bxs-star" style="color:#e2c65a;"></i>';
+            } elseif ($fill <= 0.001) {
+                $html .= '<i class="bx bx-star" style="color:#dfe3ea;"></i>';
+            } else {
+                $pct = round($fill * 100);
+                $html .= '<i class="bx bxs-star" style="background:linear-gradient(90deg,#e2c65a '.$pct.'%,#dfe3ea 0%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;"></i>';
+            }
+        }
+        return $html;
+    };
 @endphp
 
 <div class="page-content">
@@ -190,6 +207,18 @@
                 <div class="idet-card__title"><i class="bx bx-clipboard"></i> Overall Verdict</div>
                 <div class="idet-facts idet-facts--verdict">
                     <div class="idet-fact"><span class="idet-fact__k">Condition</span><span class="idet-fact__v">{{ $condition ?: '—' }}</span></div>
+                    <div class="idet-fact"><span class="idet-fact__k">Rating</span>
+                        <span class="idet-fact__v">
+                            @if($overallRatingVal > 0)
+                                <span class="idet-rating">
+                                    {!! $renderStars($overallRatingVal) !!}
+                                    <span class="idet-rating__n">{{ number_format($overallRatingVal, 1) }}/5</span>
+                                </span>
+                            @else
+                                —
+                            @endif
+                        </span>
+                    </div>
                     <div class="idet-fact"><span class="idet-fact__k">Recommendation</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
                     <div class="idet-fact"><span class="idet-fact__k">Est. Repair Cost</span><span class="idet-fact__v">{{ $inspection->estimated_repair_cost ? number_format($inspection->estimated_repair_cost, 2) : '—' }}</span></div>
                 </div>
@@ -307,11 +336,21 @@
                     $tot = $section->steps->count();
                     $ans = $section->steps->filter(fn ($st) => \App\Models\Inspection::detailIsAnswered($answers->get($st->id)))->count();
                     $cntClass = $tot>0 && $ans>=$tot ? 'is-done' : ($ans>0 ? 'is-partial' : 'is-empty');
+                    $sectionSum = ($sectionSummaries ?? collect())->get($section->id);
+                    $secRatingVal = $sectionSum ? (float) ($sectionSum->rating ?? 0) : 0;
                 @endphp
                 <div class="idet-acc" data-name="{{ strtolower($section->section_name) }}">
                     <button type="button" class="idet-acc__head" aria-expanded="false">
                         <span class="idet-acc__no">{{ $si + 1 }}</span>
-                        <span class="idet-acc__title">{{ $section->section_name }}</span>
+                        <span class="idet-acc__title">
+                            {{ $section->section_name }}
+                            @if($secRatingVal > 0)
+                                <span class="idet-rating idet-acc__title-rating">
+                                    {!! $renderStars($secRatingVal) !!}
+                                    <span class="idet-rating__n">{{ number_format($secRatingVal, 1) }}</span>
+                                </span>
+                            @endif
+                        </span>
                         <span class="idet-acc__right">
                             <span class="idet-count {{ $cntClass }}">{{ $ans }}/{{ $tot }}</span>
                             <i class="bx bx-chevron-down idet-acc__chev"></i>
@@ -340,7 +379,7 @@
                                             @endif
                                             @if($d && $d->rating)
                                                 <span class="idet-rating">
-                                                    @for($r=1;$r<=5;$r++)<i class="bx {{ $r <= $d->rating ? 'bxs-star on' : 'bx-star' }}"></i>@endfor
+                                                    {!! $renderStars((float)$d->rating) !!}
                                                     <span class="idet-rating__n">{{ $d->rating }}/5</span>
                                                 </span>
                                             @endif
@@ -463,7 +502,7 @@
 
     /* Facts grid */
     .idet-facts { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 22px; }
-    .idet-facts--verdict { grid-template-columns:repeat(3, minmax(0,1fr)); }
+    .idet-facts--verdict { grid-template-columns:repeat(4, minmax(0,1fr)); }
     .idet-fact { display:flex; flex-direction:column; }
     .idet-fact__k { font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin-bottom:3px; }
     .idet-fact__v { font-size:14.5px; font-weight:600; color:#344054; }
