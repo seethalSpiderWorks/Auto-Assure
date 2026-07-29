@@ -16,13 +16,11 @@
     $overallRatingPct = $overallRatingVal > 0 ? round(($overallRatingVal / 5) * 100) : 0;
     $overallRatingBadge = match (true) {
         $overallRatingVal >= 4.6 => 'Excellent',
-        $overallRatingVal >= 3.6 => 'Very Good',
-        $overallRatingVal >= 2.6 => 'Good',
-        $overallRatingVal >= 1.6 => 'Fair',
+        $overallRatingVal >= 1.6 => 'Very Good',
         $overallRatingVal > 0    => 'Poor',
         default                  => null,
     };
-    $ratingColors = ['Excellent' => '#2fa84f', 'Very Good' => '#5ab84d', 'Good' => '#f2903f', 'Fair' => '#efb008', 'Poor' => '#e0483d'];
+    $ratingColors = ['Excellent' => '#2fa84f', 'Very Good' => '#5ab84d', 'Poor' => '#e0483d'];
     $ratingColor  = $ratingColors[$overallRatingBadge] ?? '#8ea3b5';
     $condition    = $overallRatingBadge;
     $overallCond  = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
@@ -449,7 +447,20 @@
               
                 <div class="card tight" style=" width :350px;">
                     <div class="facts">
-                        <div class="fact"><div class="fl">Overall Condition</div><div class="fv"> {{ $overallCond ?? $condition }}</div></div>
+                        <div class="fact" style="display:flex;flex-direction:column;align-items:center;">
+                            <div class="fl">Overall Rating</div>
+                            <div class="fv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+                                @if($overallRatingVal > 0)
+                                    @for($i = 1; $i <= 5; $i++)
+                                        @php $fill = max(0, min(1, $overallRatingVal - ($i - 1))); $pct = round($fill * 100, 1); @endphp
+                                        <span class="star" style="font-size:15px;line-height:1;{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#dfe3ea;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#dfe3ea '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>
+                                    @endfor
+                                    <span style="font-size:12px;font-weight:700;color:#1c2430;">{{ number_format($overallRatingVal, 1) }}/5</span>
+                                @else
+                                    {{ $overallCond ?? $condition }}
+                                @endif
+                            </div>
+                        </div>
                         <div class="fact"><div class="fl">Recommendation</div><div class="fv">{{ $recommend }}</div></div>
                     </div>
                 </div>

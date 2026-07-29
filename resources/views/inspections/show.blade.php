@@ -347,7 +347,7 @@
                             @if($secRatingVal > 0)
                                 <span class="idet-rating idet-acc__title-rating">
                                     {!! $renderStars($secRatingVal) !!}
-                                    <span class="idet-rating__n">{{ number_format($secRatingVal, 1) }}</span>
+                                    <span class="idet-rating__n">{{ rtrim(rtrim(number_format($secRatingVal, 1), '0'), '.') }}</span>
                                 </span>
                             @endif
                         </span>
