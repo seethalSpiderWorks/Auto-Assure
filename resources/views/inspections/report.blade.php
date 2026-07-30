@@ -220,7 +220,7 @@
         /* ---- badges ---- */
         .badge{ display:inline-flex; align-items:center; justify-content:center; color:#fff; font-weight:700;
             min-width:20px; height:20px; padding:0 6px; border-radius:4px; line-height:1; font-size:12px; }
-        .b-pass{ background:var(--pass); } .b-fail{ background:#e02424; } .b-na{ background:var(--na); font-size:11px; letter-spacing:.4px; }
+        .b-pass{ background:var(--pass); } .b-fail{ background:#e02424; } .b-na{ background:#f5a623; font-size:11px; letter-spacing:.4px; }
 
         /* ---- key / value spec ---- */
         .kv{ width:100%; border-collapse:collapse; }

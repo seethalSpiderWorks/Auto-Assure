@@ -729,6 +729,7 @@ class InspectionController extends Controller
             'overall_rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'recommendation' => ['nullable', 'in:'.implode(',', array_keys(Inspection::RECOMMENDATIONS))],
             'estimated_repair_cost' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'string', 'max:10'],
             'summary' => ['nullable', 'string', 'max:5000'],
             // Per-step answers
             'answers' => ['nullable', 'array'],
@@ -772,6 +773,7 @@ class InspectionController extends Controller
             'overall_rating' => $validated['overall_rating'] ?? null,
             'recommendation' => $validated['recommendation'] ?? null,
             'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? null,
+            'currency' => $validated['currency'] ?? null,
             'summary' => $validated['summary'] ?? null,
             'date_of_inspection' => $validated['date_of_inspection'] ?? null,
             'scheduled_at' => $validated['scheduled_at'] ?? $inspection->scheduled_at,

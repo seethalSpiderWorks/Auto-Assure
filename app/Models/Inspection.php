@@ -31,7 +31,7 @@ class Inspection extends Model
         'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone', 'whatsapp_number',
         'date_of_inspection', 'car_make', 'car_model', 'car_year',
         'status', 'scheduled_at', 'started_at', 'completed_at',
-        'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost',
+        'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
         'exterior_color', 'region',
