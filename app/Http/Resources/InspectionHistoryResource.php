@@ -60,6 +60,7 @@ class InspectionHistoryResource extends JsonResource
             'odometer'                => $this->odometer,
             'overall_condition'       => $this->overall_condition,
             'overall_condition_label' => Inspection::CONDITIONS[$this->overall_condition] ?? null,
+            'overall_rating'          => $this->overall_rating,
             'recommendation'          => $this->recommendation,
             'recommendation_label'    => Inspection::RECOMMENDATIONS[$this->recommendation] ?? null,
             'estimated_repair_cost'   => $this->estimated_repair_cost,

@@ -55,9 +55,10 @@ class InspectionResource extends JsonResource
             'last_service_date'    => optional($this->last_service_date)->toDateString(),
 
             'odometer'              => $this->odometer,
-            'overall_condition'     => $this->overall_condition,
+            'overall_condition'       => $this->overall_condition,
             'overall_condition_label' => Inspection::CONDITIONS[$this->overall_condition] ?? null,
-            'recommendation'        => $this->recommendation,
+            'overall_rating'          => $this->overall_rating,
+            'recommendation'          => $this->recommendation,
             'recommendation_label'  => Inspection::RECOMMENDATIONS[$this->recommendation] ?? null,
             'estimated_repair_cost' => $this->estimated_repair_cost,
             'currency'              => $this->currency ?? 'AED',
