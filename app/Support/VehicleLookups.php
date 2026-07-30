@@ -50,6 +50,22 @@ class VehicleLookups
             'where' => ['steering_side_status' => 0],
             'order' => null,
         ],
+        // Car makes — used by the Add Leads form and the inspectio edit screen.
+        'car_make' => [
+            'table' => 'tbl_make',
+            'id' => 'make_id',
+            'name' => 'make_name',
+            'where' => ['make_status' => 0, 'make_publish_status' => 1],
+            'order' => 'make_name',
+        ],
+        // Car models — filtered by make_id via the show() controller.
+        'car_model' => [
+            'table' => 'tbl_model',
+            'id' => 'model_id',
+            'name' => 'model_name',
+            'where' => ['model_status' => 0, 'model_publish_status' => 1],
+            'order' => 'model_name',
+        ],
     ];
 
     /**
@@ -70,9 +86,13 @@ class VehicleLookups
     /**
      * Options for one field as [['id' => int, 'name' => string], ...].
      *
+     * Accepts optional extra where conditions (e.g. ['model_make' => 5])
+     * to filter related lookups like car_model by make_id.
+     *
+     * @param  array<string, mixed>  $extraWhere  Column => value pairs.
      * @return array<int, array{id:int, name:string}>
      */
-    public static function options(string $field): array
+    public static function options(string $field, array $extraWhere = []): array
     {
         $source = self::SOURCES[$field] ?? null;
         if (! $source) {
@@ -85,6 +105,11 @@ class VehicleLookups
         ]);
 
         foreach ($source['where'] as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        // Apply dynamic filters (e.g. model_make for car_model).
+        foreach ($extraWhere as $column => $value) {
             $query->where($column, $value);
         }
 

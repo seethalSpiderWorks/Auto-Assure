@@ -21,6 +21,12 @@ use App\Http\Controllers\Api\NotificationController;
 // --- Public endpoints ---
 Route::post('login', [UserAuthController::class, 'login'])->name('app.login');
 
+// Public vehicle lookups (car makes and models) — used by both the mobile app
+// and the web-based Leads form via AJAX. Lookup data is not sensitive, so the
+// endpoints live outside auth:sanctum for cross-context access.
+Route::get('/vehicle-lookups/car-make', [VehicleLookupController::class, 'show']);
+Route::get('/vehicle-lookups/car-model', [VehicleLookupController::class, 'show']);
+
 // --- Protected endpoints (require a valid Sanctum token) ---
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('user', [UserAuthController::class, 'getUser'])->name('app.user');
