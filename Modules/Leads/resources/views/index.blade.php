@@ -486,7 +486,7 @@
 								<div class="col-md-3">
 									<div class="mb-3">
 										<label class="form-label">Scheduled Date &amp; Time</label>
-										<input type="datetime-local" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d\TH:i') : '' }}" @disabled($inspLocked)>
+										<input type="datetime-local" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d\TH:i') : '' }}" @disabled($inspLocked) @unless($inspLocked) required @endunless>
 									</div>
 								</div>
 								<div class="col-md-1 d-flex align-items-end">
@@ -1566,20 +1566,17 @@ $("#assign_btn").click(function()
 	var insp_type = $("#assign_insp_type").val();
 	var insp_sched = $("#assign_insp_scheduled").val();
 
+	// Clear previous borders
+	$('#assign_insp_type, #assign_insp_scheduled, #assign_lead_staff').css('borderColor', '');
 	$("#error_assigns").html("");
 	$("#error_assigns_lead").html("");
 	$("#error_assigns_type").html("");
-	if(staff.length==0)
-	{
-		$("#error_assigns").html("Please Select Staff");
-		return false;
-	}
 
-	if(!insp_type)
-	{
-		$("#error_assigns_type").html("Please select an inspection template");
-		return false;
-	}
+	var missing = false;
+	if (!insp_type) { $('#assign_insp_type').css('borderColor', '#e5484d'); missing = true; }
+	if (!insp_sched || new Date(insp_sched) <= new Date()) { $('#assign_insp_scheduled').css('borderColor', '#e5484d'); missing = true; }
+	if (!staff) { $('#assign_lead_staff').css('borderColor', '#e5484d'); missing = true; }
+	if (missing) return false;
 
 	if(rows_selected.length==0)
 	{
@@ -1622,6 +1619,26 @@ $("#assign_btn").click(function()
                     }
                 }); 
 })
+
+// Set min on assign date & clear red borders when user fills in
+(function () {
+    var sched = document.getElementById('assign_insp_scheduled');
+    if (sched) {
+        var now = new Date();
+        sched.min = now.getFullYear() + '-' +
+            String(now.getMonth()+1).padStart(2,'0') + '-' +
+            String(now.getDate()).padStart(2,'0') + 'T' +
+            String(now.getHours()).padStart(2,'0') + ':' +
+            String(now.getMinutes()).padStart(2,'0');
+    }
+    $('#assign_insp_type, #assign_insp_scheduled, #assign_lead_staff').on('change', function () {
+        var el = this;
+        var ok = el.id === 'assign_insp_type' ? el.value :
+                 el.id === 'assign_insp_scheduled' ? (el.value && new Date(el.value) > new Date()) :
+                 el.value;
+        el.style.borderColor = ok ? '' : '#e5484d';
+    });
+})();
 
 /*********** Delete Assign Lead **************/
 
@@ -1986,12 +2003,55 @@ $(document).ready(function() {
         });
     })();
 
+    // Set min on insp_scheduled so the picker blocks past dates/times
+    (function () {
+        var el = document.getElementById('insp_scheduled');
+        if (el && !el.disabled) {
+            var now = new Date();
+            el.min = now.getFullYear() + '-' +
+                String(now.getMonth()+1).padStart(2,'0') + '-' +
+                String(now.getDate()).padStart(2,'0') + 'T' +
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0');
+        }
+        // Clear red borders when user fills in Inspection fields
+        ['insp_type','insp_scheduled','insp_staff'].forEach(function (id) {
+            var field = document.getElementById(id);
+            if (!field) return;
+            field.addEventListener('change', function () {
+                var ok = id === 'insp_scheduled'
+                    ? (this.value && new Date(this.value) > new Date())
+                    : !!this.value;
+                this.style.borderColor = ok ? '' : '#e5484d';
+            });
+        });
+    })();
+
     // Inspection details (template / assigned person / scheduled date) save.
     // Exposed globally so the main Lead Info "Update" saves it too before the
     // page reloads — otherwise the values entered here are lost on reload.
     window.saveLeadInspection = function (onDone) {
         var leadEl = document.getElementById('insp_lead_id');
         if (!leadEl) { if (onDone) onDone(); return; }   // section not on page (add mode)
+
+        // Validate all fields at once with red borders
+        var typeEl = document.getElementById('insp_type');
+        var dateEl = document.getElementById('insp_scheduled');
+        var staffEl = document.getElementById('insp_staff');
+        var missing = false;
+        if (typeEl && !typeEl.disabled && !typeEl.value) {
+            typeEl.style.borderColor = '#e5484d';
+            missing = true;
+        } else if (typeEl) typeEl.style.borderColor = '';
+        if (dateEl && !dateEl.disabled && (!dateEl.value || new Date(dateEl.value) <= new Date())) {
+            dateEl.style.borderColor = '#e5484d';
+            missing = true;
+        } else if (dateEl) dateEl.style.borderColor = '';
+        if (staffEl && !staffEl.disabled && !staffEl.value) {
+            staffEl.style.borderColor = '#e5484d';
+            missing = true;
+        } else if (staffEl) staffEl.style.borderColor = '';
+        if (missing) { if (onDone) onDone(); return; }
 
         var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         var msg  = document.getElementById('insp_msg');

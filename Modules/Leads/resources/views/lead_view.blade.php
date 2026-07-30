@@ -109,7 +109,7 @@
             </div>
             <div class="ldv-assign__field">
                 <label>Scheduled Date &amp; Time</label>
-                <input type="datetime-local" id="ldv_date" class="form-control" value="{{ $curSched }}">
+                <input type="datetime-local" id="ldv_date" class="form-control" value="{{ $curSched }}" required>
             </div>
             <div class="ldv-assign__field">
                 <label>Technician</label>
@@ -333,14 +333,43 @@
 
 @section('js')
 <script>
+    // Set min to current datetime so the picker blocks past dates/times
+    var ldvDate = document.getElementById('ldv_date');
+    if (ldvDate) {
+        var now = new Date();
+        ldvDate.min = now.getFullYear() +
+            '-' + String(now.getMonth()+1).padStart(2,'0') +
+            '-' + String(now.getDate()).padStart(2,'0') +
+            'T' + String(now.getHours()).padStart(2,'0') +
+            ':' + String(now.getMinutes()).padStart(2,'0');
+    }
+
+    // Clear red borders when user fills in fields
+    ['ldv_type','ldv_date','ldv_staff'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function () {
+            var ok = id === 'ldv_date'
+                ? (this.value && new Date(this.value) > new Date())
+                : !!this.value;
+            this.style.borderColor = ok ? '' : '#e5484d';
+        });
+    });
+
     document.getElementById('ldv_assign_btn').addEventListener('click', function () {
-        var type  = document.getElementById('ldv_type').value;
-        var date  = document.getElementById('ldv_date').value;
-        var staff = document.getElementById('ldv_staff').value;
+        var typeEl = document.getElementById('ldv_type');
+        var dateEl = document.getElementById('ldv_date');
+        var staffEl = document.getElementById('ldv_staff');
         var msg   = document.getElementById('ldv_assign_msg');
 
-        if (!staff) { msg.className = 'ldv-assign__msg err'; msg.textContent = 'Please select a technician.'; return; }
-        if (!type)  { msg.className = 'ldv-assign__msg err'; msg.textContent = 'Please select an inspection template.'; return; }
+        // Clear previous borders
+        [typeEl, dateEl, staffEl].forEach(function (el) { if (el) el.style.borderColor = ''; });
+
+        var missing = false;
+        if (!typeEl || !typeEl.value) { if (typeEl) typeEl.style.borderColor = '#e5484d'; missing = true; }
+        if (!dateEl || !dateEl.value || new Date(dateEl.value) <= new Date()) { if (dateEl) dateEl.style.borderColor = '#e5484d'; missing = true; }
+        if (!staffEl || !staffEl.value) { if (staffEl) staffEl.style.borderColor = '#e5484d'; missing = true; }
+        if (missing) { return; }
 
         var btn = this; btn.disabled = true;
         msg.className = 'ldv-assign__msg'; msg.textContent = 'Assigning…';
