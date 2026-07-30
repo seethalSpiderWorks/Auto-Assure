@@ -569,6 +569,7 @@ class InspectionController extends Controller
             'overall_condition' => ['nullable', 'in:'.implode(',', array_keys(Inspection::CONDITIONS))],
             'overall_rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'recommendation' => ['nullable', 'string', 'max:255'],
+            'currency' => ['nullable', 'string', 'max:10'],
             'estimated_repair_cost' => ['nullable', 'string', 'max:50'],
             'summary' => ['nullable', 'string', 'max:5000'],
         ]);

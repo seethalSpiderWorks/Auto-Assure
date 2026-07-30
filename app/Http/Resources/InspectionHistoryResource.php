@@ -63,6 +63,7 @@ class InspectionHistoryResource extends JsonResource
             'recommendation'          => $this->recommendation,
             'recommendation_label'    => Inspection::RECOMMENDATIONS[$this->recommendation] ?? null,
             'estimated_repair_cost'   => $this->estimated_repair_cost,
+            'currency'                => $this->currency ?? 'AED',
             'summary'                 => $this->summary,
 
             'progress' => $this->progress(),
