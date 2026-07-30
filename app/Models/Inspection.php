@@ -48,7 +48,6 @@ class Inspection extends Model
             'scheduled_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
-            'estimated_repair_cost' => 'decimal:2',
             'overall_rating' => 'decimal:1',
         ];
     }
