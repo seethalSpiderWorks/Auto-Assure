@@ -669,7 +669,7 @@ class LeadsController extends Controller
                 ->orderBy('lead_id','desc')
                 ->first();   
       
-		$flag = DB::table("tbl_country")->selct('country_code')->where('id')->first();
+		$flag = DB::table("tbl_country")->select('country_code')->first();
 		if($flag)
 		{
 			$flag1 = strtolower($flag->country_code);

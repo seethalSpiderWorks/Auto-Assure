@@ -324,6 +324,13 @@ function confirmEdit_new(id)
 			dataType:'JSON',
             success: function(result)
             {
+				if (!result || !result.data) {
+					if (typeof toastr !== 'undefined') {
+						toastr["error"]("Could not load lead data. Please try again.");
+					}
+					return;
+				}
+
 				//console.log(result.lead_id);
 				$('#add').hide();
 				$('#reset').hide();
@@ -381,6 +388,20 @@ function confirmEdit_new(id)
 				
  				//var arrayData = result.data.lead_software.split(',');
 				//$('#software').val(arrayData).trigger('change');
+
+				// Smooth scroll to the form so the user sees the loaded data
+				$('html, body').animate({
+					scrollTop: $('#lead_form').offset().top - 20
+				}, 500);
+			},
+			error: function(jqXHR, textStatus, errorThrown)
+			{
+				if (typeof toastr !== 'undefined') {
+					toastr["error"]("Failed to load lead data. Server error (check console).");
+				} else {
+					alert("Failed to load lead data. Please try again.");
+				}
+				console.error('confirmEdit_new error:', textStatus, errorThrown, jqXHR.responseText);
 			}
 		});
 }
