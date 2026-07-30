@@ -643,18 +643,13 @@
                 @endphp
                 <div class="sec-bar" style="margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
                     <span class="en">{{ $sTitle }}</span>
-                    @if ($secRating || optional($secMeta)->summary)
-                        <span class="sec-summary" style="font-size:12px; color:#cfd4dc; display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; text-align:right;">
-                            @if ($secRating)
-                                {{-- Partial star for a fractional rating: 3.5 draws three full
-                                     stars plus a half-filled fourth. The fraction is a gold/dim
-                                     gradient clipped to the glyph. --}}
-                                <span style="white-space:nowrap;">@for($i = 1; $i <= 5; $i++)@php $fill = max(0, min(1, $secRating - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span class="star" style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:rgba(255,255,255,.3);' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,rgba(255,255,255,.3) '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRatingLbl }}/5</span></span>
-                            @endif
-                            @if (optional($secMeta)->summary)<span style="font-style:italic;white-space:pre-line;">{{ $secMeta->summary }}</span>@endif
-                        </span>
+                    @if ($secRating)
+                        <span style="white-space:nowrap;">@for($i = 1; $i <= 5; $i++)@php $fill = max(0, min(1, $secRating - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span class="star" style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:rgba(255,255,255,.3);' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,rgba(255,255,255,.3) '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRatingLbl }}/5</span></span>
                     @endif
                 </div>
+                @if (optional($secMeta)->summary)
+                    <div style="background:var(--card);border-radius:10px;padding:12px 18px;box-shadow:0 6px 18px rgba(24,33,54,.06);margin:-8px 0 16px 0;white-space:pre-line;color:#3b4655;line-height:1.6;font-size:12.5px;">{{ $secMeta->summary }}</div>
+                @endif
                 @php $secBanner = $bannerUrl($section->section_name); @endphp
                 @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
 
@@ -744,15 +739,15 @@
                 <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
                 <span class="doc-tag">Comprehensive Inspection Report</span>
             </div>
-            <div class="sec-bar"><span class="en">Summary</span></div>
-            <div class="card" style="padding:6px 4px;">
-                @foreach ($areaNotes as $i => $an)
-                    <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 12px; {{ $i < count($areaNotes) - 1 ? 'border-bottom:1px solid #eef0f3;' : '' }}">
-                        <span style="flex:0 0 auto; width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#e8f7f1; border:1px solid #cdeee1;">{!! $an['svg'] !!}</span>
-                        <div style="flex:1 1 auto; min-width:0;">
-                            <div style="font-family:'Quicksand',sans-serif; font-weight:700; color:#1c2431; font-size:14px; margin-bottom:3px;">{{ $an['name'] }}</div>
-                            <div style="white-space:pre-line; color:#3b4655; line-height:1.65; font-size:12.5px;">{{ $an['note'] }}</div>
+            <div class="sec-bar"><span class="en">Summary Notes by Area</span></div>
+            <div class="grid2">
+                @foreach ($areaNotes as $an)
+                    <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#e8f7f1; border:1px solid #cdeee1;">{!! $an['svg'] !!}</span>
+                            <span style="font-family:'Quicksand',sans-serif; font-weight:700; color:#1c2431; font-size:13px;">{{ $an['name'] }}</span>
                         </div>
+                        <div style="white-space:pre-line; color:#475467; line-height:1.6; font-size:11.5px; padding-left:2px;">{{ $an['note'] }}</div>
                     </div>
                 @endforeach
             </div>
