@@ -95,6 +95,29 @@ class InspectionResource extends JsonResource
                 ])->values();
             }),
 
+            // Section-level media (photos/videos not tied to a specific step).
+            // Grouped by section so the mobile app can render them per category.
+            'section_media' => $this->when(
+                $this->relationLoaded('details') && $this->relationLoaded('type') && $this->type && $this->type->relationLoaded('sections'),
+                function () {
+                    $sections = $this->type->sections->keyBy('id');
+
+                    return $this->details
+                        ->filter(fn ($d) => is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id))
+                        ->map(fn ($d) => [
+                            'section_id'   => (int) $d->inspection_section_id,
+                            'section_name' => optional($sections->get($d->inspection_section_id))->section_name,
+                            'media'        => $d->relationLoaded('media')
+                                ? $d->media->map(fn ($m) => [
+                                    'id'   => $m->id,
+                                    'type' => $m->type,
+                                    'url'  => $m->url,
+                                ])->values()
+                                : [],
+                        ])->values();
+                }
+            ),
+
             'type'    => new InspectionTypeResource($this->whenLoaded('type')),
             'details' => $this->whenLoaded('details', fn () => $this->details->map(fn ($detail) => [
                 'id'                     => $detail->id,
