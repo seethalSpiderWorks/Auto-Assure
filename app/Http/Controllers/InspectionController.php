@@ -982,8 +982,13 @@ class InspectionController extends Controller
             );
         }
 
+        if ($completing) {
+            return redirect()->route('inspections.summary', $inspection)
+                ->with('success', 'Inspection completed.');
+        }
+
         return redirect()->route('inspections.edit', $inspection)
-            ->with('success', $completing ? 'Inspection completed.' : ($typeChanged ? 'Inspection template updated.' : 'Inspection saved.'));
+            ->with('success', $typeChanged ? 'Inspection template updated.' : 'Inspection saved.');
     }
 
     public function destroyMedia(Request $request, InspectionMedia $media): RedirectResponse|JsonResponse
