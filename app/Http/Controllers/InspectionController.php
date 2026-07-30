@@ -173,7 +173,25 @@ class InspectionController extends Controller
 
         // The table-backed selects come from VehicleLookups so this screen and the
         // API (GET /api/vehicle-lookups) always offer exactly the same choices.
+        // Build a make → [models] map for client-side filtering, using the same
+        // active/published filters the VehicleLookups class applies.
+        $activeModels = \DB::table('tbl_model')
+            ->where('model_status', 0)
+            ->where('model_publish_status', 1)
+            ->select('model_name', 'model_make')
+            ->get();
+        $activeMakes  = VehicleLookups::options('car_make');
+        $makeIdToName = collect($activeMakes)->pluck('name', 'id');
+        $modelsByMake = [];
+        foreach ($activeModels as $m) {
+            $mn = $makeIdToName[$m->model_make] ?? null;
+            if ($mn) $modelsByMake[$mn][] = $m->model_name;
+        }
+
         return [
+            'car_make' => VehicleLookups::names('car_make'),
+            'car_model' => VehicleLookups::names('car_model'),
+            'modelsByMake' => $modelsByMake,
             'exterior_color' => VehicleLookups::names('exterior_color'),
             'gearbox' => VehicleLookups::names('gearbox'),
             'fuel_type' => VehicleLookups::names('fuel_type'),

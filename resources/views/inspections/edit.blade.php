@@ -569,8 +569,22 @@
 
                                     <p class="detail-group-title mt-2">Vehicle</p>
                                     <div class="row">
-                                        <div class="col-md-3 mb-3"><label class="form-label">Make</label><input name="car_make" class="form-control js-customer" value="{{ old('car_make', $inspection->car_make) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Model</label><input name="car_model" class="form-control js-customer" value="{{ old('car_model', $inspection->car_model) }}"></div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Make</label>
+                                            <select name="car_make" id="car_make" class="select2 form-control form-select js-customer">
+                                                <option value="">Select Make</option>
+                                                @foreach ($lookups['car_make'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('car_make', $inspection->car_make) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Model</label>
+                                            <select name="car_model" id="car_model" class="select2 form-select form-control select2-multiple js-customer"
+                                                data-selected-model="{{ old('car_model', $inspection->car_model) }}">
+                                                <option value="">Select Model</option>
+                                            </select>
+                                        </div>
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Model Year</label>
                                             <select name="car_year" class="form-control form-select js-customer">
@@ -1862,7 +1876,8 @@
             e.preventDefault();
             try {
                 if (panel.dataset.wtype === 'details') {
-                    if (timers.cust) { clearTimeout(timers.cust); await AA.saveCustomer(); }
+                    if (timers.cust) clearTimeout(timers.cust);
+                    await AA.saveCustomer();
                 } else {
                     // Flush only steps whose debounced save is still pending.
                     const pending = Array.from(panel.querySelectorAll('.q-card[data-step]'))
@@ -1895,6 +1910,36 @@
     }
 
 })();
+
+// Dynamic model filtering by make (like the leads edit page).
+$(document).ready(function () {
+    var $make  = $('#car_make');
+    var $model = $('#car_model');
+    var modelsByMake = @json($lookups['modelsByMake']);
+    var selectedModel = ($model.data('selected-model') || '').toString();
+
+    function refreshSelect2() {
+        if ($model.data('select2')) $model.select2('destroy');
+        $model.select2();
+    }
+
+    function filterModels(make) {
+        var models = (make && modelsByMake[make]) ? modelsByMake[make].slice() : [];
+        if (selectedModel && models.indexOf(selectedModel) === -1) models.push(selectedModel);
+        var selModel = (models.indexOf(selectedModel) !== -1) ? selectedModel : '';
+        $model.empty().append('<option value="">Select Model</option>');
+        $.each(models, function (i, name) {
+            var sel = (name === selModel) ? ' selected' : '';
+            $model.append('<option value="' + name + '"' + sel + '>' + name + '</option>');
+        });
+        refreshSelect2();
+    }
+
+    if ($make.val()) filterModels($make.val());
+
+    $make.on('change', function () { filterModels($(this).val()); AA.debounceCustomer(); });
+    $model.on('change', function () { AA.debounceCustomer(); });
+});
 </script>
 
 {{-- Scheduled Date & Time: Flatpickr calendar that closes itself once the time
