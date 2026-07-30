@@ -925,8 +925,8 @@
                                     <div class="row">
                                         {{-- Odometer is captured under Customer & Vehicle; verdict reads the saved value. --}}
                                         <input type="hidden" name="overall_condition" value="{{ $inspection->overall_condition ?? '' }}">
-                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><div class="input-group"><select name="currency" class="form-control form-select" style="flex:0 0 auto;width:auto;border-radius:10px 0 0 10px;border:1px solid #e4e8ee;border-right:0;background:#f7f9fc;color:#475467;font-weight:600;font-size:.92rem;padding:.58rem .5rem;min-width:72px;">@foreach(['AED','SAR','USD','EUR','GBP','OMR','BHD','QAR','KWD'] as $c)<option value="{{ $c }}" @selected(old('currency', $inspection->currency ?? 'AED') === $c)>{{ $c }}</option>@endforeach</select><input name="estimated_repair_cost" type="text" inputmode="decimal" required class="form-control" style="border-radius:0 10px 10px 0;" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div></div>
-                                        {{-- Overall Rating — highlighted section --}}
+
+                                        {{-- Overall Rating — highlighted section, shown first --}}
                                         @php($overallRating = (float) old('overall_rating', $inspection->overall_rating ?? 0))
                                         @php($labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'])
                                         @php($pcts = [20, 40, 60, 80, 100])
@@ -962,7 +962,10 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-md-12 mb-3">
+
+                                        {{-- Est. repair cost + Recommendation side by side --}}
+                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><div class="input-group"><select name="currency" class="form-control form-select" style="flex:0 0 auto;width:auto;border-radius:10px 0 0 10px;border:1px solid #e4e8ee;border-right:0;background:#f7f9fc;color:#475467;font-weight:600;font-size:.92rem;padding:.58rem .5rem;min-width:72px;">@foreach(['AED','SAR','USD','EUR','GBP','OMR','BHD','QAR','KWD'] as $c)<option value="{{ $c }}" @selected(old('currency', $inspection->currency ?? 'AED') === $c)>{{ $c }}</option>@endforeach</select><input name="estimated_repair_cost" type="text" inputmode="decimal" required class="form-control" style="border-radius:0 10px 10px 0;" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div></div>
+                                        <div class="col-md-6 mb-3">
                                             <label class="form-label">Recommendation <span class="text-danger">*</span></label>
                                             <select name="recommendation" data-wreq required class="form-control form-select">
                                                 <option value="">—</option>
