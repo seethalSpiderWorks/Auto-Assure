@@ -61,6 +61,7 @@
                             <div class="insp-vehicle__meta">
                                 <span><i class="bx bx-user"></i><span class="insp-vehicle__lbl">Owner</span><span class="insp-vehicle__val">{{ $inspection->customer_name ?: 'N/A' }}</span></span>
                                 <span><i class="bx bx-phone"></i><span class="insp-vehicle__lbl">Phone</span><span class="insp-vehicle__val">{{ $inspection->customer_phone ?: 'N/A' }}</span></span>
+                                @if($inspection->whatsapp_number)<span><i class="bx bxl-whatsapp"></i><span class="insp-vehicle__lbl">WhatsApp</span><span class="insp-vehicle__val">{{ $inspection->whatsapp_number }}</span></span>@endif
                                 @if($inspection->plate_no)<span><i class="bx bx-id-card"></i><span class="insp-vehicle__lbl">Plate No.</span><span class="insp-vehicle__val">{{ $inspection->plate_no }}</span></span>@endif
                                 @if($inspection->odometer)<span><i class="bx bx-tachometer"></i><span class="insp-vehicle__lbl">Odometer</span><span class="insp-vehicle__val">{{ number_format($inspection->odometer) }} km</span></span>@endif
                                 @if($inspection->fuel_type)<span><i class="bx bx-gas-pump"></i><span class="insp-vehicle__lbl">Fuel</span><span class="insp-vehicle__val">{{ $inspection->fuel_type }}</span></span>@endif

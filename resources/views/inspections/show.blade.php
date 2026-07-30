@@ -189,6 +189,7 @@
                     <div class="idet-facts">
                         <div class="idet-fact"><span class="idet-fact__k">Customer</span><span class="idet-fact__v">{{ $inspection->customer_name ?: '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Phone</span><span class="idet-fact__v">{{ $inspection->customer_phone ?: '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">WhatsApp</span><span class="idet-fact__v">{{ $inspection->whatsapp_number ?: '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Email</span><span class="idet-fact__v">{{ $inspection->customer_email ?: '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Technician</span><span class="idet-fact__v">{{ optional($inspection->technician)->name ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Branch</span><span class="idet-fact__v">{{ optional($inspection->branch)->branch_name ?? '—' }}</span></div>
