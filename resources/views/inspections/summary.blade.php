@@ -78,11 +78,11 @@
                             <div class="insp-gauge" style="--pct: {{ $overview['ratingPercent'] }}; --gc: {{ $gaugeColor }};">
                                 <span class="insp-gauge__val">{{ $overview['ratingPercent'] }}<small>%</small></span>
                                 <span class="insp-gauge__sub">{{ number_format($overview['overall_rating'] ?? 0, 1) }} / 5</span>
-                                <span class="insp-gauge__lbl">OVERALL CONDITION</span>
+
                             </div>
                         </div>
                         <div class="insp-condition__body">
-                            <div class="insp-condition__title {{ $condClass }}">{{ $overview['condition'] }} @if($condClass !== 'is-none')Condition @endif</div>
+                            <div class="insp-condition__title {{ $condClass }}">{{ $overview['condition'] }}</div>
                             <div class="insp-condition__row">
                                 <div class="insp-stars">
                                     @php
