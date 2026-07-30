@@ -1449,7 +1449,6 @@
     // counts as filled in. A cost of 0 is a real answer — only an empty box is
     // treated as missing.
     const VERDICT_FIELDS = {
-        overall_condition: 'Overall condition',
         estimated_repair_cost: 'Est. repair cost',
         recommendation: 'Recommendation',
         summary: 'Technician note',

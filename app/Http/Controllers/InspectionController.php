@@ -921,7 +921,6 @@ class InspectionController extends Controller
             // A cost of 0 is a real answer (nothing to repair); only a null/empty
             // box counts as missing, which is exactly what blank() tests.
             $verdictMissing = [];
-            if (blank($inspection->overall_condition))     { $verdictMissing[] = 'Overall condition'; }
             if (blank($inspection->estimated_repair_cost)) { $verdictMissing[] = 'Est. repair cost'; }
             if (blank($inspection->recommendation))        { $verdictMissing[] = 'Recommendation'; }
             if (blank($inspection->summary))               { $verdictMissing[] = 'Technician note'; }
