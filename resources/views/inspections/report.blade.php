@@ -76,7 +76,7 @@
     $rowState = fn ($step) => Inspection::choiceState($answers->get($step->id));
     $badge = fn ($state) => $state === 'pass'
         ? '<span class="badge b-pass">&#10003;</span>'
-        : ($state === 'fail' ? '<span class="badge b-fail">&#10007;</span>' : '<span class="badge b-na">N/A</span>');
+        : ($state === 'fail' ? '<span class="badge b-fail">&#10007;</span>' : '<span class="badge b-na">&#8764;</span>');
 
     // Photos attached to a given step, filtered to files that actually exist.
     $stepPhotos = function ($step) use ($answers) {
