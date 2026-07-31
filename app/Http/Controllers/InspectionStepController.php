@@ -12,6 +12,8 @@ class InspectionStepController extends Controller
 {
     public function create(InspectionSection $section): View
     {
+        $section->load(['steps' => fn ($q) => $q->orderBy('sequence')->orderBy('id')]);
+
         return view('templates.steps.create', [
             'section' => $section,
             'step' => new InspectionStep([
@@ -30,10 +32,12 @@ class InspectionStepController extends Controller
         $data = $this->validateStep($request);
         $data['sequence'] = $data['sequence'] ?? (($section->steps()->max('sequence') ?? 0) + 1);
 
-        $section->steps()->create($data);
+        $step = $section->steps()->create($data);
 
-        return redirect()->route('templates.show', $section->inspection_type_id)
-            ->with('success', 'Step added.');
+        // Back to the same form so questions can be added one after another; the
+        // section's questions are listed underneath it.
+        return redirect()->route('steps.create', $section)
+            ->with('success', 'Question added: '.$step->question);
     }
 
     public function edit(InspectionStep $step): View
