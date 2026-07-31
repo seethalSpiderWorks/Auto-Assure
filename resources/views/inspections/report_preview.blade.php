@@ -344,13 +344,31 @@
             font-size:13px; font-weight:600; text-decoration:none; }
         @page{ size:A4; margin:0; }
         @media print{
-            body{ background:#fff; padding:0; }
+            {{-- Print every colour, gradient and background exactly as it shows on
+                 screen. Without this Chrome drops them unless the person printing
+                 ticks "Background graphics" in the dialog. --}}
+            *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+            {{-- The page colour is carried by the canvas so that a section which
+                 ends mid-sheet doesn't leave bare white below it. --}}
+            body{ background:var(--bg); padding:0; }
             .toolbar{ display:none; }
             .sheet{ max-width:none; }
             .page,.cover,.thanks{ margin-bottom:0; border-radius:0; }
+            {{-- Fill the whole A4 sheet so a short section never prints as a
+                 half-coloured panel with bare white underneath it. --}}
+            .page,.cover,.thanks{ min-height:296mm; }
             .pb{ page-break-before:always; }
-            .card,.item-card,.sec-bar,.badge,.plg,.brand-pill,.gauge,.cover,.thanks{
-                -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+            {{-- Chrome's PDF export cannot blur a shadow: it paints the blur
+                 radius as a solid rectangle, which comes out as black/grey blocks
+                 behind the logo chip and every card. Drop the outer shadows (and
+                 image filters, same rasteriser) and keep a hairline instead. The
+                 accent edge on .sec-bar is an inset shadow with no blur, so it
+                 renders correctly and is deliberately left alone. --}}
+            .card,.item-card,.logo-chip,[style*="box-shadow"]{ box-shadow:none !important; }
+            .page .card,.page .item-card{ border:1px solid var(--line); }
+            .cover-art,.thanks-art,.hero,.thanks-logo{ filter:none !important; }
         }
     </style>
 </head>
