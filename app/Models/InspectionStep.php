@@ -18,6 +18,13 @@ class InspectionStep extends Model
         self::MEDIA_MANDATORY => 'Mandatory',
     ];
 
+    /**
+     * The answer choices every question carries. Multiple choice is the only
+     * answer input the template builder offers, so a question created without
+     * its own options falls back to this set.
+     */
+    public const CHOICE_OPTIONS = ['Good', 'Bad', 'NA', 'Average'];
+
     protected $fillable = [
         'inspection_section_id', 'sequence', 'question', 'question_ar', 'description', 'description_ar',
         'show_rating', 'show_text_answer', 'show_multiple_choice', 'multiple_choice_options',
