@@ -1920,10 +1920,17 @@ $(document).ready(function () {
     var modelsByMake = @json($lookups['modelsByMake']);
     var selectedModel = ($model.data('selected-model') || '').toString();
 
-    function refreshSelect2() {
-        if ($model.data('select2')) $model.select2('destroy');
-        $model.select2();
+    // Select2 sizes itself from the field's rendered width. When the wizard
+    // resumes on a later card (completed inspections land on Verdict), the
+    // Customer & Vehicle card is display:none at load, the field measures 0 and
+    // Select2 falls back to width:auto — Make/Model then render collapsed. Pin
+    // the width so it is right whether the card is visible at init or not.
+    function initSelect2($el) {
+        if ($el.data('select2')) $el.select2('destroy');
+        $el.select2({ width: '100%' });
     }
+
+    function refreshSelect2() { initSelect2($model); }
 
     function filterModels(make) {
         var models = (make && modelsByMake[make]) ? modelsByMake[make].slice() : [];
@@ -1937,7 +1944,11 @@ $(document).ready(function () {
         refreshSelect2();
     }
 
-    if ($make.val()) filterModels($make.val());
+    // Re-run over both fields: the theme's form-advanced.init.js already ran
+    // $('.select2').select2() on them at page load, without a width.
+    initSelect2($make);
+
+    if ($make.val()) filterModels($make.val()); else initSelect2($model);
 
     $make.on('change', function () { filterModels($(this).val()); AA.debounceCustomer(); });
     $model.on('change', function () { AA.debounceCustomer(); });
