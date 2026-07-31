@@ -798,10 +798,14 @@ class InspectionController extends Controller
             $inspection->technician_id = $validated['technician_id'];
         }
 
-        $typeChanged = ! empty($validated['inspection_type_id'])
+        // The template is likewise locked once completed — the edit screen renders
+        // it read-only, and this makes that real rather than cosmetic: a hand-rolled
+        // POST cannot swap the checklist out from under a finished report.
+        $typeChanged = ! $wasCompleted
+            && ! empty($validated['inspection_type_id'])
             && (int) $validated['inspection_type_id'] !== $prevTypeId;
 
-        if (! empty($validated['inspection_type_id'])) {
+        if (! $wasCompleted && ! empty($validated['inspection_type_id'])) {
             $inspection->inspection_type_id = $validated['inspection_type_id'];
         }
 

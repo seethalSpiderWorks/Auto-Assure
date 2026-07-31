@@ -631,8 +631,12 @@
                                             @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Inspection Template</label>
-                                            @if(auth()->user()->isTechnician())
+                                            <label class="form-label">Inspection Template @if($isCompleted)<small class="text-success"><i class="bx bx-lock-alt"></i> locked (completed)</small>@endif</label>
+                                            {{-- Locked once completed, same rule as the technician above: swapping the
+                                                 template reloads a different checklist, which would strand the answers
+                                                 the completed report was built from. Enforced in update() too — the
+                                                 readonly input posts nothing, and the controller ignores it regardless. --}}
+                                            @if(auth()->user()->isTechnician() || $isCompleted)
                                                 <input type="text" class="form-control" value="{{ optional($inspection->type)->name ?? '—' }}" readonly>
                                             @else
                                                 <select name="inspection_type_id" class="form-control form-select" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">

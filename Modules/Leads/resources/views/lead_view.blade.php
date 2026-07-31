@@ -88,7 +88,12 @@
             </div>
         </div>
 
-        {{-- Assignment option — assigns the lead & opens an inspection --}}
+        {{-- "Assign & create inspection" panel — hidden on request. Its @php block
+             ($curTypeId / $curSched / $inspLocked) fed nothing else in this view,
+             and the script that drove it is commented out in @section('js') too —
+             leaving that behind would throw on the missing #ldv_assign_btn and take
+             the rest of the page's JS with it. Assignment is unaffected elsewhere. --}}
+        {{--
         @php
             $curTypeId = $inspection->inspection_type_id ?? null;
             $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d\TH:i') : '';
@@ -123,6 +128,7 @@
             <button type="button" id="ldv_assign_btn" class="btn btn-brand" @disabled($inspLocked)><i class="bx bx-check"></i> Assign</button>
             <span id="ldv_assign_msg" class="ldv-assign__msg"></span>
         </div>
+        --}}
 
         <div class="row g-3">
             {{-- Contact --}}
@@ -332,6 +338,14 @@
 @endsection
 
 @section('js')
+{{-- Drove the hidden "Assign & create inspection" panel above — commented out with
+     it. Note for whoever restores this: lines 379-382 below reference `staff`,
+     `type` and `date`, which are never declared anywhere in this file. The handler
+     disables the button, prints "Assigning…", then throws a ReferenceError before
+     the fetch is ever created — so .catch never runs and the message sticks forever.
+     That needs fixing (read the values off typeEl/dateEl/staffEl) before this panel
+     goes back. --}}
+{{--
 <script>
     // Set min to current datetime so the picker blocks past dates/times
     var ldvDate = document.getElementById('ldv_date');
@@ -395,4 +409,5 @@
         .catch(function () { msg.className = 'ldv-assign__msg err'; msg.textContent = '⚠ Assignment failed.'; btn.disabled = false; });
     });
 </script>
+--}}
 @endsection
