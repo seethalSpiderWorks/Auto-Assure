@@ -179,6 +179,18 @@
         /* ---- page shell ---- */
         .page{ background:var(--bg); border-radius:6px; padding:22px 24px 30px; margin-bottom:22px; }
         .page-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+
+        /* ---- body sheet: carries the running header + footer (see markup) ---- */
+        .body-sheet{ width:100%; border-collapse:collapse; }
+        .body-sheet > thead > tr > td,
+        .body-sheet > tfoot > tr > td,
+        .body-sheet > tbody > tr > td{ padding:0; }
+        .body-sheet > thead .page-header{ background:var(--bg); padding:16px 24px 18px; margin-bottom:0; }
+        .body-sheet > thead .brand-logo{ height:32px; }
+        .page-footer{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+            background:var(--bg); padding:10px 24px 14px; border-top:1px solid var(--line);
+            color:var(--muted); font-size:10.5px; font-weight:600; }
+        .page-footer b{ color:#3b4453; }
         .brand-pill{ display:inline-flex; align-items:center; gap:7px; background:var(--brand); color:#fff;
             font-weight:700; font-size:13px; padding:7px 15px 7px 10px; border-radius:20px; letter-spacing:.2px; }
         .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
@@ -336,11 +348,28 @@
 
         /* keep cards / rows intact across page breaks, never orphan a section bar */
         .item-card,.card,.gal figure,.res-box,.fact{ break-inside:avoid; }
-        /* The photo gallery is the one card that can be taller than a sheet, and
-           an unbreakable box that doesn't fit is pushed whole to the next page —
-           which left an empty page behind it. It breaks between rows instead. */
-        .card.photos{ break-inside:auto; }
-        .sec-bar,.make-h{ break-after:avoid; }
+        /* The photo gallery and the spec table are the cards that can outgrow the
+           space left on a sheet, and an unbreakable box that doesn't fit is pushed
+           whole to the next page — leaving a large blank behind it. These two
+           break between rows instead. */
+        .card.photos,.item-card.specs{ break-inside:auto; }
+        /* break-inside keeps the heading and its accent rule on one page — they
+           were landing on opposite sides of a break. */
+        .sec-bar,.make-h{ break-after:avoid; break-inside:avoid; }
+
+        /* Chrome cannot split a flex container across sheets, so the whole photo +
+           specification row jumped to the next page when it no longer fit under
+           the running header. As a two-cell table row it fragments, and the spec
+           list simply continues overleaf. Renders identically on screen. */
+        .grid2.summary-row{ display:table; width:100%; border-collapse:separate; border-spacing:16px 0; margin:0 -16px; }
+        /* break-inside:auto is what actually lets the row split — a cell that
+           refuses to break keeps the whole row together. */
+        .grid2.summary-row > .item-card{ display:table-cell; width:50%; vertical-align:top; break-inside:auto; }
+        /* The photo cell is only a frame around an image that already carries its
+           own border and radius. Dropping the frame means that when the spec list
+           overruns the sheet, the photo's half of the row continues as nothing at
+           all instead of an empty white panel. */
+        .grid2.summary-row > .item-card:first-child{ background:transparent; border:0; box-shadow:none; padding:0; }
 
         /* ---- toolbar / print ---- */
         .toolbar{ max-width:900px; margin:0 auto 14px; text-align:right; }
@@ -467,15 +496,35 @@
             </div>
         </div>
 
-        {{-- ============================== VEHICLE SUMMARY ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        {{-- ==============================================================
+             Everything between the cover and the thank-you page lives in one
+             table. <thead> and <tfoot> are the only constructs Chrome repeats
+             on every printed page, so this is what puts the brand header and
+             the report footer on all sheets; the cover and thank-you sit
+             outside it and stay clean.
+             ============================================================== --}}
+        <table class="body-sheet">
+            <thead>
+                <tr><td>
+                    <div class="page-header">
+                        <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                        <span class="doc-tag">Comprehensive Inspection Report</span>
+                    </div>
+                </td></tr>
+            </thead>
+            <tfoot>
+                <tr><td>
+                    <div class="page-footer">
+                        <span>Report No. <b>{{ $reportNo }}</b></span>
+                        <span>{{ $val(trim($inspection->car_year.' '.$inspection->car_make.' '.$inspection->car_model)) }}</span>
+                        <span>{{ $reportDt }}</span>
+                    </div>
+                </td></tr>
+            </tfoot>
+            <tbody>
+                <tr><td>
 
-        
-
+        <div class="page">
             {{-- Inspection details strip --}}
             <div class="card tight">
                 <div class="facts">
@@ -501,7 +550,7 @@
 
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
 
-            <div class="grid2">
+            <div class="grid2 summary-row">
                 <div class="item-card" style="min-height:auto">
                     @if ($heroPhoto)
                         <img src="{{ $heroPhoto }}" style="width:100%;height:210px;object-fit:cover;border-radius:14px;border:1px solid var(--line)">
@@ -509,7 +558,7 @@
                         <img src="{{ asset('img/pdf_design/cover-photo.webp') }}" style="width:100%;height:210px;object-fit:contain;border-radius:14px;background:#f3f5f8;padding:8px">
                     @endif
                 </div>
-                <div class="item-card" style="min-height:auto">
+                <div class="item-card specs" style="min-height:auto">
                     <table class="kv">
                         @foreach ($specs as $sp)
                             <tr>
@@ -544,11 +593,7 @@
 
         {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
         @if ($hasEv)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">EV &amp; PHEV</span><span class="ar">للسيارات الكهربائية والهجينة</span></div>
             @php $evBanner = $bannerUrl('EV and PHEV') ?: $bannerUrl('EV & PHEV Details'); @endphp
             @if ($evBanner)<img class="sec-banner" src="{{ $evBanner }}" alt="">@endif
@@ -585,11 +630,7 @@
 
         {{-- ============================== TECHNICAL MEASUREMENTS (bilingual, if present) ============================== --}}
         @if ($hasTech)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Technical Inspection Measurements</span><span class="ar">قياسات الفحص الفني</span></div>
             @php $techBanner = $bannerUrl('Technical Inspection Measurements') ?: $bannerUrl('Technical & Emissions Tests'); @endphp
             @if ($techBanner)<img class="sec-banner" src="{{ $techBanner }}" alt="">@endif
@@ -629,11 +670,7 @@
         @endif
 
         {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
@@ -705,11 +742,7 @@
 
         {{-- ============================== GENERAL PHOTOS ============================== --}}
         @if (! empty($reportPhotos))
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">General Photos</span><span class="ar">صور عامة</span></div>
             <div class="card photos">
                 <div class="gal">
@@ -725,11 +758,7 @@
         @endif
 
         {{-- ============================== INSPECTOR COMMENT ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Inspector Comment</span><span class="ar">ملاحظات المفتش</span></div>
             <div class="card">
                 @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
@@ -759,11 +788,7 @@
         </div>
 
         {{-- ============================== TERMS & CONDITIONS ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Terms &amp; Conditions</span><span class="ar">الشروط والأحكام</span></div>
             <div class="card terms">
                 <div class="grid2">
@@ -788,6 +813,10 @@
                 </div>
             </div>
         </div>
+
+                </td></tr>
+            </tbody>
+        </table>
 
         {{-- ============================== THANK YOU ============================== --}}
         <div class="thanks pb">
