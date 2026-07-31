@@ -336,6 +336,10 @@
 
         /* keep cards / rows intact across page breaks, never orphan a section bar */
         .item-card,.card,.gal figure,.res-box,.fact{ break-inside:avoid; }
+        /* The photo gallery is the one card that can be taller than a sheet, and
+           an unbreakable box that doesn't fit is pushed whole to the next page —
+           which left an empty page behind it. It breaks between rows instead. */
+        .card.photos{ break-inside:auto; }
         .sec-bar,.make-h{ break-after:avoid; }
 
         /* ---- toolbar / print ---- */
@@ -355,9 +359,16 @@
             .toolbar{ display:none; }
             .sheet{ max-width:none; }
             .page,.cover,.thanks{ margin-bottom:0; border-radius:0; }
-            {{-- Fill the whole A4 sheet so a short section never prints as a
-                 half-coloured panel with bare white underneath it. --}}
-            .page,.cover,.thanks{ min-height:296mm; }
+            {{-- Cover and thank-you are single full-bleed sheets. Content pages
+                 are NOT stretched — the canvas colour above already fills the
+                 sheet, and a min-height here would force every section that
+                 flows mid-page down onto a page of its own. --}}
+            .cover,.thanks{ min-height:296mm; }
+            {{-- Sections that flow one after another shouldn't stack both panels'
+                 padding at the seam — that dead band is enough to tip a short
+                 closing section onto a page of its own. --}}
+            .page{ padding-bottom:14px; }
+            .page + .page{ padding-top:0; }
             .pb{ page-break-before:always; }
 
             {{-- Chrome's PDF export cannot blur a shadow: it paints the blur
@@ -700,7 +711,7 @@
                 <span class="doc-tag">Comprehensive Inspection Report</span>
             </div>
             <div class="sec-bar"><span class="en">General Photos</span><span class="ar">صور عامة</span></div>
-            <div class="card">
+            <div class="card photos">
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
                         <figure>
