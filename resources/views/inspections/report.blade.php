@@ -180,6 +180,13 @@
         /* ---- page shell ---- */
         .page{ background:var(--bg); border-radius:6px; padding:22px 24px 30px; margin-bottom:22px; }
         .page-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+
+        /* ---- body sheet: carries the running brand header (see markup) ---- */
+        .body-sheet{ width:100%; border-collapse:collapse; }
+        .body-sheet > thead > tr > td,
+        .body-sheet > tbody > tr > td{ padding:0; }
+        .body-sheet > thead .page-header{ background:var(--bg); padding:16px 24px 18px; margin-bottom:0; }
+        .body-sheet > thead .brand-logo{ height:32px; }
         .brand-pill{ display:inline-flex; align-items:center; gap:7px; background:var(--brand); color:#fff;
             font-weight:700; font-size:13px; padding:7px 15px 7px 10px; border-radius:20px; letter-spacing:.2px; }
         .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
@@ -510,16 +517,26 @@
             </div>
         </div>
 
+        {{-- ==============================================================
+             Everything between the cover and the thank-you page lives in one
+             table. A <thead> is the only construct Chrome repeats on every
+             printed page, so this is what puts the brand header on all sheets;
+             the cover and thank-you sit outside it and stay header-free.
+             ============================================================== --}}
+        <table class="body-sheet">
+            <thead>
+                <tr><td>
+                    <div class="page-header">
+                        <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                        <span class="doc-tag">Comprehensive Inspection Report</span>
+                    </div>
+                </td></tr>
+            </thead>
+            <tbody>
+                <tr><td>
+
         {{-- ============================== VEHICLE SUMMARY ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
-
-        
- 
-
+        <div class="page">
             {{-- Vehicle summary --}}
             <div class="sec-bar"><span class="en">Vehicle Summary</span></div>
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
@@ -543,11 +560,7 @@
 
         {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
         @if ($hasEv)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">EV &amp; PHEV</span></div>
             @php $evBanner = $bannerUrl('EV and PHEV') ?: $bannerUrl('EV & PHEV Details'); @endphp
             @if ($evBanner)<img class="sec-banner" src="{{ $evBanner }}" alt="">@endif
@@ -584,11 +597,7 @@
 
         {{-- ============================== TECHNICAL MEASUREMENTS (bilingual, if present) ============================== --}}
         @if ($hasTech)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Technical Inspection Measurements</span></div>
             @php $techBanner = $bannerUrl('Technical Inspection Measurements') ?: $bannerUrl('Technical & Emissions Tests'); @endphp
             @if ($techBanner)<img class="sec-banner" src="{{ $techBanner }}" alt="">@endif
@@ -628,11 +637,7 @@
         @endif
 
         {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
@@ -822,6 +827,10 @@
                 </div>
             </div>
         </div>
+
+                </td></tr>
+            </tbody>
+        </table>
 
         {{-- ============================== THANK YOU ============================== --}}
         <div class="thanks pb">
