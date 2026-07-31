@@ -120,6 +120,9 @@ class InspectionSummaryResource extends JsonResource
                 'name_ar' => $this->customer_name_ar,
                 'email'   => $this->customer_email,
                 'phone'   => $this->customer_phone,
+                // Keyed as whatsapp_number, not whatsapp, to match the column and
+                // InspectionResource — the app reads both endpoints.
+                'whatsapp_number' => $this->whatsapp_number,
             ],
 
             'vehicle' => [
