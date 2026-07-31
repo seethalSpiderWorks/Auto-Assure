@@ -102,6 +102,27 @@ class InspectionSummaryResource extends JsonResource
             'summary' => $savedSummaries->get($id),
         ])->values();
 
+        // The OTHER summary: the note + star the technician records against each
+        // checklist section (inspection_section_summaries), printed per section on
+        // the report. Distinct from $summaryAreas above, which is the per-area
+        // block (Exterior, Engine, Brakes…) from tbl_summary_type.
+        //
+        // 'rating' here is only what was actually recorded — matching the report
+        // (report.blade.php:672), which deliberately skips Inspection::sectionRating()
+        // so no stars are printed for a section nobody assessed. The computed
+        // fallback is still available, unchanged, on sections[].rating.
+        $sectionSummaries = collect($this->type?->sections ?? [])->map(function ($section) use ($summaryBySection) {
+            $meta = $summaryBySection->get($section->id);
+
+            return [
+                'section_id'   => $section->id,
+                'section_name' => $section->section_name,
+                'sequence'     => $section->sequence,
+                'rating'       => $meta?->rating !== null ? (float) $meta->rating : null,
+                'summary'      => $meta?->summary,
+            ];
+        })->values();
+
         $progressTotal    = (int) $sections->sum('total');
         $progressAnswered = (int) $sections->sum('answered');
 
@@ -178,6 +199,10 @@ class InspectionSummaryResource extends JsonResource
 
             // Per-area summary notes from inspection_summaries (Exterior, Interior, Engine, Brakes, …).
             'summary_areas' => $summaryAreas,
+
+            // Per-section note + recorded star from inspection_section_summaries —
+            // the section-wise summary the report prints under each section header.
+            'section_summaries' => $sectionSummaries,
 
             // Additional media not tied to any step or section (the "extra"
             // bucket — a detail row with both ids null).
