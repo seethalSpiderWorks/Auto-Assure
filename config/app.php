@@ -60,12 +60,18 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | This app must run on the operating timezone, NOT UTC. Scheduled dates are
+    | entered through <input type="datetime-local"> and stored as the browser's
+    | wall-clock with no conversion, and nothing converts on the way back out.
+    | So every other timestamp — started_at, completed_at, created_at — has to be
+    | stamped on that same wall clock or it reads hours out against the schedule
+    | it sits next to. Every environment must set APP_TIMEZONE accordingly.
     |
     */
 
-    'timezone' => env('APP_TIMEZONE', 'UTC'),
+    'timezone' => env('APP_TIMEZONE', 'Asia/Kolkata'),
 
     /*
     |--------------------------------------------------------------------------
