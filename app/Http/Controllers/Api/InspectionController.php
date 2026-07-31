@@ -587,8 +587,17 @@ class InspectionController extends Controller
             ], 422);
         }
 
+        // Stamp the start before the finish: an inspection submitted without any
+        // prior save (answers/media/customer all optional) is still PENDING here,
+        // and would otherwise land as "completed" with a NULL started_at. The web
+        // update() does the same pending -> in_progress step before completing.
+        $this->markStarted($inspection);
+
         $inspection->status = Inspection::STATUS_COMPLETED;
-        $inspection->completed_at = now();
+        // First submit wins — a repeated POST must not push the completion time
+        // forward. A reopen (template change on web) clears completed_at, so a
+        // genuine re-completion still gets a fresh stamp.
+        $inspection->completed_at ??= now();
         $inspection->save();
         $inspection->lead?->update(['status' => Lead::STATUS_COMPLETED]);
 
