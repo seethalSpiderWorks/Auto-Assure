@@ -25,6 +25,8 @@ class InspectionController extends Controller
     /**
      * Technician's assigned jobs (optionally filtered by status and day).
      *
+     * Ordered today → upcoming (latest day first) → overdue → unscheduled.
+     *
      * Query params:
      *   status  explicit status filter (default: anything but completed)
      *   date    limit to one scheduled day — "today" or a Y-m-d date. Filters on
@@ -33,15 +35,33 @@ class InspectionController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
+        // Day boundaries in the app timezone: today's slots sit between the two,
+        // anything earlier is overdue and anything later is upcoming.
+        $todayStart    = now()->startOfDay();
+        $tomorrowStart = now()->addDay()->startOfDay();
+
         // Active inspections assigned to the authenticated technician (from the token).
         $query = Inspection::where('technician_id', $request->user()->id)
             ->with(['lead'])
-            // Earliest schedule slot first, so a day reads chronologically
-            // (10:00 before 11:00). Jobs with no slot yet are pushed to the end;
-            // id breaks exact ties.
-            ->orderByRaw('scheduled_at IS NULL')   // 0 (has slot) before 1 (no slot)
-            ->orderBy('scheduled_at')              // earliest time first
-            ->orderBy('id');
+            // Today first, then upcoming days (newest first), then overdue days,
+            // then jobs with no slot yet. A job stays in the "today" group for the
+            // whole day, so today's list keeps reading chronologically (10:00
+            // before 15:00) even once its slot time has passed.
+            ->orderByRaw(
+                'CASE WHEN scheduled_at IS NULL THEN 3
+                       WHEN scheduled_at < ? THEN 2
+                       WHEN scheduled_at < ? THEN 0
+                       ELSE 1 END',
+                [$todayStart, $tomorrowStart]
+            )
+            // Today only: earliest slot first. Other groups get NULL here (a
+            // constant), so this clause leaves their order alone.
+            ->orderByRaw(
+                'CASE WHEN scheduled_at >= ? AND scheduled_at < ? THEN scheduled_at END',
+                [$todayStart, $tomorrowStart]
+            )
+            ->orderByDesc('scheduled_at')          // upcoming & overdue: latest day first
+            ->orderBy('id');                       // id breaks exact ties
 
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);          // explicit filter still works
