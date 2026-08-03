@@ -70,18 +70,25 @@ class InspectionResource extends JsonResource
             'section_summaries' => $this->when(
                 $this->relationLoaded('type') && $this->type && $this->type->relationLoaded('sections'),
                 function () {
-                    $byStep = $this->relationLoaded('details')
-                        ? $this->details->keyBy('inspection_step_id')
-                        : collect();
                     $summaryBySection = $this->relationLoaded('sectionSummaries')
                         ? $this->sectionSummaries->keyBy('inspection_section_id')
                         : collect();
+
+                    // Only the rating the technician actually recorded — null when the
+                    // section was never rated. Formatted exactly as
+                    // Inspection::sectionRating() formats a recorded one (clamp 0.5–5,
+                    // one decimal, so 4.6 stays 4.6); only its derived fallback is
+                    // dropped, since that invented a star from the answers for a section
+                    // nobody assessed. Matches the summary endpoint and the report.
+                    $rating = fn ($manual): ?float => filled($manual) && (float) $manual > 0
+                        ? round(max(0.5, min(5, (float) $manual)), 1)
+                        : null;
 
                     return $this->type->sections->map(fn ($section) => [
                         'section_id'   => $section->id,
                         'section_name' => $section->section_name,
                         'summary'      => optional($summaryBySection->get($section->id))->summary,
-                        'rating'       => Inspection::sectionRating($section, $byStep, optional($summaryBySection->get($section->id))->rating),
+                        'rating'       => $rating(optional($summaryBySection->get($section->id))->rating),
                     ])->values();
                 }
             ),
