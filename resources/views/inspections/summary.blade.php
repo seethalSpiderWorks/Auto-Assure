@@ -1,4 +1,4 @@
-@extends('layouts.myfudapp')
+app/Http/Controllers/InspectionController.php@extends('layouts.myfudapp')
 @section('content')
 
 @php
@@ -156,13 +156,18 @@
                                     <td class="c-name">
                                         {{ $s['name'] }}
                                         @if(!empty($s['rating']))
-                                            <span class="ml-1" title="{{ $s['rating'] }}/5" style="white-space:nowrap;">
-                                                @for($i=1;$i<=5;$i++)<span style="color:{{ $i <= $s['rating'] ? '#f1b44c' : '#d3d3d3' }};">★</span>@endfor
+                                            @php
+                                                // 4.0 reads as "4", 4.6 stays "4.6" — same label the edit box shows.
+                                                $rLbl = rtrim(rtrim(number_format($s['rating'], 1), '0'), '.');
+                                            @endphp
+                                            {{-- Partial fill so a 3.6 doesn't read as a flat 3, matching the report. --}}
+                                            <span class="ml-1" title="{{ $rLbl }}/5" style="white-space:nowrap;">
+                                                @for($i=1;$i<=5;$i++)@php $fill = max(0, min(1, $s['rating'] - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#d3d3d3;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#d3d3d3 '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor
                                             </span>
                                         @endif
-                                        @if(!empty($s['summary']))
-                                            <div class="text-muted font-size-12 mt-1" style="white-space:pre-line;font-weight:400;">{{ $s['summary'] }}</div>
-                                        @endif
+                                        {{-- Section summary text is deliberately not printed here — this
+                                             table is the at-a-glance breakdown; the note belongs on the
+                                             report and the edit screen. Hover the stars for the value. --}}
                                     </td>
                                     <td class="c-prog">
                                         <div class="insp-btprog">

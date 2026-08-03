@@ -308,6 +308,12 @@ class InspectionController extends Controller
         // Same pass/fail rule the printable report and API use.
         $stateOf = fn ($detail): string => Inspection::choiceState($detail);
 
+        // A rating the technician recorded on the edit screen, kept to one decimal
+        // (4.6 stays 4.6); null when the section was never rated.
+        $recordedRating = fn ($manual): ?float => filled($manual) && (float) $manual > 0
+            ? round(max(0.5, min(5, (float) $manual)), 1)
+            : null;
+
         $sections = [];
         $totalSteps = 0;
         $totalAnswered = 0;
@@ -354,12 +360,11 @@ class InspectionController extends Controller
                 'fail' => $fail,
                 'status' => $status,
                 'summary' => optional($summaryBySection->get($section->id))->summary,
-                // Dynamic rating from the section's answers; a manual rating overrides it.
-                'rating' => Inspection::sectionRating(
-                    $section,
-                    $byStep,
-                    optional($summaryBySection->get($section->id))->rating
-                ),
+                // Only the star actually set on the edit screen (section_ratings[]).
+                // Deliberately NOT Inspection::sectionRating(), whose fallback derived
+                // a score from the answers and so printed stars for sections nobody
+                // rated. No rating given = no stars. Same rule as the report and the API.
+                'rating' => $recordedRating(optional($summaryBySection->get($section->id))->rating),
             ];
 
             $totalSteps += $total;
