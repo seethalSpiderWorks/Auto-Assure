@@ -653,14 +653,13 @@
                                     <div class="row">
                                         <div class="col-md-6 mb-3"><label class="form-label">VIN / Chassis No.</label><input name="vin" class="form-control" maxlength="50" value="{{ old('vin', $inspection->vin) }}"></div>
                                         <div class="col-md-6 mb-3"><label class="form-label">Plate Number</label><input name="plate_no" class="form-control" maxlength="50" value="{{ old('plate_no', $inspection->plate_no) }}"></div>
+                                        {{-- Free text, not a lookup select: the colour arrives from the lead
+                                             (lead_color) as whatever was typed there — "Metallic beige", "grey",
+                                             "wine red". A select could only show values that matched the lookup
+                                             list exactly, so anything else read as blank and saving wiped it. --}}
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Exterior Color</label>
-                                            <select name="exterior_color" class="form-control form-select">
-                                                <option value="">Select</option>
-                                                @foreach ($lookups['exterior_color'] as $opt)
-                                                    <option value="{{ $opt }}" @selected(old('exterior_color', $inspection->exterior_color) === $opt)>{{ $opt }}</option>
-                                                @endforeach
-                                            </select>
+                                            <input name="exterior_color" class="form-control" maxlength="50" value="{{ old('exterior_color', $inspection->exterior_color) }}">
                                         </div>
                                         <div class="col-md-3 mb-3"><label class="form-label">Region</label><input name="region" class="form-control" maxlength="100" value="{{ old('region', $inspection->region) }}"></div>
                                         <div class="col-md-3 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
