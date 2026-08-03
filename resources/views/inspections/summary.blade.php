@@ -1,4 +1,4 @@
-app/Http/Controllers/InspectionController.php@extends('layouts.myfudapp')
+@extends('layouts.myfudapp')
 @section('content')
 
 @php
