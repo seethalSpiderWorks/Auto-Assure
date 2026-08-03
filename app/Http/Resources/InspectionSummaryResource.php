@@ -46,7 +46,13 @@ class InspectionSummaryResource extends JsonResource
         // the web details/summary screens.
         $stateOf = fn ($d): string => Inspection::choiceState($d);
 
-        $sections = collect($this->type?->sections ?? [])->map(function ($section) use ($byStep, $stateOf, $summaryBySection, $mediaBySection) {
+        // A recorded section rating, formatted exactly as Inspection::sectionRating()
+        // formats one (clamp 0.5–5, one decimal); null when nothing was recorded.
+        $sectionRating = fn ($manual): ?float => filled($manual) && (float) $manual > 0
+            ? round(max(0.5, min(5, (float) $manual)), 1)
+            : null;
+
+        $sections = collect($this->type?->sections ?? [])->map(function ($section) use ($byStep, $stateOf, $sectionRating, $summaryBySection, $mediaBySection) {
             $steps = $section->steps->map(function ($step) use ($byStep, $stateOf) {
                 $d = $byStep->get($step->id);
 
@@ -74,7 +80,13 @@ class InspectionSummaryResource extends JsonResource
                 'sequence'     => $section->sequence,
                 'description'  => $section->description,
                 'summary'      => optional($summaryBySection->get($section->id))->summary,
-                'rating'       => Inspection::sectionRating($section, $byStep, optional($summaryBySection->get($section->id))->rating),
+                // Only what the technician actually recorded — null when the section
+                // was never rated. Same value and formatting Inspection::sectionRating()
+                // gives a recorded rating (clamped to 0.5–5, one decimal, so 4.6 stays
+                // 4.6); only its derived fallback is dropped, since that invented a
+                // star for a section nobody assessed. Matches section_summaries[] below
+                // and the printed report.
+                'rating'       => $sectionRating(optional($summaryBySection->get($section->id))->rating),
                 'total'        => $total,
                 'answered'     => $answered,
                 'done'         => $total > 0 && $answered >= $total,
@@ -109,8 +121,8 @@ class InspectionSummaryResource extends JsonResource
         //
         // 'rating' here is only what was actually recorded — matching the report
         // (report.blade.php:672), which deliberately skips Inspection::sectionRating()
-        // so no stars are printed for a section nobody assessed. The computed
-        // fallback is still available, unchanged, on sections[].rating.
+        // so no stars are printed for a section nobody assessed. sections[].rating
+        // now follows the same rule, so the two agree.
         $sectionSummaries = collect($this->type?->sections ?? [])->map(function ($section) use ($summaryBySection) {
             $meta = $summaryBySection->get($section->id);
 
