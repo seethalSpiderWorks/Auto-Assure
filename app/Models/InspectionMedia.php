@@ -21,6 +21,26 @@ class InspectionMedia extends Model
         return $this->belongsTo(InspectionDetail::class, 'inspection_detail_id');
     }
 
+    /** File extensions we treat as video regardless of what `type` says. */
+    public const VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', '3gp', '3g2', 'ogv', 'qt'];
+
+    /**
+     * Whether this file should be rendered with a video player.
+     *
+     * `type` is set at upload time from the client's declared MIME, which the app
+     * often sends as application/octet-stream — so some clips were stored as
+     * 'photo' and then rendered in an <img>, showing as broken. The file itself is
+     * the reliable signal, so fall back to its extension.
+     */
+    public function isVideo(): bool
+    {
+        if ($this->type === 'video' || str_starts_with((string) $this->mime_type, 'video/')) {
+            return true;
+        }
+
+        return in_array(strtolower(pathinfo((string) $this->path, PATHINFO_EXTENSION)), self::VIDEO_EXTENSIONS, true);
+    }
+
     public function getUrlAttribute(): string
     {
         // For the local "public" disk, build the URL against the current request

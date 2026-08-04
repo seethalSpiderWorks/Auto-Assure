@@ -248,8 +248,8 @@
                 <div class="idet-extra">
                     @foreach($extraMedia as $m)
                         <div class="idet-extra__item">
-                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->type === 'photo' ? '' : 'idet-media__item--video' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
-                                @if($m->type === 'photo')
+                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                @if(! $m->isVideo())
                                     <img src="{{ $m->url }}" alt="" loading="lazy">
                                 @else
                                     <i class="bx bx-play-circle"></i>
@@ -399,8 +399,8 @@
                                         @if($d && $d->media->count())
                                             <div class="idet-media">
                                                 @foreach($d->media as $m)
-                                                    <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->type === 'photo' ? '' : 'idet-media__item--video' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
-                                                        @if($m->type === 'photo')
+                                                    <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                                        @if(! $m->isVideo())
                                                             <img src="{{ $m->url }}" alt="" loading="lazy">
                                                         @else
                                                             <i class="bx bx-play-circle"></i>
@@ -421,8 +421,8 @@
                                 <div class="idet-secmedia__label"><i class="bx bx-images"></i> {{ $section->section_name }} media</div>
                                 <div class="idet-media">
                                     @foreach($sectionMedia[$section->id] as $m)
-                                        <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->type === 'photo' ? '' : 'idet-media__item--video' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
-                                            @if($m->type === 'photo')
+                                        <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                            @if(! $m->isVideo())
                                                 <img src="{{ $m->url }}" alt="" loading="lazy">
                                             @else
                                                 <i class="bx bx-play-circle"></i>

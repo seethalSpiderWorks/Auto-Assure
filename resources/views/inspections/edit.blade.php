@@ -855,7 +855,7 @@
                                                     @if ($detail)
                                                         @foreach ($detail->media as $m)
                                                             <div class="position-relative" data-media="{{ $m->id }}">
-                                                                @if ($m->type === 'photo')
+                                                                @if (! $m->isVideo())
                                                                     <img src="{{ $m->url }}" style="width:64px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;">
                                                                 @else
                                                                     {{-- #t=0.1 paints the first frame as the thumbnail; without it the
@@ -900,7 +900,7 @@
                                             @foreach (($sectionMedia[$section->id] ?? collect()) as $m)
                                                 <div class="extra-item" data-media="{{ $m->id }}">
                                                     <div class="extra-item__thumb">
-                                                        @if ($m->type === 'photo')
+                                                        @if (! $m->isVideo())
                                                             <img src="{{ $m->url }}">
                                                         @else
                                                             <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
@@ -1093,7 +1093,7 @@
                             @forelse ($extraMedia as $m)
                                 <div class="extra-item" data-media="{{ $m->id }}">
                                     <div class="extra-item__thumb">
-                                        @if ($m->type === 'photo')
+                                        @if (! $m->isVideo())
                                             <img src="{{ $m->url }}">
                                         @else
                                             <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
@@ -1217,6 +1217,14 @@
             remedial_suggestion: remedial ? remedial.value : null,
         };
     }
+
+    // Mirrors InspectionMedia::isVideo(): some clips are stored with type
+    // 'photo' because the app declares application/octet-stream, so trust the
+    // file extension too rather than rendering a video into an <img>.
+    const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|ogv|qt)(\?|#|$)/i;
+    const isVideoMedia = (m) => m.type === 'video'
+        || (m.mime_type || '').indexOf('video/') === 0
+        || VIDEO_EXT.test(m.url || '');
 
     const AA = {
         // Opens a media file in the lightbox. Returns false so the tile's href
@@ -1347,7 +1355,7 @@
             const wrap = document.createElement('div');
             wrap.className = 'extra-item';
             wrap.dataset.media = m.id;
-            const media = m.type === 'photo'
+            const media = ! isVideoMedia(m)
                 ? '<img src="' + m.url + '">'
                 : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
                   + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
@@ -1389,7 +1397,7 @@
             const wrap = document.createElement('div');
             wrap.className = 'extra-item';
             wrap.dataset.media = m.id;
-            const media = m.type === 'photo'
+            const media = ! isVideoMedia(m)
                 ? '<img src="' + m.url + '">'
                 : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
                   + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
@@ -1421,7 +1429,7 @@
             const wrap = document.createElement('div');
             wrap.className = 'position-relative';
             wrap.dataset.media = m.id;
-            const inner = m.type === 'photo'
+            const inner = ! isVideoMedia(m)
                 ? '<img src="' + m.url + '" style="width:64px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;">'
                 : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video">'
                   + '<video muted playsinline preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
