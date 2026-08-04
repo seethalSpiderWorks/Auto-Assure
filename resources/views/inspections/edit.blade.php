@@ -198,6 +198,25 @@
     .wiz-nav .btn-success:hover, #inspection-root .btn-success:hover { background: var(--brand-2); border-color: var(--brand-2); }
     #inspection-root a.text-success, #inspection-root .text-success { color: var(--brand) !important; }
 
+    /* Video tiles: first frame as the thumbnail, with a play badge over it.
+       Clicking opens the file in a new tab, where the browser's own player
+       handles it — the 96x64 inline control bar is too small to hit. */
+    .vid-thumb { position: relative; display: inline-block; line-height: 0; cursor: pointer; }
+    .vid-thumb video { pointer-events: none; display: block; }
+    .vid-thumb__play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .vid-thumb__play i { width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
+                         display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+    .vid-thumb:hover .vid-thumb__play i { background: rgba(0,0,0,.8); }
+
+    /* Lightbox the tiles open into */
+    .vid-modal { position: fixed; inset: 0; z-index: 1080; background: rgba(0,0,0,.85);
+                 display: none; align-items: center; justify-content: center; }
+    .vid-modal.is-open { display: flex; }
+    .vid-modal video { max-width: 90vw; max-height: 85vh; background: #000; border-radius: .5rem; outline: none; }
+    .vid-modal__close { position: absolute; top: 12px; right: 20px; background: none; border: 0;
+                        color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; opacity: .85; }
+    .vid-modal__close:hover { opacity: 1; }
+
     /* Additional-media items with per-file labels */
     .extra-item { width: 116px; display: flex; flex-direction: column; gap: 5px; }
     .extra-item__thumb { position: relative; width: 100%; height: 78px; }
@@ -839,7 +858,16 @@
                                                                 @if ($m->type === 'photo')
                                                                     <img src="{{ $m->url }}" style="width:64px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;">
                                                                 @else
-                                                                    <video src="{{ $m->url }}" controls preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"></video>
+                                                                    {{-- #t=0.1 paints the first frame as the thumbnail; without it the
+                                                                         tile stays black and reads as broken. The explicit source type
+                                                                         matters because app uploads are stored with mime
+                                                                         application/octet-stream. Click plays it in a new tab. --}}
+                                                                    <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video">
+                                                                        <video muted playsinline preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;">
+                                                                            <source src="{{ $m->url }}#t=0.1" type="{{ $m->mime_type && str_starts_with($m->mime_type, 'video/') ? $m->mime_type : 'video/mp4' }}">
+                                                                        </video>
+                                                                        <span class="vid-thumb__play"><i class="bx bx-play"></i></span>
+                                                                    </a>
                                                                 @endif
                                                                 <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
                                                                     class="btn btn-danger btn-sm position-absolute p-0"
@@ -875,7 +903,12 @@
                                                         @if ($m->type === 'photo')
                                                             <img src="{{ $m->url }}">
                                                         @else
-                                                            <video src="{{ $m->url }}" controls preload="metadata"></video>
+                                                            <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
+                                                                <video muted playsinline preload="metadata">
+                                                                    <source src="{{ $m->url }}#t=0.1" type="{{ $m->mime_type && str_starts_with($m->mime_type, 'video/') ? $m->mime_type : 'video/mp4' }}">
+                                                                </video>
+                                                                <span class="vid-thumb__play"><i class="bx bx-play"></i></span>
+                                                            </a>
                                                         @endif
                                                         <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
                                                             class="btn btn-danger btn-sm position-absolute p-0"
@@ -1063,7 +1096,12 @@
                                         @if ($m->type === 'photo')
                                             <img src="{{ $m->url }}">
                                         @else
-                                            <video src="{{ $m->url }}" controls preload="metadata"></video>
+                                            <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
+                                                <video muted playsinline preload="metadata">
+                                                    <source src="{{ $m->url }}#t=0.1" type="{{ $m->mime_type && str_starts_with($m->mime_type, 'video/') ? $m->mime_type : 'video/mp4' }}">
+                                                </video>
+                                                <span class="vid-thumb__play"><i class="bx bx-play"></i></span>
+                                            </a>
                                         @endif
                                         <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
                                             class="btn btn-danger btn-sm position-absolute p-0"
@@ -1121,6 +1159,14 @@
 })();
 </script>
 
+{{-- Video lightbox. A plain link to the file makes the browser download it
+     (app uploads are served as application/octet-stream), so the tiles open
+     the clip here instead of navigating. --}}
+<div class="vid-modal" id="aa-vid-modal" onclick="AA.closeVideo(event)">
+    <button type="button" class="vid-modal__close" onclick="AA.closeVideo(event, true)" aria-label="Close">&times;</button>
+    <video id="aa-vid-player" controls playsinline preload="metadata"></video>
+</div>
+
 @endsection
 
 @section('js')
@@ -1173,6 +1219,25 @@
     }
 
     const AA = {
+        // Opens a media file in the lightbox. Returns false so the tile's href
+        // (kept as a fallback for no-JS) doesn't navigate and trigger a download.
+        playVideo(url) {
+            const modal = document.getElementById('aa-vid-modal');
+            const player = document.getElementById('aa-vid-player');
+            if (!modal || !player) return true;   // no lightbox on the page — let the link through
+            player.src = url;
+            modal.classList.add('is-open');
+            player.play().catch(() => {});        // autoplay may be blocked; controls still work
+            return false;
+        },
+        // Backdrop clicks close it; clicks on the player itself must not.
+        closeVideo(e, force) {
+            if (!force && e && e.target && e.target.id !== 'aa-vid-modal') return;
+            const modal = document.getElementById('aa-vid-modal');
+            const player = document.getElementById('aa-vid-player');
+            if (player) { player.pause(); player.removeAttribute('src'); player.load(); }
+            if (modal) modal.classList.remove('is-open');
+        },
         async saveStep(stepId) {
             saving();
             try {
@@ -1284,7 +1349,9 @@
             wrap.dataset.media = m.id;
             const media = m.type === 'photo'
                 ? '<img src="' + m.url + '">'
-                : '<video src="' + m.url + '" controls preload="metadata"></video>';
+                : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
+                  + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                  + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>';
             wrap.innerHTML =
                 '<div class="extra-item__thumb">' + media +
                 '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>';
@@ -1324,7 +1391,9 @@
             wrap.dataset.media = m.id;
             const media = m.type === 'photo'
                 ? '<img src="' + m.url + '">'
-                : '<video src="' + m.url + '" controls preload="metadata"></video>';
+                : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
+                  + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                  + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>';
             wrap.innerHTML =
                 '<div class="extra-item__thumb">' + media +
                 '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>' +
@@ -1354,7 +1423,9 @@
             wrap.dataset.media = m.id;
             const inner = m.type === 'photo'
                 ? '<img src="' + m.url + '" style="width:64px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;">'
-                : '<video src="' + m.url + '" controls preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"></video>';
+                : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video">'
+                  + '<video muted playsinline preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                  + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>';
             wrap.innerHTML = inner + '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>';
             wrap.querySelector('button').addEventListener('click', () => AA.deleteMedia(m.id));
             box.appendChild(wrap);
@@ -1378,6 +1449,11 @@
         },
     };
     window.AA = AA;
+
+    // Esc closes the video lightbox.
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') AA.closeVideo(null, true);
+    });
 
     // ---- Live completion status ------------------------------------------
     function stepAnswered(el) {
