@@ -68,7 +68,7 @@
             foreach ($gd->media as $gm) {
                 $gallery[] = [
                     'id'      => $gm->id,
-                    'type'    => $gm->type,
+                    'type'    => $gm->isVideo() ? 'video' : 'photo',
                     'url'     => $gm->url,
                     'caption' => ($gsi + 1).'. '.$gsection->section_name.' — '.$gstep->question,
                 ];
@@ -78,7 +78,7 @@
         foreach (($sectionMedia[$gsection->id] ?? collect()) as $gm) {
             $gallery[] = [
                 'id'      => $gm->id,
-                'type'    => $gm->type,
+                'type'    => $gm->isVideo() ? 'video' : 'photo',
                 'url'     => $gm->url,
                 'caption' => ($gsi + 1).'. '.$gsection->section_name.' — media',
             ];
@@ -91,7 +91,7 @@
         ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
     $extraMedia = $extraDetail ? $extraDetail->media : collect();
     foreach ($extraMedia as $gm) {
-        $gallery[] = ['id' => $gm->id, 'type' => $gm->type, 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
+        $gallery[] = ['id' => $gm->id, 'type' => $gm->isVideo() ? 'video' : 'photo', 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
     }
 
     $mediaIndex = [];
