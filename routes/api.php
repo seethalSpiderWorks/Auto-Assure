@@ -47,7 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inspection-types', [InspectionTypeController::class, 'index']);
     Route::get('/inspection-types/{inspectionType}', [InspectionTypeController::class, 'show']);
 
-    // List inspections for the authenticated technician, newest schedule slot first.
+    // List inspections for the authenticated technician: today's jobs first (in
+    // slot order), then upcoming days latest-first, then overdue, then unscheduled.
     //   ?status=pending          filter by status (default: everything but completed)
     //   ?date=today              only jobs scheduled today
     //   ?date=2026-07-28         only jobs scheduled on that day
@@ -78,6 +79,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inspections/{inspection}/summaries', [InspectionController::class, 'saveSummaries']);
 
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
+
+    // Cancel an inspection (admin only — enforced in the controller).
+    // Body: cancel_reason (required, 5–500 chars).
+    Route::post('/inspections/{inspection}/cancel', [InspectionController::class, 'cancel']);
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
 

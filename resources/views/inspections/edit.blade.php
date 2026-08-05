@@ -396,11 +396,15 @@
 
 @php
     $isCompleted = $inspection->status === 'completed';
+    // A cancelled inspection is read-only too — same lock as a completed one.
+    $isCancelled = $inspection->isCancelled();
+    $isLocked = $isCompleted || $isCancelled;
     $prog = $inspection->progress();
     $statusBadge = [
         'pending'     => 'badge-soft-secondary',
         'in_progress' => 'badge-soft-warning',
         'completed'   => 'badge-soft-success',
+        'cancelled'   => 'badge-soft-danger',
     ];
 
     // Build the wizard step list: Details → each checklist section → Verdict.
@@ -517,10 +521,23 @@
                             {{ ucfirst(str_replace('_', ' ', $inspection->status)) }}
                         </span>
                         <a href="{{ route('inspections.summary', $inspection) }}" target="_blank" class="btn btn-sm btn-info"><i class="bx bx-list-check"></i> Summary</a>
-                        <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bx bx-download"></i> Download Report</a>
+                        @unless($isCancelled)
+                            <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bx bx-download"></i> Download Report</a>
+                        @endunless
                         <a href="{{ url('inspections') }}" class="btn btn-sm btn-light">Back</a>
                     </div>
                 </div>
+
+                @if($isCancelled)
+                    <div class="alert alert-danger d-flex align-items-start mt-2 mb-0" style="gap:.6rem;">
+                        <i class="bx bx-x-circle font-size-18"></i>
+                        <div>
+                            <strong>This inspection was cancelled{{ $inspection->cancelled_at ? ' on '.$inspection->cancelled_at->format('d M Y, h:i A') : '' }}.</strong>
+                            @if($inspection->cancel_reason)<div class="font-size-13 mt-1"><b>Reason:</b> {{ $inspection->cancel_reason }}</div>@endif
+                            <div class="font-size-12 mt-1">It is kept on record for its cancellation reason and is read-only. Assigning the lead again starts a new inspection.</div>
+                        </div>
+                    </div>
+                @endif
 
                 <div class="d-flex align-items-center justify-content-between mt-2">
                     <div class="font-size-13">
@@ -613,15 +630,8 @@
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-3 mb-3">
-                                            <label class="form-label">Manufacturing Year</label>
-                                            <select name="manufacturing_year" class="form-control form-select js-customer">
-                                                <option value="">Select</option>
-                                                @foreach ($lookups['years'] as $yr)
-                                                    <option value="{{ $yr }}" @selected((int) old('manufacturing_year', $inspection->manufacturing_year) === $yr)>{{ $yr }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
+                                        {{-- Manufacturing Year is hidden from the form; the stored value is carried through so it is not wiped on save. --}}
+                                        <input type="hidden" name="manufacturing_year" value="{{ old('manufacturing_year', $inspection->manufacturing_year) }}">
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Condition</label>
                                             <select name="vehicle_condition" class="form-control form-select js-customer">
@@ -637,25 +647,25 @@
                                     <p class="detail-group-title mt-2">Assignment</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Assigned Technician @if($isCompleted)<small class="text-success"><i class="bx bx-lock-alt"></i> locked (completed)</small>@endif</label>
-                                            <select name="technician_id" class="form-control form-select" @disabled($isCompleted)>
+                                            <label class="form-label">Assigned Technician @if($isLocked)<small class="{{ $isCancelled ? 'text-danger' : 'text-success' }}"><i class="bx bx-lock-alt"></i> locked ({{ $isCancelled ? 'cancelled' : 'completed' }})</small>@endif</label>
+                                            <select name="technician_id" class="form-control form-select" @disabled($isLocked)>
                                                 <option value="">Select Technician</option>
                                                 @foreach ($technicians as $technician)
                                                     <option value="{{ $technician->id }}" @selected(old('technician_id', $inspection->technician_id) == $technician->id)>{{ $technician->name }}</option>
                                                 @endforeach
                                             </select>
-                                            @if($isCompleted)
+                                            @if($isLocked)
                                                 {{-- A disabled select posts nothing; keep the current technician on save. --}}
                                                 <input type="hidden" name="technician_id" value="{{ $inspection->technician_id }}">
                                             @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Inspection Template @if($isCompleted)<small class="text-success"><i class="bx bx-lock-alt"></i> locked (completed)</small>@endif</label>
+                                            <label class="form-label">Inspection Template @if($isLocked)<small class="{{ $isCancelled ? 'text-danger' : 'text-success' }}"><i class="bx bx-lock-alt"></i> locked ({{ $isCancelled ? 'cancelled' : 'completed' }})</small>@endif</label>
                                             {{-- Locked once completed, same rule as the technician above: swapping the
                                                  template reloads a different checklist, which would strand the answers
                                                  the completed report was built from. Enforced in update() too — the
                                                  readonly input posts nothing, and the controller ignores it regardless. --}}
-                                            @if(auth()->user()->isTechnician() || $isCompleted)
+                                            @if(auth()->user()->isTechnician() || $isLocked)
                                                 <input type="text" class="form-control" value="{{ optional($inspection->type)->name ?? '—' }}" readonly>
                                             @else
                                                 <select name="inspection_type_id" class="form-control form-select" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">
@@ -1126,15 +1136,19 @@
                          mandatory to COMPLETE. formnovalidate keeps a half-filled inspection
                          savable (and avoids the browser refusing to submit over a required
                          field sitting on a hidden step). The server still validates. --}}
-                    <button type="submit" name="complete" value="0" formnovalidate class="btn btn-light"><i class="bx bx-save"></i> Save</button>
+                    @unless($isCancelled)
+                        <button type="submit" name="complete" value="0" formnovalidate class="btn btn-light"><i class="bx bx-save"></i> Save</button>
+                    @endunless
                     <button type="button" id="wiz-next" class="btn btn-primary btn-next">Next <i class="bx bx-chevron-right"></i></button>
                     <span id="wiz-finish" style="display:none;">
-                        @unless($isCompleted)
+                        @if($isCancelled)
+                            <span class="text-danger"><i class="bx bx-x-circle"></i> Cancelled</span>
+                        @elseif($isCompleted)
+                            <span class="text-success"><i class="bx bx-check-circle"></i> Completed</span>
+                        @else
                             <button type="submit" name="complete" value="1" id="btn-complete" class="btn btn-success btn-complete" disabled><i class="bx bx-check-double"></i> Complete</button>
                             <span id="complete-hint" class="text-muted font-size-12 ms-2 d-none d-md-inline">⚠ Answer all questions first.</span>
-                        @else
-                            <span class="text-success"><i class="bx bx-check-circle"></i> Completed</span>
-                        @endunless
+                        @endif
                     </span>
                 </div>
             </form>

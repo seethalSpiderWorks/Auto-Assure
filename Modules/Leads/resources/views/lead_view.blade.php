@@ -27,7 +27,6 @@
     $enquiry = $clean([
         'Make'           => $data->lead_make,
         'Model'          => $data->lead_model,
-        'Year'           => $data->lead_year,
         'Make/Model Year'=> $data->make_model_year,
         'Year From'      => $data->lead_year_from,
         'Year To'        => $data->lead_year_to,
@@ -87,6 +86,23 @@
                 <a href="{{ url()->previous() }}" class="btn btn-outline-light btn-sm">Back</a>
             </div>
         </div>
+
+        {{-- Cancelled inspection: reason + date, and where to re-add it from. --}}
+        @if($inspection && ($inspection->status ?? null) === 'cancelled')
+            <div class="alert alert-danger d-flex align-items-start" style="gap:.6rem;">
+                <i class="bx bx-x-circle font-size-18"></i>
+                <div>
+                    <strong>Inspection cancelled{{ !empty($inspection->cancelled_at) ? ' on '.\Carbon\Carbon::parse($inspection->cancelled_at)->format('d M Y, h:i A') : '' }}.</strong>
+                    @if(!empty($inspection->cancel_reason))
+                        <div style="font-size:13px;margin-top:2px;"><b>Reason:</b> {{ $inspection->cancel_reason }}</div>
+                    @endif
+                    <div style="font-size:12px;margin-top:2px;">
+                        <a href="{{ url('leads?id='.$data->lead_id) }}" target="_blank">Edit this lead</a>
+                        and save the Inspection section to start a new inspection for this lead.
+                    </div>
+                </div>
+            </div>
+        @endif
 
         {{-- "Assign & create inspection" panel — hidden on request. Its @php block
              ($curTypeId / $curSched / $inspLocked) fed nothing else in this view,

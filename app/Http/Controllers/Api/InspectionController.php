@@ -66,7 +66,9 @@ class InspectionController extends Controller
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);          // explicit filter still works
         } else {
-            $query->where('status', '!=', Inspection::STATUS_COMPLETED);   // hide completed by default
+            // Hide completed and cancelled by default — neither is work the
+            // technician can still act on.
+            $query->whereNotIn('status', [Inspection::STATUS_COMPLETED, Inspection::STATUS_CANCELLED]);
         }
 
         if ($date = $request->string('date')->toString()) {
@@ -167,6 +169,10 @@ class InspectionController extends Controller
     {
         $this->authorizeTechnician($request, $inspection);
 
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         // Validate manually so failures always return JSON errors (never redirect to login).
         $validator = Validator::make($request->all(), [
             // Owner
@@ -220,6 +226,10 @@ class InspectionController extends Controller
     public function saveAnswers(Request $request, Inspection $inspection): JsonResponse
     {
         $this->authorizeTechnician($request, $inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
 
         $validator = Validator::make($request->all(), [
             'answers' => ['required', 'array', 'min:1'],
@@ -297,6 +307,10 @@ class InspectionController extends Controller
     {
         $this->authorizeTechnician($request, $inspection);
 
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         // Section mode (preferred): flat, reliable format — section_ids[] paired
         // with files[] by index. Mirrors the web "upload per section" flow but
         // lets the app send many files across many sections in one request.
@@ -372,6 +386,10 @@ class InspectionController extends Controller
      */
     public function uploadSectionMedia(Request $request, Inspection $inspection): JsonResponse
     {
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         $groups = $request->file('files');
 
         $validSections = InspectionSection::where('inspection_type_id', $inspection->inspection_type_id)
@@ -472,6 +490,10 @@ class InspectionController extends Controller
     public function uploadSectionMediaBatch(Request $request, Inspection $inspection): JsonResponse
     {
         $this->authorizeTechnician($request, $inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
 
         $validator = Validator::make($request->all(), [
             'section_ids' => ['required', 'array', 'min:1'],
@@ -584,6 +606,10 @@ class InspectionController extends Controller
     {
         $this->authorizeTechnician($request, $inspection);
 
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         $validator = Validator::make($request->all(), [
             'odometer' => ['nullable', 'integer', 'min:0'],
             'overall_condition' => ['nullable', 'in:'.implode(',', array_keys(Inspection::CONDITIONS))],
@@ -628,6 +654,68 @@ class InspectionController extends Controller
     }
 
     /**
+     * Cancel an inspection — admin only (privilege 1 / 2), the same rule the CRM
+     * web screens enforce. Records who cancelled it, when and why, and marks the
+     * lead "Inspection Cancelled".
+     *
+     * The cancelled inspection is kept as a permanent record; assigning the lead
+     * again from the CRM creates a NEW inspection rather than reviving this one.
+     *
+     * POST /api/inspections/{inspection}/cancel
+     * Body: cancel_reason (required, 5–500 chars)
+     */
+    public function cancel(Request $request, Inspection $inspection): JsonResponse
+    {
+        $user = $request->user();
+
+        // An admin may cancel any inspection; a technician only their own.
+        if (! $user?->isAdmin() && (int) $inspection->technician_id !== (int) $user?->id) {
+            return response()->json([
+                'message' => 'You are not allowed to cancel this inspection.',
+            ], 403);
+        }
+
+        if ($inspection->isCancelled()) {
+            return response()->json([
+                'message' => 'This inspection is already cancelled.',
+                'inspection' => new InspectionResource($inspection),
+            ], 422);
+        }
+
+        // Cancellable while the job is still open — pending or in progress.
+        if (! $inspection->isCancellable()) {
+            return response()->json([
+                'message' => 'A completed inspection cannot be cancelled.',
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'cancel_reason' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'cancel_reason.required' => 'Please give a reason for cancelling this inspection.',
+            'cancel_reason.min' => 'The reason must be at least 5 characters.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $inspection->fill([
+            'status' => Inspection::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+            'cancel_reason' => trim($validator->validated()['cancel_reason']),
+            'cancelled_by' => $user->id,
+        ])->save();
+
+        $inspection->lead?->update(['status' => Lead::STATUS_CANCELLED]);
+
+        return response()->json([
+            'message' => 'Inspection cancelled.',
+            'inspection' => new InspectionResource($inspection->fresh(['lead', 'cancelledBy'])),
+        ]);
+    }
+
+    /**
      * Summary areas (Exterior, Engine, Brakes, …) from tbl_summary_type for a
      * given inspection — with the inspection details and any note already saved
      * against each area.
@@ -664,6 +752,10 @@ class InspectionController extends Controller
     public function saveSummaries(Request $request, Inspection $inspection): JsonResponse
     {
         $this->authorizeTechnician($request, $inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
 
         $types = InspectionSummary::types();   // [id => name]
 
@@ -711,6 +803,21 @@ class InspectionController extends Controller
             $inspection->started_at ??= now();
             $inspection->lead?->update(['status' => Lead::STATUS_IN_PROGRESS]);
         }
+    }
+
+    /**
+     * A cancelled inspection accepts no further work from the app. Returns the
+     * JSON error to send back, or null when the inspection is still open.
+     */
+    private function cancelledResponse(Inspection $inspection): ?JsonResponse
+    {
+        if (! $inspection->isCancelled()) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'This inspection has been cancelled.',
+        ], 422);
     }
 
     // NOT named authorize() — that clashes with the inherited AuthorizesRequests::authorize().

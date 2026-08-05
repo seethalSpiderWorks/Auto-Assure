@@ -472,6 +472,9 @@ class LeadsController extends Controller
 			->addSelect(DB::raw('(SELECT i.created_at FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_assigned_at'))
 			->addSelect(DB::raw('(SELECT i.scheduled_at FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_scheduled_at'))
 			->addSelect(DB::raw('(SELECT i.status FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_status'))
+			// Cancellation details, so the Inspection column can show why/when it was cancelled.
+			->addSelect(DB::raw('(SELECT i.cancelled_at FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_cancelled_at'))
+			->addSelect(DB::raw('(SELECT i.cancel_reason FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_cancel_reason'))
 			->where('lead_status',0)
 			->leftjoin('tbl_basic_registration','tbl_basic_registration.breg_id','tbl_lead.lead_reg_id')
 			->leftjoin('tbl_source','tbl_source.source_id','lead_source')
@@ -1043,7 +1046,10 @@ class LeadsController extends Controller
 		LeadsModel::where('lead_id',$lead_data->lead_id)
 				->update(['lead_assigned_users'=>$request->user_id]);   // update lead assign user_id
         	
-		if($old_staus == 'New')   // new lead changed to assign
+		// "Inspection Cancelled" counts as a fresh start: the cancelled inspection is
+		// kept as a record and this assignment creates a brand-new one, so the lead
+		// moves back to "Assign" rather than "Reassign".
+		if($old_staus == 'New' || $old_staus == 'Inspection Cancelled')   // new lead changed to assign
 		{
 			LeadsModel::where('lead_id',$lead_data->lead_id)
 				->update(['lead_assigned_users' => $staffId,
@@ -1076,7 +1082,7 @@ class LeadsController extends Controller
 		$log_array = ['activity_ip'=>$ip, 'activity_action'=>$action, 'activity_user'=>$user_name, 'activity_user_id'=>$user_id, 'activity_desc'=>$activity,'activity_category'=>$category];
 		Core::userActivityAction($log_array);
 		
-		if($old_staus == 'New')
+		if($old_staus == 'New' || $old_staus == 'Inspection Cancelled')
 		{
 			return response()->json(['heading'=>'Success','text'=>'Leads Assigned Successfully','icon'=>'success']);
 		}
@@ -1215,7 +1221,8 @@ class LeadsController extends Controller
 				$typeForLead ? (int) $typeForLead : null
 			);
 
-			if($old_staus == 'New')  // if status New, Assign
+			// A previously cancelled lead starts over: new inspection, status "Assign".
+			if($old_staus == 'New' || $old_staus == 'Inspection Cancelled')  // if status New, Assign
 			{
 				LeadsModel::where('lead_id',$lead_data->lead_id)
 						->update(['lead_assigned_status' => 'Assign',
@@ -1242,7 +1249,7 @@ class LeadsController extends Controller
 			$assigned++;
 		}
 
-		$noun = ($old_staus == 'New') ? 'Assigned' : 'Ressigned';
+		$noun = ($old_staus == 'New' || $old_staus == 'Inspection Cancelled') ? 'Assigned' : 'Ressigned';
 		if ($assigned > 0)
 		{
 			$text = $assigned.' lead(s) '.$noun.' Successfully';
@@ -1634,7 +1641,12 @@ class LeadsController extends Controller
 		$typeId = $request->inspection_type_id ? (int) $request->inspection_type_id : null;
 		$sched  = $request->scheduled_at ?: null;
 
-		$inspection = \App\Models\Inspection::where('lead_id', $leadId)->latest('id')->first();
+		// The lead's ACTIVE inspection. Cancelled rows are kept as history and are
+		// never edited from here — assigning again creates a new inspection.
+		$inspection = \App\Models\Inspection::where('lead_id', $leadId)
+			->where('status', '!=', \App\Models\Inspection::STATUS_CANCELLED)
+			->latest('id')
+			->first();
 
 		// A completed inspection is locked — no template/technician/date changes.
 		$leadStatus = LeadsModel::where('lead_id', $leadId)->value('lead_assigned_status');
@@ -1645,11 +1657,23 @@ class LeadsController extends Controller
 		if($tech > 0)
 		{
 			// Create or re-point the inspection to the chosen technician/template/date.
+			// With no active inspection (the last one was cancelled) this makes a new one.
 			$inspection = \App\Models\Inspection::createForLead($leadId, $tech, $sched, $typeId);
 
 			// Keep the lead's assigned user in sync so the list's "Assign To"
 			// reflects the assigned person.
-			LeadsModel::where('lead_id', $leadId)->update(['lead_assigned_users' => $tech]);
+			$leadUpdate = ['lead_assigned_users' => $tech];
+
+			// The lead must not stay on "Inspection Cancelled" once a new inspection
+			// exists — the cancelled one lives on in the inspections table, but the
+			// lead now reflects the active job.
+			if($leadStatus === 'Inspection Cancelled')
+			{
+				$leadUpdate['lead_assigned_status'] = 'Assign';
+				$leadUpdate['lead_followup_type']   = 1;
+			}
+
+			LeadsModel::where('lead_id', $leadId)->update($leadUpdate);
 		}
 		elseif($inspection)
 		{

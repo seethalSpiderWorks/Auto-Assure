@@ -57,6 +57,8 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('inspections/{inspection}/report-preview', [InspectionController::class, 'reportPreview'])->name('inspections.report.preview');
     Route::get('inspections/{inspection}/summary', [InspectionController::class, 'summary'])->name('inspections.summary');
     Route::post('inspections/{inspection}/start', [InspectionController::class, 'start'])->name('inspections.start');
+    // Cancel an inspection — admin only (enforced in the controller).
+    Route::post('inspections/{inspection}/cancel', [InspectionController::class, 'cancel'])->name('inspections.cancel');
     Route::put('inspections/{inspection}', [InspectionController::class, 'update'])->name('inspections.update');
 
     // AJAX auto-save endpoints

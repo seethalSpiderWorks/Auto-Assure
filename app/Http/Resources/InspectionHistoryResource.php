@@ -28,6 +28,14 @@ class InspectionHistoryResource extends JsonResource
             'started_at'   => optional($this->started_at)->toIso8601String(),
             'completed_at' => optional($this->completed_at)->toIso8601String(),
 
+            // Cancellation record — null unless status is "cancelled".
+            'is_cancelled'       => $this->isCancelled(),
+            'cancelled_at'       => optional($this->cancelled_at)->toIso8601String(),
+            'cancelled_at_label' => optional($this->cancelled_at)->format('d M Y, h:i A'),
+            'cancel_reason'      => $this->cancel_reason,
+            'cancelled_by'       => $this->cancelled_by,
+            'cancelled_by_name'  => $this->whenLoaded('cancelledBy', fn () => $this->cancelledBy?->name),
+
             'customer_name'    => $this->customer_name,
             'customer_name_ar' => $this->customer_name_ar,
             'customer_email'   => $this->customer_email,

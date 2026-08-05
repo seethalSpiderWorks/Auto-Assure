@@ -11,8 +11,14 @@
         'pending'     => ['Pending', 'is-pending'],
         'in_progress' => ['In Progress', 'is-progress'],
         'completed'   => ['Completed', 'is-completed'],
+        'cancelled'   => ['Cancelled', 'is-cancelled'],
     ];
     [$statusLabel, $statusClass] = $statusMap[$inspection->status] ?? [ucfirst($inspection->status), 'is-pending'];
+
+    // An admin may cancel any inspection, a technician only their own — and only
+    // while the job is still open (pending or in progress).
+    $isCancelled = $inspection->isCancelled();
+    $canCancel = $inspection->canBeCancelledBy(auth()->user());
 
     $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
     $condition = match (true) {
@@ -37,8 +43,7 @@
     $spec = array_filter([
         'Make'                 => $inspection->car_make,
         'Model'                => $inspection->car_model,
-        'Year'                 => $inspection->car_year,
-        'Manufacturing Year'   => $inspection->manufacturing_year,
+        'Model Year'           => $inspection->car_year,
         'VIN / Chassis No'     => $inspection->vin,
         'Plate No'             => $inspection->plate_no,
         'Odometer'             => $inspection->odometer ? number_format($inspection->odometer).' km' : null,
@@ -163,9 +168,26 @@
                 @if($inspection->status === 'completed')
                     <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-primary btn-sm"><i class="bx bx-download"></i> Download Report</a>
                 @endif
+                @if($canCancel)
+                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#inspCancelModal"><i class="bx bx-x-circle"></i> Cancel Inspection</button>
+                @endif
                 <a href="{{ url('inspections') }}" class="btn btn-outline-light btn-sm">Back</a>
             </div>
         </div>
+
+        {{-- ===== Cancellation notice ===== --}}
+        @if($isCancelled)
+            <div class="idet-cancelled">
+                <div class="idet-cancelled__icon"><i class="bx bx-x-circle"></i></div>
+                <div>
+                    <strong>This inspection was cancelled{{ $inspection->cancelled_at ? ' on '.$inspection->cancelled_at->format('d M Y, h:i A') : '' }}.</strong>
+                    @if($inspection->cancel_reason)
+                        <div class="idet-cancelled__reason"><span>Reason:</span> {{ $inspection->cancel_reason }}</div>
+                    @endif
+                    <div class="idet-cancelled__hint">It is kept on record for its cancellation reason. Assigning the lead again starts a new inspection.</div>
+                </div>
+            </div>
+        @endif
 
         {{-- ===== Progress + quick facts ===== --}}
         <div class="row g-3">
@@ -462,6 +484,36 @@
     <div class="idet-lb__strip" id="idetLbStrip"></div>
 </div>
 
+{{-- ===== Cancel inspection modal (admin only) ===== --}}
+@if($canCancel)
+<div class="modal fade" id="inspCancelModal" tabindex="-1" aria-labelledby="inspCancelLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="{{ route('inspections.cancel', $inspection) }}" class="modal-content"
+              id="inspCancelForm" data-status="{{ $statusLabel }}" data-name="{{ $inspection->customer_name ?: '' }}">
+            @csrf
+            <div class="modal-header">
+                <h5 class="modal-title" id="inspCancelLabel"><i class="bx bx-x-circle text-danger"></i> Cancel Inspection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">You are cancelling the inspection for <strong>{{ $inspection->customer_name ?: '—' }}</strong> <span class="text-muted">({{ $inspection->reference }})</span>.</p>
+                <p class="mb-3">Current status: <span class="idet-status {{ $statusClass }}">{{ $statusLabel }}</span></p>
+                <label class="form-label" for="inspCancelReason">Reason for cancellation <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="inspCancelReason" name="cancel_reason" rows="3" maxlength="500"
+                          placeholder="Why is this inspection being cancelled?"></textarea>
+                <div class="invalid-feedback" id="inspCancelError"></div>
+                <div class="form-text">The reason and cancellation date are stored against the inspection and shown on the lead.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep Inspection</button>
+                <button type="submit" class="btn btn-danger"><i class="bx bx-x-circle"></i> Cancel Inspection</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+@include('partials._notify')
 @endsection
 
 @section('css')
@@ -481,6 +533,15 @@
     .idet-status.is-completed { background:#e7f8ef; color:#04B084; }
     .idet-status.is-progress  { background:#fff4e0; color:#d98a12; }
     .idet-status.is-pending   { background:#eef1f5; color:#5b6472; }
+    .idet-status.is-cancelled { background:#fdecec; color:#e5484d; }
+
+    /* Cancellation banner */
+    .idet-cancelled { display:flex; gap:12px; align-items:flex-start; background:#fdecec; border:1px solid #f6c6c8;
+        border-left:4px solid #e5484d; border-radius:12px; padding:14px 16px; margin-bottom:16px; color:#8f2f32; }
+    .idet-cancelled__icon i { font-size:22px; color:#e5484d; }
+    .idet-cancelled__reason { margin-top:4px; font-size:13.5px; }
+    .idet-cancelled__reason span { font-weight:600; }
+    .idet-cancelled__hint { margin-top:4px; font-size:12.5px; opacity:.85; }
     .idet-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; padding:5px 12px; border-radius:20px; background:rgba(255,255,255,.14); color:#fff; }
 
     /* Cards */
@@ -640,6 +701,80 @@
 
 @section('js')
 <script>
+// Cancel inspection: require a reason (min 5 chars), then confirm — naming the
+// current status so it's clear what is being cancelled.
+$(function () {
+    var $form = $('#inspCancelForm');
+    if (!$form.length) return;   // not cancellable / not an admin
+
+    var $modal  = $('#inspCancelModal');
+    var $reason = $('#inspCancelReason');
+    var $error  = $('#inspCancelError');
+
+    // Reason is required and must be at least 5 characters.
+    function validate() {
+        var v = $.trim($reason.val());
+
+        if (!v)           return 'Please give a reason for cancelling this inspection.';
+        if (v.length < 5) return 'The reason must be at least 5 characters.';
+
+        return '';
+    }
+
+    function showError(msg) {
+        $error.text(msg);
+        $reason.toggleClass('is-invalid', !!msg);
+    }
+
+    // Clear the message as soon as the value becomes valid.
+    $reason.on('input', function () {
+        if ($reason.hasClass('is-invalid')) showError(validate());
+    });
+
+    $modal.on('shown.bs.modal', function () { $reason.trigger('focus'); });
+    $modal.on('hidden.bs.modal', function () { $reason.val(''); showError(''); });
+
+    $form.on('submit', function (e) {
+        var msg = validate();
+        if (msg) {
+            e.preventDefault();
+            showError(msg);
+            $reason.trigger('focus');
+            return;
+        }
+
+        // Second pass, after the user confirmed — let it through.
+        if ($form.data('confirmed')) { $form.data('confirmed', false); return; }
+
+        e.preventDefault();
+
+        var name = $form.data('name');
+        var who  = name ? ' for ' + name : '';
+        var text = 'This inspection is ' + ($form.data('status') || 'open')
+                 + '. Are you sure you want to cancel it' + who
+                 + '? This will remove it from the technician\'s list.';
+
+        if (!window.Swal) {
+            if (confirm(text)) { $form.data('confirmed', true).trigger('submit'); }
+            return;
+        }
+
+        Swal.fire({
+            title: 'Cancel this inspection?',
+            text: text,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f46a6a',
+            cancelButtonColor: '#74788d',
+            confirmButtonText: 'Yes, cancel it',
+            cancelButtonText: 'No, keep it',
+            reverseButtons: true
+        }).then(function (r) {
+            if (r.isConfirmed) { $form.data('confirmed', true).trigger('submit'); }
+        });
+    });
+});
+
 (function () {
     var acc = document.getElementById('idetAccordion');
     if (!acc) return;

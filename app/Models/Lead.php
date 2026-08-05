@@ -15,6 +15,7 @@ class Lead extends Model
     // Inspection feature status vocabulary -> stored in `lead_assigned_status`.
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_COMPLETED = 'completed';
+    public const STATUS_CANCELLED = 'cancelled';
 
     protected $table = 'tbl_lead';
     protected $primaryKey = 'lead_id';
@@ -65,6 +66,7 @@ class Lead extends Model
         $map = [
             self::STATUS_IN_PROGRESS => 'Inspection In Progress',
             self::STATUS_COMPLETED => 'Inspection Completed',
+            self::STATUS_CANCELLED => 'Inspection Cancelled',
         ];
 
         $this->attributes['lead_assigned_status'] = $map[$value] ?? $value;

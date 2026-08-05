@@ -37,7 +37,9 @@
                     <h4 class="mb-0">Inspection Summary</h4>
                     <div class="page-title-right d-flex align-items-center" style="gap:.5rem;">
                         <a href="{{ route('inspections.edit', $inspection) }}" class="btn btn-sm insp-hlbtn insp-hlbtn--edit"><i class="bx bx-edit"></i> Edit</a>
-                        <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm insp-hlbtn insp-hlbtn--report"><i class="bx bx-download"></i> Download Report</a>
+                        @unless($inspection->isCancelled())
+                            <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm insp-hlbtn insp-hlbtn--report"><i class="bx bx-download"></i> Download Report</a>
+                        @endunless
                         <ol class="breadcrumb m-0 ms-2">
                             <li class="breadcrumb-item"><a href="{{ url('inspections') }}">Inspections</a></li>
                             <li class="breadcrumb-item active">Summary</li>

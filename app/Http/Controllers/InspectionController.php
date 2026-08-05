@@ -204,9 +204,14 @@ class InspectionController extends Controller
     /**
      * Printable inspection report (SASO-style) for a completed inspection.
      */
-    public function report(Inspection $inspection): View
+    public function report(Inspection $inspection): View|RedirectResponse
     {
         $this->authorizeInspection($inspection);
+
+        // A cancelled inspection has no report — it was never finished.
+        if ($inspection->isCancelled()) {
+            return back()->with('error', 'This inspection is cancelled — no report is available for it.');
+        }
 
         $inspection->load([
             'lead', 'technician', 'branch',
@@ -230,9 +235,14 @@ class InspectionController extends Controller
      * Dummy/preview version of the printable report — a sandbox copy used to
      * iterate on the report UI without touching the live `report` view.
      */
-    public function reportPreview(Inspection $inspection): View
+    public function reportPreview(Inspection $inspection): View|RedirectResponse
     {
         $this->authorizeInspection($inspection);
+
+        // A cancelled inspection has no report — it was never finished.
+        if ($inspection->isCancelled()) {
+            return back()->with('error', 'This inspection is cancelled — no report is available for it.');
+        }
 
         $inspection->load([
             'lead', 'technician', 'branch',
@@ -431,10 +441,61 @@ class InspectionController extends Controller
     {
         $this->authorizeInspection($inspection);
 
+        if ($inspection->isCancelled()) {
+            return back()->with('error', 'This inspection is cancelled and cannot be started.');
+        }
+
         $this->markStarted($inspection);
         $inspection->save();
 
         return redirect()->route('inspections.edit', $inspection)->with('success', 'Inspection started.');
+    }
+
+    /**
+     * Cancel an inspection (admin only). Records who cancelled it, when, and the
+     * reason, and marks the lead "Inspection Cancelled" so the lead screens show
+     * it. The inspection can be re-opened later by assigning it again from the lead.
+     */
+    public function cancel(Request $request, Inspection $inspection): RedirectResponse
+    {
+        $user = $request->user();
+
+        // An admin may cancel any inspection; a technician only their own.
+        abort_unless(
+            $user?->isAdmin() || (int) $inspection->technician_id === (int) $user?->id,
+            403,
+            'You are not allowed to cancel this inspection.'
+        );
+
+        if ($inspection->isCancelled()) {
+            return back()->with('error', 'This inspection is already cancelled.');
+        }
+
+        // Cancellable while the job is still open — pending or in progress.
+        // A completed inspection is locked, the same as everywhere else.
+        if (! $inspection->isCancellable()) {
+            return back()->with('error', 'A completed inspection cannot be cancelled.');
+        }
+
+        // Same rules the modal enforces client-side, so a bypassed form fails here too.
+        $data = $request->validate([
+            'cancel_reason' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'cancel_reason.required' => 'Please give a reason for cancelling this inspection.',
+            'cancel_reason.min' => 'The reason must be at least 5 characters.',
+        ]);
+
+        $inspection->fill([
+            'status' => Inspection::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+            'cancel_reason' => trim($data['cancel_reason']),
+            'cancelled_by' => $request->user()->id,
+        ])->save();
+
+        // Mirror it on the lead so the lead list/detail show the cancellation.
+        $inspection->lead?->update(['status' => Lead::STATUS_CANCELLED]);
+
+        return back()->with('success', 'Inspection cancelled.');
     }
 
     /**
@@ -443,6 +504,10 @@ class InspectionController extends Controller
     public function autosaveStep(Request $request, Inspection $inspection): JsonResponse
     {
         $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
 
         $data = $request->validate([
             'step_id' => ['required', 'integer'],
@@ -478,6 +543,10 @@ class InspectionController extends Controller
     {
         $this->authorizeInspection($inspection);
 
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         $data = $request->validate([
             'section_id' => ['required', 'integer'],
             'summary' => ['nullable', 'string', 'max:5000'],
@@ -512,6 +581,10 @@ class InspectionController extends Controller
     public function autosaveCustomer(Request $request, Inspection $inspection): JsonResponse
     {
         $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
 
         $data = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
@@ -556,6 +629,10 @@ class InspectionController extends Controller
     {
         $this->authorizeInspection($inspection);
 
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         $data = $request->validate([
             'step_id' => ['required', 'integer'],
             'type' => ['required', 'in:photo,video'],
@@ -596,6 +673,10 @@ class InspectionController extends Controller
     {
         $this->authorizeInspection($inspection);
 
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
         $data = $request->validate([
             'type' => ['required', 'in:photo,video'],
             'file' => ['required', 'file', 'max:102400'],
@@ -633,6 +714,10 @@ class InspectionController extends Controller
     public function uploadSectionMedia(Request $request, Inspection $inspection, InspectionSection $section): JsonResponse
     {
         $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
 
         // The section must belong to this inspection's template.
         abort_unless((int) $section->inspection_type_id === (int) $inspection->inspection_type_id, 404);
@@ -699,6 +784,11 @@ class InspectionController extends Controller
     public function update(Request $request, Inspection $inspection): RedirectResponse
     {
         $this->authorizeInspection($inspection);
+
+        // A cancelled inspection is read-only until it is re-opened from the lead.
+        if ($inspection->isCancelled()) {
+            return back()->with('error', 'This inspection is cancelled and kept as a record. Assign the lead again to start a new inspection.');
+        }
 
         $validated = $request->validate([
             // Customer / vehicle snapshot (editable)
@@ -1035,6 +1125,23 @@ class InspectionController extends Controller
                 ]);
             }
         }
+    }
+
+    /**
+     * A cancelled inspection accepts no further edits (answers, media, customer
+     * details) — it is kept as a record of why and when it was cancelled.
+     * Returns the JSON error for the AJAX endpoints, or null when it's editable.
+     */
+    private function cancelledResponse(Inspection $inspection): ?JsonResponse
+    {
+        if (! $inspection->isCancelled()) {
+            return null;
+        }
+
+        return response()->json([
+            'ok' => false,
+            'message' => 'This inspection is cancelled and can no longer be edited.',
+        ], 422);
     }
 
     private function authorizeInspection(Inspection $inspection): void

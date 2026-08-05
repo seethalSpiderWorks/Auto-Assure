@@ -272,7 +272,7 @@
 											</div>
 										</div>
 											
-										<div class="col-md-3" id="year_div" style="margin-top:-9px">
+										<div class="col-md-3" id="year_div" style="margin-top:-9px; display:none;">
 											<div class="mb-3">
 												<label for="year">Year</label>
 												<input type="text" name="year" id="year" value="<?= !empty($data->lead_year) ? $data->lead_year : '' ?>" class="form-control">
@@ -453,7 +453,24 @@
 								// "completed" OR the lead is marked "Inspection Completed".
 								$inspLocked = (optional($leadInspection)->status === 'completed')
 									|| ((optional($data)->lead_assigned_status ?? null) === 'Inspection Completed');
+
+								// A cancelled inspection is NOT locked — saving this panel with an
+								// assigned person starts a NEW inspection, leaving the cancelled one as history.
+								$inspCancelled = optional($leadInspection)->status === 'cancelled';
 							@endphp
+
+							@if($inspCancelled)
+								<div class="alert alert-danger d-flex align-items-start" style="gap:.6rem;">
+									<i class="bx bx-x-circle font-size-18"></i>
+									<div>
+										<strong>This inspection was cancelled{{ optional($leadInspection)->cancelled_at ? ' on '.$leadInspection->cancelled_at->format('d M Y, h:i A') : '' }}.</strong>
+										@if(optional($leadInspection)->cancel_reason)
+											<div style="font-size:13px;margin-top:2px;"><b>Reason:</b> {{ $leadInspection->cancel_reason }}</div>
+										@endif
+										<div style="font-size:12px;margin-top:2px;">It stays on record with this reason. Choose an assigned person and a scheduled date below, then save to start a new inspection for this lead.</div>
+									</div>
+								</div>
+							@endif
 							<div class="row">
 								<div class="col-md-4">
 									<div class="mb-3">
@@ -491,7 +508,7 @@
 								</div>
 								<div class="col-md-1 d-flex align-items-end">
 									<div class="mb-3 w-100">
-										<button type="button" id="insp_update_btn" class="btn btn-primary w-100" title="Update Inspection" @disabled($inspLocked)><i class="bx bx-save"></i></button>
+										<button type="button" id="insp_update_btn" class="btn {{ $inspCancelled ? 'btn-success' : 'btn-primary' }} w-100" title="{{ $inspCancelled ? 'Add back to Inspection' : 'Update Inspection' }}" @disabled($inspLocked)><i class="bx {{ $inspCancelled ? 'bx-revision' : 'bx-save' }}"></i></button>
 									</div>
 								</div>
 							</div>
@@ -1750,7 +1767,6 @@ function checkFormType(form) {
         $('#make_div').show();
         $('#model_div').show();
         $('#vehicle_plate_no_div').show();
-        $('#year_div').show();
         $('#color_div').show();
         $('#color_ar_div').show();
         $('#sellername_div').show();

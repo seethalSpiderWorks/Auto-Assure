@@ -205,6 +205,14 @@ var dTable = $('#lead_table').DataTable({
         {
             badges = '<span class="btn bg-primary" style="padding: 2px 6px; font-size:9.5px; line-height:1.2; min-width:50px; cursor:auto !important; color:#f5f6f8; white-space:nowrap;">Inspection Completed</span>';
         }
+		else if(aData.lead_assigned_status == 'Inspection In Progress')
+		{
+			badges = '<span class="btn bg-warning" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection In Progress </span>';
+		}
+		else if(aData.lead_assigned_status == 'Inspection Cancelled')
+		{
+			badges = '<span class="btn bg-danger" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection Cancelled </span>';
+		}
 		else if(aData.lead_assigned_status == 'Approved')
 		{
 			badges = '<span class="btn bg-success" style="padding: 1px; min-width: 50px; color:#f5f6f8;cursor: auto !important;">Approved</span>';

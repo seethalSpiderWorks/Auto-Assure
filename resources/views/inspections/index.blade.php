@@ -6,9 +6,15 @@
         'pending'     => ['Pending', 'is-pending'],
         'in_progress' => ['In Progress', 'is-progress'],
         'completed'   => ['Completed', 'is-completed'],
+        'cancelled'   => ['Cancelled', 'is-cancelled'],
     ];
     $hasFilters = request()->hasAny(['q', 'status', 'technician_id', 'from', 'to'])
         && collect(request()->only(['q','status','technician_id','from','to']))->filter()->isNotEmpty();
+
+    // Who sees a cancel column at all: admins (any inspection) and technicians
+    // (their own). The per-row check below decides each button.
+    $me = auth()->user();
+    $canCancel = $me?->isAdmin() || $me?->isTechnician();
 @endphp
 
 <div class="page-content">
@@ -39,9 +45,10 @@
 
             <div class="insp-ctrl">
                 <label>Status</label>
-                <select name="status" onchange="this.form.submit()">
+                {{-- No auto-submit: every filter is applied by the Filter button. --}}
+                <select name="status">
                     <option value="">All statuses</option>
-                    @foreach (['pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $value => $label)
+                    @foreach (['pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Completed', 'cancelled' => 'Cancelled'] as $value => $label)
                         <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -50,7 +57,7 @@
             @if(($technicians ?? collect())->isNotEmpty())
                 <div class="insp-ctrl">
                     <label>Technician</label>
-                    <select name="technician_id" onchange="this.form.submit()">
+                    <select name="technician_id">
                         <option value="">All technicians</option>
                         @foreach ($technicians as $tech)
                             <option value="{{ $tech->id }}" @selected((string) request('technician_id') === (string) $tech->id)>{{ $tech->name }}</option>
@@ -152,12 +159,30 @@
                                             <span class="text-muted">—</span>
                                         @endif
                                     </td>
+                                    {{-- Cancellation date/reason live on the details page, not here. --}}
                                     <td><span class="insp-status {{ $stClass }}">{{ $stLabel }}</span></td>
                                     <td class="text-end">
                                         <div class="insp-actions">
                                             <a href="{{ route('inspections.show', $inspection) }}" class="insp-act insp-act--view" title="View details" data-bs-toggle="tooltip"><i class="bx bx-show"></i></a>
                                             <a href="{{ route('inspections.edit', $inspection) }}" class="insp-act insp-act--edit" title="Open / Edit" data-bs-toggle="tooltip"><i class="bx bx-edit-alt"></i></a>
                                             <a href="{{ route('inspections.summary', $inspection) }}" target="_blank" class="insp-act insp-act--summary" title="Summary" data-bs-toggle="tooltip"><i class="bx bx-list-check"></i></a>
+                                            {{-- Cancel always sits last, and only while the job is still open
+                                                 (pending or in progress) and this user may cancel it. When the
+                                                 row can't be cancelled an empty slot holds its place, so
+                                                 View/Edit/Summary line up down every row. --}}
+                                            @if($canCancel)
+                                                @if(! $inspection->canBeCancelledBy($me))
+                                                    <span class="insp-act insp-act--placeholder" aria-hidden="true"></span>
+                                                @else
+                                                    <button type="button" class="insp-act insp-act--cancel js-insp-cancel"
+                                                            data-action="{{ route('inspections.cancel', $inspection) }}"
+                                                            data-name="{{ $name }}"
+                                                            data-ref="{{ $inspection->reference }}"
+                                                            data-status="{{ $stLabel }}"
+                                                            data-status-class="{{ $stClass }}"
+                                                            title="Cancel inspection" data-bs-toggle="tooltip"><i class="bx bx-x-circle"></i></button>
+                                                @endif
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -185,6 +210,36 @@
 
     </div>
 </div>
+
+{{-- ===== Cancel inspection modal (admin only) ===== --}}
+@if($canCancel)
+<div class="modal fade" id="inspCancelModal" tabindex="-1" aria-labelledby="inspCancelLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="inspCancelForm" class="modal-content">
+            @csrf
+            <div class="modal-header">
+                <h5 class="modal-title" id="inspCancelLabel"><i class="bx bx-x-circle text-danger"></i> Cancel Inspection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    You are cancelling the inspection for <strong id="inspCancelName"></strong> <span class="text-muted" id="inspCancelRef"></span>.
+                </p>
+                <p class="mb-3">Current status: <span class="insp-status" id="inspCancelStatus"></span></p>
+                <label class="form-label" for="inspCancelReason">Reason for cancellation <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="inspCancelReason" name="cancel_reason" rows="3" maxlength="500"
+                          placeholder="Why is this inspection being cancelled?"></textarea>
+                <div class="invalid-feedback" id="inspCancelError"></div>
+                <div class="form-text">The reason and cancellation date are stored against the inspection and shown on the lead.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep Inspection</button>
+                <button type="submit" class="btn btn-danger"><i class="bx bx-x-circle"></i> Cancel Inspection</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 
 @include('partials._notify')
 @endsection
@@ -248,6 +303,18 @@
     .insp-tablehead { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
     .insp-count { font-size:13px; font-weight:600; color:#667085; background:#f2f5f8; padding:4px 12px; border-radius:20px; }
 
+    /* Horizontal scroll: on a narrow screen the columns don't fit, so give the
+       table a min-width and let its .table-responsive wrapper scroll sideways
+       instead of squeezing the cells. */
+    .insp-card-modern .table-responsive { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .insp-table { min-width:940px; }
+    .insp-table th, .insp-table td { white-space:nowrap; }
+    /* Scrollbar styled to match the card */
+    .insp-card-modern .table-responsive::-webkit-scrollbar { height:8px; }
+    .insp-card-modern .table-responsive::-webkit-scrollbar-track { background:#f2f5f8; border-radius:8px; }
+    .insp-card-modern .table-responsive::-webkit-scrollbar-thumb { background:#cdd6e0; border-radius:8px; }
+    .insp-card-modern .table-responsive::-webkit-scrollbar-thumb:hover { background:#04B084; }
+
     .insp-table thead th { border:0; text-transform:uppercase; font-size:11.5px; letter-spacing:.4px; color:#98a2b3; font-weight:700; padding:10px 14px; background:#f7f9fc; }
     .insp-table thead th:first-child { border-radius:10px 0 0 10px; }
     .insp-table thead th:last-child { border-radius:0 10px 10px 0; }
@@ -273,6 +340,7 @@
     .insp-status.is-completed { background:#e7f8ef; color:#04B084; }
     .insp-status.is-progress  { background:#fff4e0; color:#d98a12; }
     .insp-status.is-pending   { background:#eef1f5; color:#5b6472; }
+    .insp-status.is-cancelled { background:#fdecec; color:#e5484d; }
 
     .insp-actions { display:inline-flex; gap:8px; justify-content:flex-end; }
     .insp-act { width:34px; height:34px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; text-decoration:none; transition:transform .12s, box-shadow .12s, background .12s, color .12s; }
@@ -280,9 +348,14 @@
     .insp-act--view    { background:#eef3f8; color:#00263D; }
     .insp-act--edit    { background:#eaf1ff; color:#2a5bd7; }
     .insp-act--summary { background:#e7f8ef; color:#04B084; }
+    .insp-act--cancel  { background:#fdecec; color:#e5484d; border:0; cursor:pointer; padding:0; }
+    /* Invisible spacer keeping the cancel slot open on rows that can't be cancelled. */
+    .insp-act--placeholder { background:transparent; pointer-events:none; }
+    .insp-act--placeholder:hover { transform:none; box-shadow:none; }
     .insp-act--view:hover    { background:#00263D; color:#fff; }
     .insp-act--edit:hover    { background:#2a5bd7; color:#fff; }
     .insp-act--summary:hover { background:#04B084; color:#fff; }
+    .insp-act--cancel:hover  { background:#e5484d; color:#fff; }
 
     .insp-empty { text-align:center; padding:38px 10px; color:#98a2b3; }
     .insp-empty i { font-size:44px; display:block; margin-bottom:8px; opacity:.6; }
@@ -346,5 +419,94 @@
             clearBtn.style.display = 'none';
         });
     })();
+
+    // Cancel inspection (admin only): point the shared modal's form at the clicked
+    // row's cancel endpoint, validate the reason, confirm, then post normally.
+    $(function () {
+        var $modal = $('#inspCancelModal');
+        if (!$modal.length) return;   // not an admin — the modal isn't rendered
+
+        var $form   = $('#inspCancelForm');
+        var $reason = $('#inspCancelReason');
+        var $error  = $('#inspCancelError');
+
+        // Row being cancelled, so the confirm prompt can name its status.
+        var current = {};
+
+        // Reason is required and must be at least 5 characters.
+        function validate() {
+            var v = $.trim($reason.val());
+
+            if (!v)           return 'Please give a reason for cancelling this inspection.';
+            if (v.length < 5) return 'The reason must be at least 5 characters.';
+
+            return '';
+        }
+
+        function showError(msg) {
+            $error.text(msg);
+            $reason.toggleClass('is-invalid', !!msg);
+        }
+
+        // Clear the message as soon as the value becomes valid.
+        $reason.on('input', function () {
+            if ($reason.hasClass('is-invalid')) showError(validate());
+        });
+
+        $('.js-insp-cancel').on('click', function () {
+            current = $(this).data();
+            $form.attr('action', current.action);
+            $('#inspCancelName').text(current.name || '');
+            $('#inspCancelRef').text(current.ref ? '(' + current.ref + ')' : '');
+            $('#inspCancelStatus').text(current.status || '')
+                .attr('class', 'insp-status ' + (current.statusClass || ''));
+            $reason.val('');
+            showError('');
+            $modal.modal('show');
+        });
+
+        $modal.on('shown.bs.modal', function () { $reason.trigger('focus'); });
+
+        $form.on('submit', function (e) {
+            var msg = validate();
+            if (msg) {
+                e.preventDefault();
+                showError(msg);
+                $reason.trigger('focus');
+                return;
+            }
+
+            // Second pass, after the user confirmed — let it through.
+            if ($form.data('confirmed')) { $form.data('confirmed', false); return; }
+
+            e.preventDefault();
+
+            var who  = current.name ? ' for ' + current.name : '';
+            var text = 'This inspection is ' + (current.status || 'open')
+                     + '. Are you sure you want to cancel it' + who
+                     + '? This will remove it from the technician\'s list.';
+
+            if (!window.Swal) {                            // SweetAlert2 missing — plain confirm
+                if (confirm(text)) { $form.data('confirmed', true).trigger('submit'); }
+                return;
+            }
+
+            // Swal directly rather than aaConfirm(), so the dismiss button can read
+            // "No, keep it" — a button labelled just "Cancel" is ambiguous here.
+            Swal.fire({
+                title: 'Cancel this inspection?',
+                text: text,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#f46a6a',
+                cancelButtonColor: '#74788d',
+                confirmButtonText: 'Yes, cancel it',
+                cancelButtonText: 'No, keep it',
+                reverseButtons: true
+            }).then(function (r) {
+                if (r.isConfirmed) { $form.data('confirmed', true).trigger('submit'); }
+            });
+        });
+    });
 </script>
 @endsection

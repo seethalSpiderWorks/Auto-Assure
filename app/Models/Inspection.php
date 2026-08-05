@@ -12,6 +12,8 @@ class Inspection extends Model
     public const STATUS_PENDING = 'pending';
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_COMPLETED = 'completed';
+    /** Cancelled by an admin. Kept out of the technician's active list; can be re-opened from the lead. */
+    public const STATUS_CANCELLED = 'cancelled';
 
     public const CONDITIONS = [
         'excellent' => 'Excellent',
@@ -31,6 +33,7 @@ class Inspection extends Model
         'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone', 'whatsapp_number',
         'date_of_inspection', 'car_make', 'car_model', 'car_year',
         'status', 'scheduled_at', 'started_at', 'completed_at',
+        'cancelled_at', 'cancel_reason', 'cancelled_by',
         'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
@@ -48,6 +51,7 @@ class Inspection extends Model
             'scheduled_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'overall_rating' => 'decimal:1',
         ];
     }
@@ -314,10 +318,13 @@ class Inspection extends Model
     }
 
     /**
-     * Create (or re-point) the inspection for a legacy lead when a technician
-     * is assigned for inspection. One inspection per lead: if it already exists
-     * the technician is updated instead. Always records the inspection id on
-     * tbl_lead.inspection_assigned_id so the lead links to its inspection.
+     * Create (or re-point) the lead's active inspection when a technician is
+     * assigned. One ACTIVE inspection per lead: if one already exists the
+     * technician is updated instead of adding a second row.
+     *
+     * Cancelled inspections are never touched — they are kept as history so the
+     * cancellation reason and date stay on record. Assigning a lead whose last
+     * inspection was cancelled therefore creates a brand-new inspection.
      *
      * @param  int  $leadId        tbl_lead.lead_id
      * @param  int  $technicianId  users.id of the assigned technician
@@ -337,7 +344,13 @@ class Inspection extends Model
         // Resolve the chosen inspection template; fall back to the first active one.
         $typeId = static::resolveInspectionTypeId($inspectionTypeId);
 
-        $inspection = static::where('lead_id', $leadId)->latest('id')->first();
+        // The lead's active inspection. Cancelled rows are skipped so they survive
+        // untouched as history — when the last one was cancelled this comes back
+        // null and a fresh inspection is created below.
+        $inspection = static::where('lead_id', $leadId)
+            ->where('status', '!=', static::STATUS_CANCELLED)
+            ->latest('id')
+            ->first();
 
         // A completed inspection is locked — never (re)assign or notify. This is the
         // single source of truth guarding every assign entry point. "Completed" =
@@ -358,6 +371,7 @@ class Inspection extends Model
         if ($inspection) {
             // Re-assign: point the existing inspection at the new technician/template.
             $technicianChanged = (int) $inspection->technician_id !== (int) $technicianId;
+
             $inspection->technician_id = $technicianId;
             $inspection->inspection_type_id = $typeId;
             if ($scheduledAt) {
@@ -560,6 +574,44 @@ class Inspection extends Model
             self::STATUS_PENDING => 'bg-gray-100 text-gray-700',
             self::STATUS_IN_PROGRESS => 'bg-amber-100 text-amber-700',
             self::STATUS_COMPLETED => 'bg-green-100 text-green-700',
+            self::STATUS_CANCELLED => 'bg-red-100 text-red-700',
         ][$this->status] ?? 'bg-gray-100 text-gray-700';
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === self::STATUS_CANCELLED;
+    }
+
+    /**
+     * An inspection can be cancelled while the job is still open — pending or in
+     * progress. A completed one is locked, and an already-cancelled one is a
+     * permanent record.
+     */
+    public function isCancellable(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_IN_PROGRESS], true);
+    }
+
+    /**
+     * Who may cancel: an admin (any inspection), or the technician this
+     * inspection is assigned to (their own job, from the app or the web).
+     * The single source of truth for both the web and API cancel endpoints.
+     */
+    public function canBeCancelledBy(?User $user): bool
+    {
+        if (! $user || ! $this->isCancellable()) {
+            return false;
+        }
+
+        return $user->isAdmin() || (int) $this->technician_id === (int) $user->id;
+    }
+
+    /**
+     * The admin who cancelled this inspection.
+     */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }
