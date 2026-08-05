@@ -42,7 +42,9 @@ class InspectionController extends Controller
 
         // Active inspections assigned to the authenticated technician (from the token).
         $query = Inspection::where('technician_id', $request->user()->id)
-            ->with(['lead'])
+            // cancelledBy so a cancelled job reports who cancelled it (the resource
+            // omits cancelled_by_name entirely when the relation isn't loaded).
+            ->with(['lead', 'cancelledBy'])
             // Today first, then upcoming days (newest first), then overdue days,
             // then jobs with no slot yet. A job stays in the "today" group for the
             // whole day, so today's list keeps reading chronologically (10:00
@@ -112,7 +114,7 @@ class InspectionController extends Controller
     public function show(Request $request, Inspection $inspection): InspectionResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries']);
+        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries', 'cancelledBy']);
 
         return new InspectionResource($inspection);
     }
@@ -127,11 +129,19 @@ class InspectionController extends Controller
 
 
   
+    /**
+     * Technician history — in progress, completed and cancelled jobs.
+     *
+     * Query params:
+     *   status  in_progress | completed | cancelled
+     */
     public function history(Request $request): AnonymousResourceCollection
     {
         $query = Inspection::where('technician_id', $request->user()->id)
-            ->where('status', '!=', Inspection::STATUS_PENDING)   // history = started/completed only
-            ->with(['lead', 'type', 'branch', 'technician'])
+            ->where('status', '!=', Inspection::STATUS_PENDING)   // history = started/completed/cancelled only
+            // cancelledBy is eager-loaded so cancelled_by_name is present in the
+            // payload; the resource omits the key entirely when it isn't loaded.
+            ->with(['lead', 'type', 'branch', 'technician', 'cancelledBy'])
             ->latest('updated_at');   // most recently updated first
 
         if ($status = $request->string('status')->toString()) {
@@ -140,12 +150,13 @@ class InspectionController extends Controller
 
         return InspectionHistoryResource::collection($query->get());
     }
- 
+
     public function historyDetail(Request $request, Inspection $inspection): InspectionHistoryResource
     {
         $this->authorizeTechnician($request, $inspection);
 
-        $inspection->load(['lead', 'type', 'branch', 'technician']);
+        // cancelledBy included so a cancelled inspection reports who cancelled it.
+        $inspection->load(['lead', 'type', 'branch', 'technician', 'cancelledBy']);
 
         return new InspectionHistoryResource($inspection);
     }
@@ -654,8 +665,9 @@ class InspectionController extends Controller
     }
 
     /**
-     * Cancel an inspection — admin only (privilege 1 / 2), the same rule the CRM
-     * web screens enforce. Records who cancelled it, when and why, and marks the
+     * Cancel an inspection. An admin (privilege 1 / 2) may cancel any inspection;
+     * a technician may cancel one assigned to them — the same rule the CRM web
+     * screens enforce. Records who cancelled it, when and why, and marks the
      * lead "Inspection Cancelled".
      *
      * The cancelled inspection is kept as a permanent record; assigning the lead

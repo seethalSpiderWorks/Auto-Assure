@@ -54,9 +54,11 @@ Route::middleware('auth:sanctum')->group(function () {
     //   ?date=2026-07-28         only jobs scheduled on that day
     Route::get('/inspections', [InspectionController::class, 'index']);
 
-    // Full technician history — every inspection with sections, steps, answers & customer details.
+    // Full technician history — in progress, completed and cancelled jobs.
+    //   ?status=in_progress | completed | cancelled
     Route::get('/technician/history', [InspectionController::class, 'history']);
-    
+
+    // One history record, including the cancellation reason/date when cancelled.
     Route::get('/technician/history/{inspection}', [InspectionController::class, 'historyDetail']);
 
     // Inspection type (template + sections/steps) used by a specific inspection.
