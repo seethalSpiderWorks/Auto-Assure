@@ -162,7 +162,9 @@
                                             @endphp
                                             {{-- Partial fill so a 3.6 doesn't read as a flat 3, matching the report. --}}
                                             <span class="ml-1" title="{{ $rLbl }}/5" style="white-space:nowrap;">
-                                                @for($i=1;$i<=5;$i++)@php $fill = max(0, min(1, $s['rating'] - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#d3d3d3;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#d3d3d3 '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor
+                                                {{-- $starPct is deliberately not named $pct: the row's progress
+                                                     percentage above shares this scope and must survive this loop. --}}
+                                                @for($i=1;$i<=5;$i++)@php $fill = max(0, min(1, $s['rating'] - ($i - 1))); $starPct = round($fill * 100, 1); @endphp<span style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#d3d3d3;' : 'background:linear-gradient(90deg,#f1b44c '.$starPct.'%,#d3d3d3 '.$starPct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor
                                             </span>
                                         @endif
                                         {{-- Section summary text is deliberately not printed here — this
