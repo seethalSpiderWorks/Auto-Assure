@@ -59,7 +59,6 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/technician/history/{inspection}', [InspectionController::class, 'historyDetail']);
 
-
     // Inspection type (template + sections/steps) used by a specific inspection.
     Route::get('/inspections/{inspection}/type', [InspectionTypeController::class, 'forInspection']);
 
@@ -80,8 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
 
-    // Cancel an inspection (admin only — enforced in the controller).
-    // Body: cancel_reason (required, 5–500 chars).
+    // Cancel an inspection. An admin may cancel any, a technician only their own
+    // (enforced in the controller). Body: cancel_reason (required, 5–500 chars).
     Route::post('/inspections/{inspection}/cancel', [InspectionController::class, 'cancel']);
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
