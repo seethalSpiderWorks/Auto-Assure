@@ -122,7 +122,7 @@ class InspectionController extends Controller
      public function summary(Request $request, Inspection $inspection): InspectionSummaryResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries']);
+        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries', 'cancelledBy']);
 
         return new InspectionSummaryResource($inspection);
     }
@@ -597,6 +597,243 @@ class InspectionController extends Controller
         $inspection->save();
 
         return response()->json(['uploaded' => $total, 'sections' => $sections], 201);
+    }
+
+    /**
+     * Additional media — photos/videos that belong to the inspection as a whole
+     * rather than to a checklist step or a section. This is the same bucket as
+     * the "Additional media" box on the web edit screen: a single detail row per
+     * inspection with BOTH inspection_step_id and inspection_section_id NULL.
+     *
+     * POST /api/inspections/{inspection}/extra-media   (multipart/form-data)
+     *   files[]   one or more photos/videos (required)
+     *   labels[]  optional caption per file, paired with files[] by index
+     *
+     * A single upload may also be posted as `file` (+ optional `label`).
+     * The photo/video type is derived from the file's mime type.
+     */
+    public function uploadExtraMedia(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        // Accept files[] (+ labels[]) or the single-file form file (+ label), and
+        // normalise both into plain arrays. Built locally rather than merged back
+        // into the request: hasFile()/file() cache the converted upload set, so a
+        // later $request->files->set() would not be seen by the validator.
+        $files = $request->file('files');
+        $labels = $request->input('labels', []);
+
+        if (empty($files) && $request->hasFile('file')) {
+            $files = [$request->file('file')];
+            $labels = $request->filled('label') ? [$request->input('label')] : [];
+        }
+
+        $files = is_array($files) ? array_values($files) : (($files === null) ? [] : [$files]);
+        $labels = is_array($labels) ? array_values($labels) : [];
+
+        $validator = Validator::make(['files' => $files, 'labels' => $labels], [
+            'files' => ['required', 'array', 'min:1'],
+            'files.*' => ['required', 'file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/x-matroska'],
+            'labels' => ['nullable', 'array'],
+            'labels.*' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        // Labels are optional, but when sent there must be one per file — a
+        // mismatched array would silently caption the wrong photos.
+        if ($labels !== [] && count($labels) !== count($files)) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['labels' => ['The number of labels must match the number of files.']],
+            ], 422);
+        }
+
+        $detail = $this->extraMediaDetail($inspection, create: true);
+
+        $items = [];
+
+        foreach ($files as $i => $file) {
+            $type = str_starts_with((string) $file->getClientMimeType(), 'video/') ? 'video' : 'photo';
+            $path = $file->store("inspections/{$inspection->id}/extra/{$type}s", 'public');
+
+            $media = $detail->media()->create([
+                'type' => $type,
+                'disk' => 'public',
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'label' => $labels[$i] ?? null,
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+            ]);
+
+            $items[] = $this->mediaPayload($media);
+        }
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        return response()->json([
+            'uploaded' => count($items),
+            'media' => $items,
+        ], 201);
+    }
+
+    /**
+     * List an inspection's additional media.
+     *
+     * GET /api/inspections/{inspection}/extra-media
+     */
+    public function extraMedia(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        $media = $this->extraMediaItems($inspection);
+
+        return response()->json([
+            'count' => count($media),
+            'media' => $media,
+        ]);
+    }
+
+    /**
+     * Delete one additional-media item.
+     *
+     * DELETE /api/inspections/{inspection}/extra-media/{media}
+     */
+    public function deleteExtraMedia(Request $request, Inspection $inspection, InspectionMedia $media): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        $detail = $this->extraMediaDetail($inspection);
+
+        // The id must be one of THIS inspection's additional media — not another
+        // inspection's, and not a step/section photo that happens to exist.
+        if (! $detail || (int) $media->inspection_detail_id !== (int) $detail->id) {
+            return response()->json([
+                'message' => "Media does not belong to this inspection's additional media.",
+            ], 404);
+        }
+
+        Storage::disk($media->disk)->delete($media->path);
+        $media->delete();
+
+        return response()->json([
+            'message' => 'Media deleted.',
+            'id' => (int) $media->id,
+            'remaining' => count($this->extraMediaItems($inspection)),
+        ]);
+    }
+
+    /**
+     * Delete several additional-media items at once.
+     *
+     * DELETE /api/inspections/{inspection}/extra-media
+     * Body: media_ids[] — ids to delete (required)
+     */
+    public function deleteExtraMediaBulk(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        $validator = Validator::make($request->all(), [
+            'media_ids' => ['required', 'array', 'min:1'],
+            'media_ids.*' => ['required', 'integer', 'min:1'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $ids = array_map('intval', $request->input('media_ids', []));
+        $detail = $this->extraMediaDetail($inspection);
+
+        $rows = $detail
+            ? $detail->media()->whereIn('id', $ids)->get()
+            : collect();
+
+        // Nothing matched: every id was for another inspection, another bucket, or
+        // already deleted. Report it rather than answering "deleted 0" with a 200.
+        if ($rows->isEmpty()) {
+            return response()->json([
+                'message' => "None of the given ids belong to this inspection's additional media.",
+            ], 404);
+        }
+
+        $deleted = [];
+
+        foreach ($rows as $m) {
+            Storage::disk($m->disk)->delete($m->path);
+            $deleted[] = (int) $m->id;
+            $m->delete();
+        }
+
+        return response()->json([
+            'deleted' => count($deleted),
+            'ids' => $deleted,
+            // Ids that matched nothing, so the app can reconcile its local list.
+            'not_found' => array_values(array_diff($ids, $deleted)),
+            'remaining' => count($this->extraMediaItems($inspection)),
+        ]);
+    }
+
+    /**
+     * The inspection's additional-media bucket: the detail row with BOTH a null
+     * step id and a null section id. Both keys must be matched explicitly — a
+     * per-section bucket also has a null step id, so omitting the section would
+     * pick up whichever section row happens to match first.
+     */
+    private function extraMediaDetail(Inspection $inspection, bool $create = false): ?InspectionDetail
+    {
+        $keys = [
+            'inspection_id' => $inspection->id,
+            'inspection_step_id' => null,
+            'inspection_section_id' => null,
+        ];
+
+        return $create
+            ? InspectionDetail::firstOrCreate($keys)
+            : InspectionDetail::where($keys)->first();
+    }
+
+    /**
+     * The inspection's additional media, in payload form.
+     */
+    private function extraMediaItems(Inspection $inspection): array
+    {
+        $detail = $this->extraMediaDetail($inspection);
+
+        return $detail
+            ? $detail->media()->get()->map(fn ($m) => $this->mediaPayload($m))->values()->all()
+            : [];
+    }
+
+    /**
+     * The shape a media row is returned in by the additional-media endpoints.
+     */
+    private function mediaPayload(InspectionMedia $media): array
+    {
+        return [
+            'id' => $media->id,
+            'type' => $media->type,
+            'url' => $media->url,
+            'label' => $media->label,
+            'original_name' => $media->original_name,
+            'size' => $media->size,
+        ];
     }
 
     public function deleteMedia(Request $request, InspectionMedia $media): JsonResponse

@@ -135,6 +135,28 @@ class InspectionResource extends JsonResource
                 }
             ),
 
+            // Additional media — the bucket with neither a step nor a section
+            // (the "Additional media" box on the web edit screen). Section
+            // buckets also carry a null step id, so the section id must be
+            // checked too or their photos leak into this list.
+            'extra_media' => $this->whenLoaded('details', function () {
+                $extra = $this->details
+                    ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
+
+                if (! $extra || ! $extra->relationLoaded('media')) {
+                    return [];
+                }
+
+                return $extra->media->map(fn ($m) => [
+                    'id'            => $m->id,
+                    'type'          => $m->type,
+                    'url'           => $m->url,
+                    'label'         => $m->label,
+                    'original_name' => $m->original_name,
+                    'size'          => $m->size,
+                ])->values();
+            }),
+
             'type'    => new InspectionTypeResource($this->whenLoaded('type')),
             'details' => $this->whenLoaded('details', fn () => $this->details->map(fn ($detail) => [
                 'id'                     => $detail->id,

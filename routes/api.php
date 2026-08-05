@@ -72,6 +72,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);
 
+    // Additional media for the inspection as a whole (not tied to a step or a
+    // section) — the same bucket as "Additional media" on the web edit screen.
+    //   POST body: files[] (+ optional labels[]), or a single file (+ label).
+    Route::get('/inspections/{inspection}/extra-media', [InspectionController::class, 'extraMedia']);
+    Route::post('/inspections/{inspection}/extra-media', [InspectionController::class, 'uploadExtraMedia']);
+    //   DELETE .../{media}  removes one; DELETE the collection with media_ids[] removes several.
+    Route::delete('/inspections/{inspection}/extra-media/{media}', [InspectionController::class, 'deleteExtraMedia']);
+    Route::delete('/inspections/{inspection}/extra-media', [InspectionController::class, 'deleteExtraMediaBulk']);
+
     // Summary areas (Exterior, Engine, Brakes, …) from tbl_summary_type for a
     // given inspection, with the inspection details and any saved note per area.
     Route::get('/inspections/{inspection}/summary/list', [InspectionController::class, 'summaryTypeList']);
