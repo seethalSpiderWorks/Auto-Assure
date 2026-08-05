@@ -96,6 +96,8 @@
         ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
     $extraMedia = $extraDetail ? $extraDetail->media : collect();
     foreach ($extraMedia as $gm) {
+        // Documents (PDFs) open in a new tab, never in the image/video lightbox.
+        if ($gm->isDocument()) { continue; }
         $gallery[] = ['id' => $gm->id, 'type' => $gm->isVideo() ? 'video' : 'photo', 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
     }
 
@@ -270,14 +272,21 @@
                 <div class="idet-extra">
                     @foreach($extraMedia as $m)
                         <div class="idet-extra__item">
-                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
-                                @if(! $m->isVideo())
-                                    <img src="{{ $m->url }}" alt="" loading="lazy">
-                                @else
-                                    <i class="bx bx-play-circle"></i>
-                                @endif
-                            </a>
-                            <span class="idet-extra__label" title="{{ $m->label }}">{{ $m->label ?: '—' }}</span>
+                            @if($m->isDocument())
+                                {{-- No data-idx: documents aren't in the lightbox gallery. --}}
+                                <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item idet-media__item--doc" title="{{ $m->original_name }}">
+                                    <i class="bx bxs-file-pdf"></i>
+                                </a>
+                            @else
+                                <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                    @if(! $m->isVideo())
+                                        <img src="{{ $m->url }}" alt="" loading="lazy">
+                                    @else
+                                        <i class="bx bx-play-circle"></i>
+                                    @endif
+                                </a>
+                            @endif
+                            <span class="idet-extra__label" title="{{ $m->label ?: $m->original_name }}">{{ $m->label ?: ($m->isDocument() ? ($m->original_name ?: 'Document') : '—') }}</span>
                         </div>
                     @endforeach
                 </div>
@@ -637,6 +646,9 @@
     .idet-media__item:hover::after { opacity:1; }
     .idet-media__item img { width:100%; height:100%; object-fit:cover; display:block; }
     .idet-media__item--video { background:#00263D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:30px; }
+    /* PDFs can't be previewed inline — a file tile that opens in a new tab. */
+    .idet-media__item--doc { background:#fdecec; color:#c0392b; display:flex; align-items:center; justify-content:center; font-size:30px; }
+    .idet-media__item--doc:hover { background:#fbdcdc; color:#96281b; }
     .idet-media__item--video::after { content:'\eb75'; }
 
     /* Summary area cards (reusing the same design as the edit page) */

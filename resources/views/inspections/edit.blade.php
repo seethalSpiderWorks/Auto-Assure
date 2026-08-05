@@ -208,6 +208,15 @@
                          display: flex; align-items: center; justify-content: center; font-size: 1rem; }
     .vid-thumb:hover .vid-thumb__play i { background: rgba(0,0,0,.8); }
 
+    /* PDF tile — a document can't be previewed inline, so show a file card that
+       opens in a new tab instead of an <img> that would render as broken. */
+    .doc-thumb { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;
+                 justify-content: center; gap: 4px; background: #fdecec; color: #c0392b; text-decoration: none;
+                 padding: 6px; text-align: center; line-height: 1.15; }
+    .doc-thumb i { font-size: 26px; }
+    .doc-thumb span { font-size: 10px; word-break: break-all; }
+    .doc-thumb:hover { background: #fbdcdc; color: #96281b; }
+
     /* Lightbox the tiles open into */
     .vid-modal { position: fixed; inset: 0; z-index: 1080; background: rgba(0,0,0,.85);
                  display: none; align-items: center; justify-content: center; }
@@ -1098,12 +1107,24 @@
                                     <span>Add videos <small class="text-muted">(optional)</small></span>
                                 </label>
                             </div>
+                            <div class="col-sm-6 mb-2">
+                                <label class="upload-drop">
+                                    <input type="file" accept="application/pdf" multiple class="d-none" onchange="AA.uploadExtra(this, 'document')">
+                                    <i class="bx bxs-file-pdf"></i>
+                                    <span>Add PDF documents <small class="text-muted">(optional)</small></span>
+                                </label>
+                            </div>
                         </div>
                         <div class="d-flex flex-wrap mt-2" style="gap:.75rem;" id="media-extra">
                             @forelse ($extraMedia as $m)
                                 <div class="extra-item" data-media="{{ $m->id }}">
                                     <div class="extra-item__thumb">
-                                        @if (! $m->isVideo())
+                                        @if ($m->isDocument())
+                                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="doc-thumb" title="{{ $m->original_name }}">
+                                                <i class="bx bxs-file-pdf"></i>
+                                                <span>{{ \Illuminate\Support\Str::limit($m->original_name ?: 'Document', 18) }}</span>
+                                            </a>
+                                        @elseif (! $m->isVideo())
                                             <img src="{{ $m->url }}">
                                         @else
                                             <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
@@ -1236,9 +1257,15 @@
     // 'photo' because the app declares application/octet-stream, so trust the
     // file extension too rather than rendering a video into an <img>.
     const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|ogv|qt)(\?|#|$)/i;
-    const isVideoMedia = (m) => m.type === 'video'
-        || (m.mime_type || '').indexOf('video/') === 0
-        || VIDEO_EXT.test(m.url || '');
+    // Mirrors InspectionMedia::isDocument() — a PDF must never reach an <img>.
+    const DOC_EXT = /\.pdf(\?|#|$)/i;
+    const isDocumentMedia = (m) => m.type === 'document'
+        || (m.mime_type || '') === 'application/pdf'
+        || DOC_EXT.test(m.url || '');
+    const isVideoMedia = (m) => ! isDocumentMedia(m)
+        && (m.type === 'video'
+            || (m.mime_type || '').indexOf('video/') === 0
+            || VIDEO_EXT.test(m.url || ''));
 
     const AA = {
         // Opens a media file in the lightbox. Returns false so the tile's href
@@ -1369,11 +1396,15 @@
             const wrap = document.createElement('div');
             wrap.className = 'extra-item';
             wrap.dataset.media = m.id;
-            const media = ! isVideoMedia(m)
-                ? '<img src="' + m.url + '">'
-                : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
-                  + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
-                  + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>';
+            const name = (m.original_name || 'Document');
+            const media = isDocumentMedia(m)
+                ? '<a href="' + m.url + '" target="_blank" rel="noopener" class="doc-thumb" title="' + name.replace(/"/g, '&quot;') + '">'
+                  + '<i class="bx bxs-file-pdf"></i><span>' + (name.length > 18 ? name.slice(0, 18) + '…' : name) + '</span></a>'
+                : (! isVideoMedia(m)
+                    ? '<img src="' + m.url + '">'
+                    : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
+                      + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                      + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>');
             wrap.innerHTML =
                 '<div class="extra-item__thumb">' + media +
                 '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>';

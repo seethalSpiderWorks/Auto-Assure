@@ -637,7 +637,7 @@ class InspectionController extends Controller
 
         $validator = Validator::make(['files' => $files, 'labels' => $labels], [
             'files' => ['required', 'array', 'min:1'],
-            'files.*' => ['required', 'file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/x-matroska'],
+            'files.*' => ['required', 'file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/x-matroska,application/pdf'],
             'labels' => ['nullable', 'array'],
             'labels.*' => ['nullable', 'string', 'max:255'],
         ]);
@@ -660,7 +660,8 @@ class InspectionController extends Controller
         $items = [];
 
         foreach ($files as $i => $file) {
-            $type = str_starts_with((string) $file->getClientMimeType(), 'video/') ? 'video' : 'photo';
+            $type = $this->mediaTypeFor($file);
+            // photos / videos / documents
             $path = $file->store("inspections/{$inspection->id}/extra/{$type}s", 'public');
 
             $media = $detail->media()->create([
@@ -819,6 +820,27 @@ class InspectionController extends Controller
         return $detail
             ? $detail->media()->get()->map(fn ($m) => $this->mediaPayload($m))->values()->all()
             : [];
+    }
+
+    /**
+     * Classify an upload as photo / video / document. The client's declared MIME
+     * is unreliable (the app often sends application/octet-stream), so the file
+     * extension is the fallback — same rule InspectionMedia::isVideo() uses.
+     */
+    private function mediaTypeFor(\Illuminate\Http\UploadedFile $file): string
+    {
+        $mime = (string) $file->getClientMimeType();
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+
+        if ($mime === 'application/pdf' || in_array($ext, InspectionMedia::DOCUMENT_EXTENSIONS, true)) {
+            return 'document';
+        }
+
+        if (str_starts_with($mime, 'video/') || in_array($ext, InspectionMedia::VIDEO_EXTENSIONS, true)) {
+            return 'video';
+        }
+
+        return 'photo';
     }
 
     /**

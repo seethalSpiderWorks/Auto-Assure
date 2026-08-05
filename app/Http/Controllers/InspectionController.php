@@ -678,9 +678,17 @@ class InspectionController extends Controller
         }
 
         $data = $request->validate([
-            'type' => ['required', 'in:photo,video'],
+            'type' => ['required', 'in:photo,video,document'],
             'file' => ['required', 'file', 'max:102400'],
         ]);
+
+        // Trust the file over the posted type: a PDF picked in the "photos" box
+        // must still be stored as a document, or it renders as a broken image.
+        $ext = strtolower((string) $request->file('file')->getClientOriginalExtension());
+        if ($request->file('file')->getClientMimeType() === 'application/pdf'
+            || in_array($ext, InspectionMedia::DOCUMENT_EXTENSIONS, true)) {
+            $data['type'] = 'document';
+        }
 
         $detail = InspectionDetail::firstOrCreate([
             'inspection_id' => $inspection->id,

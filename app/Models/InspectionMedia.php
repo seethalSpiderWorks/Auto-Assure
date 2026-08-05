@@ -24,6 +24,23 @@ class InspectionMedia extends Model
     /** File extensions we treat as video regardless of what `type` says. */
     public const VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', '3gp', '3g2', 'ogv', 'qt'];
 
+    /** File extensions we treat as a document (downloadable, never rendered inline). */
+    public const DOCUMENT_EXTENSIONS = ['pdf'];
+
+    /**
+     * Whether this file is a document (currently PDFs) rather than something that
+     * can be shown in an <img> or a <video>. Checked before isVideo()/image
+     * rendering everywhere, so a PDF never lands in an image tag.
+     */
+    public function isDocument(): bool
+    {
+        if ($this->type === 'document' || $this->mime_type === 'application/pdf') {
+            return true;
+        }
+
+        return in_array(strtolower(pathinfo((string) $this->path, PATHINFO_EXTENSION)), self::DOCUMENT_EXTENSIONS, true);
+    }
+
     /**
      * Whether this file should be rendered with a video player.
      *
@@ -34,6 +51,11 @@ class InspectionMedia extends Model
      */
     public function isVideo(): bool
     {
+        // A document is never a video, whatever its declared type says.
+        if ($this->isDocument()) {
+            return false;
+        }
+
         if ($this->type === 'video' || str_starts_with((string) $this->mime_type, 'video/')) {
             return true;
         }
