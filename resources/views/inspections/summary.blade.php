@@ -140,7 +140,6 @@
                             <tr>
                                 <th class="c-no">#</th>
                                 <th>Section</th>
-                                <th class="c-prog">Progress</th>
                                 <th class="c-count">Answered</th>
                                 <th class="c-status">Status</th>
                             </tr>
@@ -149,7 +148,6 @@
                             @forelse($sections as $s)
                                 @php
                                     $stClass = $s['status'] === 'Completed' ? 'good' : ($s['status'] === 'In Progress' ? 'warn' : 'none');
-                                    $pct = $s['total'] > 0 ? (int) round($s['answered'] / $s['total'] * 100) : 0;
                                 @endphp
                                 <tr class="insp-brow insp-brow--{{ $stClass }}">
                                     <td class="c-no"><span class="insp-bno">{{ $s['number'] }}</span></td>
@@ -171,12 +169,6 @@
                                              table is the at-a-glance breakdown; the note belongs on the
                                              report and the edit screen. Hover the stars for the value. --}}
                                     </td>
-                                    <td class="c-prog">
-                                        <div class="insp-btprog">
-                                            <span class="insp-btbar"><span style="--w: {{ $pct }}%"></span></span>
-                                            <span class="insp-btpct">{{ $pct }}%</span>
-                                        </div>
-                                    </td>
                                     <td class="c-count"><span class="insp-btcount">{{ $s['answered'] }}/{{ $s['total'] }}</span></td>
                                     <td class="c-status">
                                         <span class="insp-btstatus insp-btstatus--{{ $stClass }}">
@@ -188,7 +180,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="text-center text-muted py-4">No inspection template configured.</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted py-4">No inspection template configured.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -309,20 +301,11 @@
     .insp-brow td.c-name { font-weight: 600; color: #344054; }
 
     .c-no { width: 56px; }
-    .c-prog { width: 22%; }
     .c-count { width: 96px; white-space: nowrap; }
     .c-status { width: 160px; }
 
     .insp-bno { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; padding: 2px 8px; border-radius: 6px;
         background: #f2f5f8; color: #667085; font-size: 11.5px; font-weight: 700; }
-    .insp-btprog { display: flex; align-items: center; gap: 10px; }
-    .insp-btbar { flex: 1 1 auto; height: 5px; border-radius: 5px; background: #eef1f5; overflow: hidden; min-width: 60px; }
-    .insp-btbar span { display: block; height: 100%; width: 0; border-radius: 5px; background: #cbd5e1; animation: inspFill .9s ease-out forwards; }
-    .insp-brow--good .insp-btbar span { background: #04B084; }
-    .insp-brow--warn .insp-btbar span { background: #f5a623; }
-    .insp-btpct { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #98a2b3; min-width: 36px; text-align: right; }
-    .insp-brow--good .insp-btpct { color: #04B084; }
-    .insp-brow--warn .insp-btpct { color: #d98a12; }
     .insp-btcount { font-weight: 700; color: #667085; }
 
     .insp-btstatus { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
@@ -330,7 +313,6 @@
     .insp-btstatus--good { background: #e7f8ef; color: #04B084; }
     .insp-btstatus--warn { background: #fff4e0; color: #d98a12; }
     .insp-btstatus--none { background: #eef1f5; color: #8a94a6; }
-    @keyframes inspFill { from { width: 0; } to { width: var(--w); } }
 
     @media (max-width: 991px) {
         .insp-condition { flex-direction: column; text-align: center; }
