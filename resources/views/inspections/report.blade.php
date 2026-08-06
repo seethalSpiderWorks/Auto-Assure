@@ -314,6 +314,13 @@
         .cover .site .ar{ color:#cdd8e2; }
         .cover .cover-art{ width:100%; max-width:470px; margin-top:38px; filter:drop-shadow(0 20px 34px rgba(0,0,0,.4)); }
         .cover .hero{ width:100%; max-height:300px; object-fit:cover; }
+        /* cover: two-column layout — verdict/gauge on the left, vehicle image on the right */
+        .cover .cover_cntr{ display:flex; flex-direction:row; align-items:center; justify-content:center;
+            gap:32px; width:100%; margin-top:24px; }
+        .cover .cover_left{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; }
+        .cover .cover_right{ flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; }
+        .cover .cover_right .card{ width:100%; }
+        .cover .cover_right img{ max-width:100%; }
         /* cover rating gauge (dark theme) */
         .cover .cover-gauge{ display:block; margin:35px auto 0; }
         .cover .cover-cond-legend{ display:flex; gap:16px; justify-content:center; margin-top:2px;
@@ -402,7 +409,12 @@
                 <h1><span class="g">Comprehensive</span><br>Inspection Report</h1>
                 <div class="site">Inspection Checklist for Used Imported Vehicle</div>
 
-                {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
+
+
+                <div class="cover_cntr">
+
+ <div class="cover_left">
+   {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
                 @php
                     $scoreF = $overallRatingVal > 0 ? $overallRatingPct : round($tally['pass'] / $tTot * 100, 1);
                     $scoreLbl = $overallRatingVal > 0 ? (string) $overallRatingPct : rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
@@ -501,14 +513,71 @@
                     </div>
                 </div>
 
-                {{-- Owner details --}}
-                <div class="card tight" style="background:transparent; box-shadow:none; margin:0 0 0; width:500px;">
-                    <div class="facts">
-                        <div class="fact"><div class="fl">Owner Name</div><div class="fv" style="color:#fff;">{{ $val($inspection->customer_name) }}</div></div>
-                        <div class="fact"><div class="fl">Phone</div><div class="fv" style="color:#fff;">{{ $val($inspection->customer_phone) }}</div></div>
-                        <div class="fact"><div class="fl">Email</div><div class="fv" style="color:#fff;">{{ $val($inspection->customer_email) }}</div></div>
-                      </div>
                 </div>
+
+ <div class="cover_right">
+
+      {{-- Vehicle image leads this section (client request) — shown only when
+                 a primary vehicle photo has been uploaded for the inspection. --}}
+            @if ($inspection->vehicleImageUrl())
+                <div class="card" style="padding:10px; text-align:center; margin-bottom:10px;">
+                    <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle image"
+                         style="width:100%; max-width:520px; max-height:340px; object-fit:contain;  ">
+
+                    {{-- Vehicle summary — compact spec list beneath the image (client request) --}}
+                    <div style="margin-top:12px; padding-top:12px; border-top:1px solid #e6e9ee; text-align:left;">
+                        <div style="font-family:'Quicksand',sans-serif; font-weight:700; font-size:13px; color:#1c2431; margin-bottom:8px; text-align:center;">Vehicle Summary</div>
+                        <table style="width:100%; border-collapse:collapse; font-size:10.5px;">
+                            @foreach ($specs as $sp)
+                                @continue(! in_array($sp[0], ['Make', 'Model', 'Year'], true))
+                                <tr>
+                                    <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">{{ $sp[0] }}</td>
+                                    <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $sp[1] }}</td>
+                                </tr>
+                            @endforeach
+                            {{-- Owner details, moved into the Vehicle Summary box (client request) --}}
+                            <tr>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Owner Name</td>
+                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_name) }}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Phone</td>
+                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_phone) }}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Email</td>
+                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_email) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                        </div>
+            @endif
+                </div>
+
+
+                </div>
+
+
+
+            {{-- Inspector Comment moved onto the cover (client request); the cover's
+                 .top centres its children, so this wrapper forces a left-aligned,
+                 full-width block. --}}
+            <div style="width:100%; text-align:left;">
+                
+                <div class="card" style="text-align:left;">
+                    <div class="sec-bar"><span class="en">Inspector Comment</span></div>
+                    @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
+                    @if ($summary)
+                        <div style="white-space:pre-line;font-weight:600;color:#2b3340;line-height:1.7">{{ $summary }}</div>
+                    @else
+                        <div class="muted">No additional inspector comments were recorded.</div>
+                    @endif
+                </div>
+            </div>
+
+             
+
+                {{-- Owner details moved into the Vehicle Summary box (see cover_right) --}}
             </div>
             <div class="bar">
                 <!-- <div><div class="lab">Report No.</div><div class="v">{{ $reportNo }}</div></div> -->
@@ -534,6 +603,78 @@
             </thead>
             <tbody>
                 <tr><td>
+
+        {{-- ============================== SUMMARY NOTES BY AREA ============================== --}}
+        {{-- Moved to the front (page 2, straight after the cover) at the client's
+             request — the per-area notes now lead the report rather than trailing it.
+             The $areaNotes/$areaSvg computation lives here with the render so the
+             variables are defined before they're used. --}}
+        @php
+            // Inline SVG (Lucide-style) per area — icon fonts don't embed in PDF,
+            // but inline SVG renders everywhere. Returns a 20px stroke icon.
+            $areaSvg = function ($name) {
+                $n = strtolower((string) $name);
+                $inner = match (true) {
+                    str_contains($n, 'exterior') => '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 1 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+                    str_contains($n, 'interior') => '<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2M19 18v2"/>',
+                    str_contains($n, 'engine') => '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+                    str_contains($n, 'brake') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+                    str_contains($n, 'transmission') || str_contains($n, 'gearbox') => '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+                    str_contains($n, 'suspension') || str_contains($n, 'steering') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M4.5 8.5 10 12M19.5 8.5 14 12M12 14v7"/>',
+                    str_contains($n, 'tire') || str_contains($n, 'tyre') || str_contains($n, 'wheel') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8M8 12h8"/>',
+                    str_contains($n, 'undercarriage') => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+                    str_contains($n, 'safety') => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+                    str_contains($n, 'road') || str_contains($n, 'drive') => '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+                    str_contains($n, 'electr') => '<polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+                    default => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+                };
+                return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0b8a68" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'.$inner.'</svg>';
+            };
+
+            $areaNotes = [];
+            foreach (($summaryTypes ?? []) as $tid => $tname) {
+                $note = $summaries[$tid] ?? null;
+                if (filled($note)) {
+                    $areaNotes[] = ['name' => $tname, 'note' => $note, 'svg' => $areaSvg($tname)];
+                }
+            }
+        @endphp
+        @if (!empty($areaNotes))
+        <div class="page">
+            <div class="sec-bar"><span class="en">Summary Notes by Area</span></div>
+      
+            <div class="grid2">
+                @foreach ($areaNotes as $an)
+                    <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#e8f7f1; border:1px solid #cdeee1;">{!! $an['svg'] !!}</span>
+                            <span style="font-family:'Quicksand',sans-serif; font-weight:700; color:#1c2431; font-size:13px;">{{ $an['name'] }}</span>
+                        </div>
+                        <div style="white-space:pre-line; color:#475467; line-height:1.6; font-size:11.5px; padding-left:2px;">{{ $an['note'] }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- ============================== GENERAL PHOTOS ============================== --}}
+        {{-- Moved to the front (right after Summary Notes by Area) at the client's
+             request, so the photo gallery leads the report rather than trailing it. --}}
+        @if (! empty($reportPhotos))
+        <div class="page">
+            <div class="sec-bar"><span class="en">General Photos</span></div>
+            <div class="card photos">
+                <div class="gal">
+                    @foreach ($reportPhotos as $p)
+                        <figure>
+                            <img src="{{ $p['media']->url }}" alt="">
+                            <figcaption>{{ $p['caption'] }}</figcaption>
+                        </figure>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
 
         {{-- ============================== VEHICLE SUMMARY ============================== --}}
         <div class="page">
@@ -713,72 +854,12 @@
             @endforeach
         </div>
 
-        {{-- ============================== GENERAL PHOTOS ============================== --}}
-        {{-- Continues straight after the checklist (no forced break, no repeated
-             logo strip) so the gallery fills the tail of that page. --}}
-        @if (! empty($reportPhotos))
-        <div class="page">
-            <div class="sec-bar"><span class="en">General Photos</span></div>
-            <div class="card photos">
-                <div class="gal">
-                    @foreach ($reportPhotos as $p)
-                        <figure>
-                            <img src="{{ $p['media']->url }}" alt="">
-                            <figcaption>{{ $p['caption'] }}</figcaption>
-                        </figure>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-        @endif
+        {{-- General Photos was relocated to the front of the report, immediately
+             after Summary Notes by Area (near the top of the body table). --}}
 
-        {{-- ============================== SUMMARY BY AREA ============================== --}}
-        @php
-            // Inline SVG (Lucide-style) per area — icon fonts don't embed in PDF,
-            // but inline SVG renders everywhere. Returns a 20px stroke icon.
-            $areaSvg = function ($name) {
-                $n = strtolower((string) $name);
-                $inner = match (true) {
-                    str_contains($n, 'exterior') => '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 1 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
-                    str_contains($n, 'interior') => '<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2M19 18v2"/>',
-                    str_contains($n, 'engine') => '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
-                    str_contains($n, 'brake') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
-                    str_contains($n, 'transmission') || str_contains($n, 'gearbox') => '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
-                    str_contains($n, 'suspension') || str_contains($n, 'steering') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M4.5 8.5 10 12M19.5 8.5 14 12M12 14v7"/>',
-                    str_contains($n, 'tire') || str_contains($n, 'tyre') || str_contains($n, 'wheel') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8M8 12h8"/>',
-                    str_contains($n, 'undercarriage') => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
-                    str_contains($n, 'safety') => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
-                    str_contains($n, 'road') || str_contains($n, 'drive') => '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
-                    str_contains($n, 'electr') => '<polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-                    default => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
-                };
-                return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0b8a68" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'.$inner.'</svg>';
-            };
-
-            $areaNotes = [];
-            foreach (($summaryTypes ?? []) as $tid => $tname) {
-                $note = $summaries[$tid] ?? null;
-                if (filled($note)) {
-                    $areaNotes[] = ['name' => $tname, 'note' => $note, 'svg' => $areaSvg($tname)];
-                }
-            }
-        @endphp
-        @if (!empty($areaNotes))
-        <div class="page">
-            <div class="sec-bar"><span class="en">Summary Notes by Area</span></div>
-            <div class="grid2">
-                @foreach ($areaNotes as $an)
-                    <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
-                        <div style="display:flex;align-items:center;gap:10px;">
-                            <span style="flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#e8f7f1; border:1px solid #cdeee1;">{!! $an['svg'] !!}</span>
-                            <span style="font-family:'Quicksand',sans-serif; font-weight:700; color:#1c2431; font-size:13px;">{{ $an['name'] }}</span>
-                        </div>
-                        <div style="white-space:pre-line; color:#475467; line-height:1.6; font-size:11.5px; padding-left:2px;">{{ $an['note'] }}</div>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-        @endif
+        {{-- Summary Notes by Area was relocated to the front of the report (page 2,
+             right after the cover). Its markup + $areaNotes/$areaSvg computation now
+             live at the top of the body table. --}}
 
         {{-- ============================== INSPECTOR COMMENT ============================== --}}
         {{-- Comment, signatures and terms are all short: they follow the summary
