@@ -941,6 +941,13 @@ class InspectionController extends Controller
             $inspection->status = Inspection::STATUS_IN_PROGRESS;
             $inspection->started_at ??= now();
             $inspection->lead?->update(['status' => Lead::STATUS_IN_PROGRESS]);
+
+            // The recorded answers belong to the OLD checklist — its steps and
+            // sections don't exist in the new template, so they can never be
+            // shown or edited again. Clear them so the inspection genuinely
+            // restarts, rather than leaving dead rows behind. The user is warned
+            // and has to confirm before this save is submitted.
+            $this->resetChecklistData($inspection);
         }
 
         if ($inspection->status === Inspection::STATUS_PENDING) {
@@ -950,9 +957,12 @@ class InspectionController extends Controller
         }
 
         // Persist per-step answers (against the type the form was rendered with).
-        $answers = $request->input('answers', []);
+        // Skipped entirely on a template change: the submitted answers belong to
+        // the OLD checklist that resetChecklistData() just cleared, so writing
+        // them back would immediately re-create the rows it deleted.
+        $answers = $typeChanged ? [] : $request->input('answers', []);
 
-        foreach ($stepIds as $stepId) {
+        foreach ($typeChanged ? [] : $stepIds as $stepId) {
             $a = $answers[$stepId] ?? [];
             $hasAnswer = ! empty($a['rating']) || ! empty($a['choice'])
                 || filled($a['text'] ?? null) || filled($a['remedial'] ?? null);
@@ -977,8 +987,10 @@ class InspectionController extends Controller
 
         // Persist per-section summaries and optional ratings (only for sections
         // that belong to the template the form was rendered with).
-        $sectionSummaries = (array) $request->input('section_summaries', []);
-        $sectionRatings = (array) $request->input('section_ratings', []);
+        // Same reasoning as the answers above — these are keyed by the old
+        // template's section ids.
+        $sectionSummaries = $typeChanged ? [] : (array) $request->input('section_summaries', []);
+        $sectionRatings = $typeChanged ? [] : (array) $request->input('section_ratings', []);
         $formSectionIds = array_unique(array_merge(array_keys($sectionSummaries), array_keys($sectionRatings)));
         if ($formSectionIds) {
             $validSectionIds = $inspection->type
@@ -1133,6 +1145,39 @@ class InspectionController extends Controller
         }
 
         return back()->with('success', 'Media removed.');
+    }
+
+    /**
+     * Wipe everything tied to the previous checklist when the template changes:
+     * every step answer, every section-level media bucket and every per-section
+     * summary, along with the files behind them.
+     *
+     * Deliberately kept: the customer & vehicle details (the first wizard step),
+     * the additional-media bucket (step_id AND section_id both null — it belongs
+     * to the inspection, not the checklist), the vehicle image and the verdict.
+     */
+    private function resetChecklistData(Inspection $inspection): void
+    {
+        // Anything bound to a step or a section — i.e. everything except the
+        // step-less/section-less additional-media bucket.
+        $details = InspectionDetail::where('inspection_id', $inspection->id)
+            ->where(function ($q) {
+                $q->whereNotNull('inspection_step_id')
+                  ->orWhereNotNull('inspection_section_id');
+            })
+            ->with('media')
+            ->get();
+
+        foreach ($details as $detail) {
+            foreach ($detail->media as $media) {
+                Storage::disk($media->disk)->delete($media->path);
+                $media->delete();
+            }
+            $detail->delete();
+        }
+
+        // Per-section notes/ratings reference the old template's sections.
+        InspectionSectionSummary::where('inspection_id', $inspection->id)->delete();
     }
 
     /**

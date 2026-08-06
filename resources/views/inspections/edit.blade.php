@@ -703,7 +703,7 @@
                                                         <option value="{{ $tid }}" @selected(old('inspection_type_id', $inspection->inspection_type_id) == $tid)>{{ $tname }}</option>
                                                     @endforeach
                                                 </select>
-                                                <small class="text-muted">Changing the template reloads the checklist. Save first.</small>
+                                                <small class="text-muted">Changing the template clears every recorded answer and restarts the checklist. Save to apply.</small>
                                             @endif
                                         </div>
                                     </div>
@@ -2191,11 +2191,66 @@
     const wizForm = root.querySelector('form');
     if (wizForm) {
         wizForm.addEventListener('submit', function () {
+            // A template change replaces the whole checklist, so the current card
+            // index means nothing afterwards — restart at the first card.
+            const tplSel = root.querySelector('select[name="inspection_type_id"]');
+            if (tplSel && tplSel.value !== (tplSel.dataset.original || '')) {
+                rememberStep(0);
+                return;
+            }
             let t = cur;
             if (panelDone(panels[cur], cur) && cur < panels.length - 1) t = cur + 1;
             rememberStep(t);
         });
     }
+
+    // Changing the inspection template throws away every answer already
+    // recorded — the new checklist has different questions, so the old ones
+    // cannot be carried across. Confirm before that save goes through.
+    (function () {
+        const tpl = root.querySelector('select[name="inspection_type_id"]');
+        if (!tpl || !wizForm) return;
+
+        wizForm.addEventListener('submit', function (e) {
+            const original = tpl.dataset.original || '';
+            if (tpl.value === original) return;              // template untouched
+            if (wizForm.dataset.tplConfirmed === '1') {      // second pass, approved
+                wizForm.dataset.tplConfirmed = '';
+                return;
+            }
+
+            e.preventDefault();
+
+            const name = tpl.options[tpl.selectedIndex]?.text || 'the new template';
+            const text = 'Switching to "' + name + '" will clear every answer, rating, note and '
+                       + 'photo already recorded against the current checklist. The customer & '
+                       + 'vehicle details are kept, and the inspection restarts from the first section.';
+
+            const go = () => {
+                wizForm.dataset.tplConfirmed = '1';
+                // requestSubmit re-runs the handlers above, which store the
+                // first-card resume target for a template change.
+                wizForm.requestSubmit ? wizForm.requestSubmit() : wizForm.submit();
+            };
+
+            if (!window.Swal) {
+                if (confirm(text + '\n\nContinue?')) go();
+                return;
+            }
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'Change inspection template?',
+                text: text,
+                showCancelButton: true,
+                confirmButtonColor: '#f46a6a',
+                cancelButtonColor: '#74788d',
+                confirmButtonText: 'Yes, change and restart',
+                cancelButtonText: 'Keep current template',
+                reverseButtons: true,
+            }).then(function (r) { if (r.isConfirmed) go(); });
+        });
+    })();
 
     // ---- Fast Save ---------------------------------------------------------
     // Section/details answers already persist via per-field AJAX autosave, so a
