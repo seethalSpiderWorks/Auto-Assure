@@ -1017,7 +1017,9 @@ class InspectionController extends Controller
 
         // Per-summary-type notes shown under the Overall Verdict. Unknown type ids
         // are ignored; a cleared box removes the row rather than storing "".
-        $typeSummaries = (array) $request->input('summaries', []);
+        // Skipped on a template change — these notes describe the discarded
+        // checklist and were just cleared by resetChecklistData().
+        $typeSummaries = $typeChanged ? [] : (array) $request->input('summaries', []);
         if ($typeSummaries) {
             $validTypeIds = array_keys(InspectionSummary::types());
 
@@ -1178,6 +1180,23 @@ class InspectionController extends Controller
 
         // Per-section notes/ratings reference the old template's sections.
         InspectionSectionSummary::where('inspection_id', $inspection->id)->delete();
+
+        // Per-area notes (Exterior, Engine, Brakes, …). The areas themselves are
+        // template-independent, but the notes describe the checklist that was
+        // just discarded.
+        InspectionSummary::where('inspection_id', $inspection->id)->delete();
+
+        // The overall verdict summarises the old checklist — an inspection that
+        // restarts from the first section cannot keep a rating and a
+        // recommendation derived from answers that no longer exist.
+        $inspection->forceFill([
+            'overall_condition' => null,
+            'overall_rating' => null,
+            'recommendation' => null,
+            'estimated_repair_cost' => null,
+            'summary' => null,
+            'odometer' => null,
+        ]);
     }
 
     /**
