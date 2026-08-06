@@ -28,6 +28,29 @@ class InspectionMedia extends Model
     public const DOCUMENT_EXTENSIONS = ['pdf'];
 
     /**
+     * Size cap for documents, in kilobytes. Photos and videos keep the larger
+     * media limit; a PDF attachment is capped at 5 MB.
+     */
+    public const MAX_DOCUMENT_KB = 5120;
+
+    /** The same cap in bytes, for client-side and byte-wise checks. */
+    public const MAX_DOCUMENT_BYTES = self::MAX_DOCUMENT_KB * 1024;
+
+    /**
+     * The message shown when a document exceeds MAX_DOCUMENT_KB. Shared by the
+     * API, the web endpoint and the edit screen so the wording never diverges.
+     */
+    public static function documentTooLargeMessage(string $name, int $bytes): string
+    {
+        return sprintf(
+            '"%s" is %s MB — PDF files must be %d MB or smaller.',
+            $name,
+            number_format($bytes / 1048576, 1),
+            (int) (self::MAX_DOCUMENT_KB / 1024)
+        );
+    }
+
+    /**
      * Whether this file is a document (currently PDFs) rather than something that
      * can be shown in an <img> or a <video>. Checked before isVideo()/image
      * rendering everywhere, so a PDF never lands in an image tag.

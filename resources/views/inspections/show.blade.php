@@ -649,6 +649,8 @@
     /* PDFs can't be previewed inline — a file tile that opens in a new tab. */
     .idet-media__item--doc { background:#fdecec; color:#c0392b; display:flex; align-items:center; justify-content:center; font-size:30px; }
     .idet-media__item--doc:hover { background:#fbdcdc; color:#96281b; }
+    /* "Open in new tab" rather than the gallery's magnifier — a PDF leaves the page. */
+    .idet-media__item--doc::after { content:'\eb3a'; }
     .idet-media__item--video::after { content:'\eb75'; }
 
     /* Summary area cards (reusing the same design as the edit page) */
@@ -912,7 +914,10 @@ $(function () {
     }
     function step(dir) { show(cur + dir); }
 
-    document.querySelectorAll('.idet-media__item').forEach(function (el) {
+    // Only gallery tiles are intercepted. Documents (PDFs) carry no data-idx —
+    // they aren't in the gallery and must follow their href to open in a new tab,
+    // otherwise preventDefault() swallows the click and shows photo 0 instead.
+    document.querySelectorAll('.idet-media__item[data-idx]').forEach(function (el) {
         el.addEventListener('click', function (e) {
             e.preventDefault();   // open the in-page gallery instead of navigating
             show(parseInt(el.getAttribute('data-idx'), 10) || 0);

@@ -1426,7 +1426,17 @@
             const files = Array.from(input.files || []);
             input.value = '';
             const MAX_BYTES = 100 * 1024 * 1024;
+            // PDFs are capped tighter than photos/videos (mirrors
+            // InspectionMedia::MAX_DOCUMENT_BYTES, re-checked server-side).
+            const MAX_DOC_BYTES = {{ \App\Models\InspectionMedia::MAX_DOCUMENT_BYTES }};
+            const isPdf = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
             for (const file of files) {
+                if (isPdf(file) && file.size > MAX_DOC_BYTES) {
+                    failed();
+                    alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1)
+                          + ' MB — PDF files must be ' + (MAX_DOC_BYTES / 1048576) + ' MB or smaller.');
+                    continue;
+                }
                 if (file.size > MAX_BYTES) {
                     failed();
                     alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB — the limit is 100 MB.');

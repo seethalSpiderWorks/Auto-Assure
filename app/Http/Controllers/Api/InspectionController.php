@@ -655,6 +655,26 @@ class InspectionController extends Controller
             ], 422);
         }
 
+        // PDFs are capped tighter than photos/videos. Checked across the whole
+        // batch before anything is stored, so a rejected upload leaves no
+        // half-saved files behind.
+        $tooLarge = [];
+
+        foreach ($files as $i => $file) {
+            if ($this->mediaTypeFor($file) === 'document' && $file->getSize() > InspectionMedia::MAX_DOCUMENT_BYTES) {
+                $tooLarge["files.{$i}"] = [
+                    InspectionMedia::documentTooLargeMessage($file->getClientOriginalName(), (int) $file->getSize()),
+                ];
+            }
+        }
+
+        if ($tooLarge !== []) {
+            return response()->json([
+                'message' => reset($tooLarge)[0],
+                'errors' => $tooLarge,
+            ], 422);
+        }
+
         $detail = $this->extraMediaDetail($inspection, create: true);
 
         $items = [];

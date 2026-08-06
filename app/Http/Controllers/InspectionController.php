@@ -693,10 +693,21 @@ class InspectionController extends Controller
 
         // Trust the file over the posted type: a PDF picked in the "photos" box
         // must still be stored as a document, or it renders as a broken image.
-        $ext = strtolower((string) $request->file('file')->getClientOriginalExtension());
-        if ($request->file('file')->getClientMimeType() === 'application/pdf'
+        $upload = $request->file('file');
+        $ext = strtolower((string) $upload->getClientOriginalExtension());
+
+        if ($upload->getClientMimeType() === 'application/pdf'
             || in_array($ext, InspectionMedia::DOCUMENT_EXTENSIONS, true)) {
             $data['type'] = 'document';
+
+            // PDFs are capped tighter than photos/videos.
+            if ($upload->getSize() > InspectionMedia::MAX_DOCUMENT_BYTES) {
+                return response()->json([
+                    'message' => InspectionMedia::documentTooLargeMessage(
+                        $upload->getClientOriginalName(), (int) $upload->getSize()
+                    ),
+                ], 422);
+            }
         }
 
         $detail = InspectionDetail::firstOrCreate([
