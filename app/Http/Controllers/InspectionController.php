@@ -614,11 +614,47 @@ class InspectionController extends Controller
             'last_service_date' => ['nullable', 'date'],
         ]);
 
+        // Captured before the fill so a reassignment / reschedule can be reported.
+        // This endpoint — not update() — is what the edit screen posts to for the
+        // Customer & Vehicle card, so the notifications have to fire here too.
+        $prevTechnicianId = (int) $inspection->technician_id;
+        $prevScheduledAt = $inspection->scheduled_at ? $inspection->scheduled_at->copy() : null;
+
         $inspection->fill($data);
         $this->markStarted($inspection);
         $inspection->save();
 
+        $this->notifyAssignmentChanges($inspection, $prevTechnicianId, $prevScheduledAt, $request->user()?->id);
+
         return response()->json(['saved' => true]);
+    }
+
+    /**
+     * Fire the technician-facing notifications after an inspection is saved:
+     * a reassignment when the technician changed, otherwise a reschedule when the
+     * slot moved. Never both — a reassignment message already carries the new
+     * schedule's context, and two pushes for one action reads as a bug.
+     */
+    private function notifyAssignmentChanges(
+        Inspection $inspection,
+        int $prevTechnicianId,
+        $prevScheduledAt,
+        ?int $actorId
+    ): void {
+        $technicianChanged = (int) $inspection->technician_id !== $prevTechnicianId;
+
+        if ($technicianChanged) {
+            $inspection->notifyReassigned($actorId);
+
+            return;
+        }
+
+        $moved = optional($inspection->scheduled_at)->format('Y-m-d H:i')
+            !== optional($prevScheduledAt)->format('Y-m-d H:i');
+
+        if ($moved) {
+            $inspection->notifyRescheduled($prevScheduledAt, $actorId);
+        }
     }
 
     /**
@@ -1118,34 +1154,9 @@ class InspectionController extends Controller
 
         $inspection->save();
 
-        // Schedule moved — tell the technician the new date/time. A brand-new
-        // assignment below carries its own message, so this only fires when the
-        // technician is unchanged.
-        $technicianUnchanged = (int) $inspection->technician_id === $prevTechnicianId;
-        $rescheduled = $technicianUnchanged
-            && optional($inspection->scheduled_at)->format('Y-m-d H:i') !== optional($prevScheduledAt)->format('Y-m-d H:i');
-
-        if ($rescheduled) {
-            $inspection->notifyRescheduled($prevScheduledAt, $request->user()?->id);
-        }
-
-        // Reassigned to a different technician from the edit screen — notify the
-        // new technician via FCM push AND Pusher broadcast, same as the lead-assign flow.
-        if ((int) $inspection->technician_id > 0 && (int) $inspection->technician_id !== $prevTechnicianId) {
-            $techId = (int) $inspection->technician_id;
-            $title  = 'Inspection Reassigned to You';
-            $body   = 'An inspection was reassigned to you: ' . ($inspection->customer_name ?: 'Vehicle inspection');
-
-            \App\Services\PushNotificationService::sendToUser($techId, $title, $body, [
-                'type' => 'inspection_reassigned',
-                'inspection_id' => (string) $inspection->id,
-                'lead_id' => (string) $inspection->lead_id,
-            ]);
-
-            \App\Events\InspectionAssigned::dispatch(
-                $techId, (int) $inspection->id, (int) $inspection->lead_id, $title, $body, 'inspection_reassigned'
-            );
-        }
+        // Reassigned, or the slot moved — notify the technician. Same helper the
+        // autosave endpoint uses, so both save paths behave identically.
+        $this->notifyAssignmentChanges($inspection, $prevTechnicianId, $prevScheduledAt, $request->user()?->id);
 
         if ($completing) {
             return redirect()->route('inspections.summary', $inspection)

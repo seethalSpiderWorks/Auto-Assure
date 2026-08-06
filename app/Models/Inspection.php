@@ -670,6 +670,35 @@ class Inspection extends Model
     }
 
     /**
+     * Notify a technician that this inspection is now theirs — stored
+     * notification + FCM push + Pusher broadcast, the same trio the lead-assign
+     * flow sends. Call AFTER saving the new technician_id.
+     *
+     * @param  int|null  $actorId  the user who reassigned it
+     */
+    public function notifyReassigned(?int $actorId = null): void
+    {
+        $technicianId = (int) $this->technician_id;
+
+        if ($technicianId <= 0 || $technicianId === (int) $actorId) {
+            return;
+        }
+
+        $title = 'Inspection Reassigned to You';
+        $body = 'An inspection was reassigned to you: '.($this->customer_name ?: $this->notificationVehicle());
+
+        \App\Services\PushNotificationService::sendToUser($technicianId, $title, $body, [
+            'type' => 'inspection_reassigned',
+            'inspection_id' => (string) $this->id,
+            'lead_id' => (string) $this->lead_id,
+        ]);
+
+        \App\Events\InspectionAssigned::dispatch(
+            $technicianId, (int) $this->id, (int) $this->lead_id, $title, $body, 'inspection_reassigned'
+        );
+    }
+
+    /**
      * Shared delivery for the notifications above: stored in app_notifications and
      * pushed via FCM. Silently skipped when there is no technician, or when the
      * technician is the one who made the change.
