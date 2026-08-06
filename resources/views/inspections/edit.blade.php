@@ -208,6 +208,17 @@
                          display: flex; align-items: center; justify-content: center; font-size: 1rem; }
     .vid-thumb:hover .vid-thumb__play i { background: rgba(0,0,0,.8); }
 
+    /* Primary vehicle photo on the Customer & Vehicle step */
+    .veh-img { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+    .veh-img__preview { width: 220px; height: 150px; border-radius: 12px; overflow: hidden; background: #f7f9fc;
+                        border: 1px dashed #dbe2ea; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .veh-img__preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .veh-img__empty { color: #98a2b3; font-size: .8rem; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+    .veh-img__empty i { font-size: 30px; }
+    .veh-img__actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; }
+    .veh-img__actions .btn { cursor: pointer; }
+    .veh-img__actions small { flex-basis: 100%; }
+
     /* PDF tile — a document can't be previewed inline, so show a file card that
        opens in a new tab instead of an <img> that would render as broken. */
     .doc-thumb { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;
@@ -507,6 +518,7 @@
              data-customer-url="{{ route('inspections.autosave.customer', $inspection) }}"
              data-media-url="{{ route('inspections.media.upload', $inspection) }}"
              data-extra-media-url="{{ route('inspections.extra-media.upload', $inspection) }}"
+             data-vehicle-image-url="{{ route('inspections.vehicle-image.upload', $inspection) }}"
              data-section-media-base="{{ url("inspections/".$inspection->id."/sections") }}"
 
              data-media-delete-base="{{ url('inspection-media') }}">
@@ -702,6 +714,38 @@
                                         <div class="col-md-3 mb-3"><label class="form-label">Region</label><input name="region" class="form-control" maxlength="100" value="{{ old('region', $inspection->region) }}"></div>
                                         <div class="col-md-3 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
                                         <div class="col-md-3 mb-3"><label class="form-label">No. of Keys</label><input name="number_of_keys" type="number" min="0" max="20" class="form-control" value="{{ old('number_of_keys', $inspection->number_of_keys) }}"></div>
+                                    </div>
+
+                                    {{-- Primary vehicle photo. Uploaded on its own (AJAX) rather than with
+                                         the form, so it saves immediately and survives a validation bounce. --}}
+                                    <div class="row">
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">Vehicle Image</label>
+                                            <div class="veh-img" id="veh-img" data-has="{{ $inspection->vehicle_image ? '1' : '0' }}">
+                                                <div class="veh-img__preview" id="veh-img-preview">
+                                                    @if($inspection->vehicle_image)
+                                                        <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle">
+                                                    @else
+                                                        <span class="veh-img__empty"><i class="bx bxs-car"></i> No vehicle image</span>
+                                                    @endif
+                                                </div>
+                                                @unless($isLocked)
+                                                    <div class="veh-img__actions">
+                                                        <label class="btn btn-sm btn-light mb-0">
+                                                            <i class="bx bx-image-add"></i>
+                                                            <span id="veh-img-btn-text">{{ $inspection->vehicle_image ? 'Replace image' : 'Add image' }}</span>
+                                                            <input type="file" accept="image/*" class="d-none" onchange="AA.uploadVehicleImage(this)">
+                                                        </label>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" id="veh-img-remove"
+                                                                onclick="AA.deleteVehicleImage()"
+                                                                @style(['display:none' => ! $inspection->vehicle_image])>
+                                                            <i class="bx bx-trash"></i> Remove
+                                                        </button>
+                                                        <small class="text-muted d-block mt-1">JPG, PNG, WEBP or HEIC — max 10 MB.</small>
+                                                    </div>
+                                                @endunless
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Powertrain</p>
@@ -1216,6 +1260,7 @@
         customer: root.dataset.customerUrl,
         media: root.dataset.mediaUrl,
         extraMedia: root.dataset.extraMediaUrl,
+        vehicleImage: root.dataset.vehicleImageUrl,
         sectionMediaBase: root.dataset.sectionMediaBase,
         mediaDelete: root.dataset.mediaDeleteBase,
     };
@@ -1295,6 +1340,66 @@
                 confirmButtonColor: '#04B084',
                 confirmButtonText: 'OK',
             });
+        },
+
+        // Primary vehicle photo — uploads immediately and swaps the preview in
+        // place, so it is saved even if the user never submits the form.
+        async uploadVehicleImage(input) {
+            const file = (input.files || [])[0];
+            input.value = '';
+            if (!file) return;
+
+            const MAX = 10 * 1024 * 1024;
+            if (file.size > MAX) { AA.tooLarge(file, 'The vehicle image must be 10 MB or smaller.'); return; }
+
+            saving();
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const res = await post(urls.vehicleImage, fd);
+                AA.setVehicleImage(res.url);
+                saved();
+            } catch (e) {
+                failed();
+                AA.uploadFailed(file, e);
+            }
+        },
+
+        async deleteVehicleImage() {
+            if (window.aaConfirmDelete) {
+                const r = await aaConfirmDelete({ title: 'Remove vehicle image?', text: 'The photo will be deleted.' });
+                if (!r.isConfirmed) return;
+            } else if (!confirm('Remove the vehicle image?')) {
+                return;
+            }
+
+            saving();
+            try {
+                const res = await fetch(urls.vehicleImage, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                AA.setVehicleImage(null);
+                saved();
+            } catch (e) {
+                failed();
+            }
+        },
+
+        // Swap the preview, the button label and the Remove button together, so
+        // the empty and filled states can never disagree.
+        setVehicleImage(url) {
+            const preview = document.getElementById('veh-img-preview');
+            const remove = document.getElementById('veh-img-remove');
+            const btnText = document.getElementById('veh-img-btn-text');
+            if (!preview) return;
+
+            preview.innerHTML = url
+                ? '<img src="' + url + '" alt="Vehicle">'
+                : '<span class="veh-img__empty"><i class="bx bxs-car"></i> No vehicle image</span>';
+            if (remove) remove.style.display = url ? '' : 'none';
+            if (btnText) btnText.textContent = url ? 'Replace image' : 'Add image';
         },
 
         // Upload failure dialog. `e.message` already carries the server's own

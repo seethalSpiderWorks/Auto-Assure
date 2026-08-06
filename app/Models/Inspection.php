@@ -37,7 +37,7 @@ class Inspection extends Model
         'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
-        'exterior_color', 'region',
+        'exterior_color', 'vehicle_image', 'region',
         'fuel_type', 'gearbox', 'steering_side', 'body_type',
         'number_of_keys', 'with_service_history', 'last_service_date',
     ];
@@ -576,6 +576,17 @@ class Inspection extends Model
             self::STATUS_COMPLETED => 'bg-green-100 text-green-700',
             self::STATUS_CANCELLED => 'bg-red-100 text-red-700',
         ][$this->status] ?? 'bg-gray-100 text-gray-700';
+    }
+
+    /**
+     * Public URL of the primary vehicle photo, or null when none is set.
+     * Built against the current request host, same as InspectionMedia::url.
+     */
+    public function vehicleImageUrl(): ?string
+    {
+        return $this->vehicle_image
+            ? url('storage/'.ltrim($this->vehicle_image, '/'))
+            : null;
     }
 
     public function isCancelled(): bool

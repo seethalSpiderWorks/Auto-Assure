@@ -1135,6 +1135,72 @@ class InspectionController extends Controller
         return back()->with('success', 'Media removed.');
     }
 
+    /**
+     * Upload (or replace) the primary vehicle photo shown on the
+     * "Customer & Vehicle" step. One image per inspection — a new upload
+     * deletes the previous file so orphans don't pile up on disk.
+     */
+    public function uploadVehicleImage(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        if (! $request->hasFile('file') && $this->uploadExceededPhpLimit($request)) {
+            return response()->json([
+                'message' => 'That image is larger than the server allows ('.ini_get('upload_max_filesize').' per file). Ask your administrator to raise upload_max_filesize.',
+            ], 422);
+        }
+
+        $request->validate([
+            'file' => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic', 'max:10240'],
+        ], [
+            'file.image' => 'The vehicle image must be a photo (JPG, PNG, WEBP or HEIC).',
+            'file.max' => 'The vehicle image must be 10 MB or smaller.',
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store("inspections/{$inspection->id}/vehicle", 'public');
+
+        // Replace: drop the old file once the new one is safely stored.
+        $previous = $inspection->vehicle_image;
+
+        $inspection->vehicle_image = $path;
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        if ($previous && $previous !== $path) {
+            Storage::disk('public')->delete($previous);
+        }
+
+        return response()->json([
+            'url' => $inspection->vehicleImageUrl(),
+            'original_name' => $file->getClientOriginalName(),
+        ]);
+    }
+
+    /**
+     * Remove the primary vehicle photo.
+     */
+    public function deleteVehicleImage(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        if ($inspection->vehicle_image) {
+            Storage::disk('public')->delete($inspection->vehicle_image);
+            $inspection->vehicle_image = null;
+            $inspection->save();
+        }
+
+        return response()->json(['message' => 'Vehicle image removed.']);
+    }
+
     private function storeUploads(Request $request, Inspection $inspection, InspectionDetail $detail, int $stepId): void
     {
         foreach (['photos' => 'photo', 'videos' => 'video'] as $field => $type) {

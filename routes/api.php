@@ -66,7 +66,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/inspections/{inspection}', [InspectionController::class, 'show']);
 
+    // Customer & vehicle details. The POST alias exists because PHP does not
+    // parse multipart/form-data bodies on PUT — send the vehicle_image file to
+    // POST (or POST to the PUT url with _method=PUT); JSON-only updates can
+    // still use PUT.
     Route::put('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer']);
+    Route::post('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer']);
 
     Route::post('/inspections/{inspection}/answers', [InspectionController::class, 'saveAnswers']);       // Screen 4/5
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);

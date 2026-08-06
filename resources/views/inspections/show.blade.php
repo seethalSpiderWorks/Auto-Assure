@@ -254,9 +254,14 @@
         @endif
 
         {{-- ===== Vehicle specification ===== --}}
-        @if(count($spec))
+        @if(count($spec) || $inspection->vehicle_image)
             <div class="idet-card mt-3">
                 <div class="idet-card__title"><i class="bx bxs-car-garage"></i> Vehicle Specification</div>
+                @if($inspection->vehicle_image)
+                    <a href="{{ $inspection->vehicleImageUrl() }}" target="_blank" rel="noopener" class="idet-vehimg" title="Open full size">
+                        <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle" loading="lazy">
+                    </a>
+                @endif
                 <div class="idet-spec">
                     @foreach($spec as $k => $v)
                         <div class="idet-spec__item"><span class="idet-spec__k">{{ $k }}</span><span class="idet-spec__v">{{ $v }}</span></div>
@@ -580,6 +585,10 @@
     .idet-summary { margin:16px 0 0; padding-top:16px; border-top:1px solid #eef1f5; color:#475467; font-size:14px; line-height:1.6; }
 
     /* Spec */
+    /* Primary vehicle photo above the spec grid. */
+    .idet-vehimg { display:block; width:100%; max-width:420px; aspect-ratio:3/2; border-radius:12px; overflow:hidden;
+                   margin:0 0 14px; background:#f7f9fc; box-shadow:0 2px 10px rgba(16,40,70,.12); }
+    .idet-vehimg img { width:100%; height:100%; object-fit:cover; display:block; }
     .idet-spec { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px 20px; }
     .idet-spec__item { display:flex; justify-content:space-between; gap:10px; padding:10px 14px; background:#f7f9fc; border-radius:10px; }
     .idet-spec__k { font-size:12.5px; color:#667085; }

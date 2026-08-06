@@ -175,6 +175,15 @@ class InspectionController extends Controller
      *
      * Anything not listed here is ignored, so posting technician_id or
      * inspection_type_id has no effect.
+     *
+     * The primary vehicle photo is mandatory:
+     *   vehicle_image   image file (jpg/png/webp/heic, max 10 MB). Required while
+     *                   the inspection has no photo yet; afterwards it is optional
+     *                   on each save (send one only to replace the existing photo,
+     *                   which deletes the old file). It cannot be cleared.
+     *
+     * Sending a file requires multipart/form-data, which PHP does not parse on
+     * PUT — POST to the same URL (or POST with _method=PUT) for those requests.
      */
     public function updateCustomer(Request $request, Inspection $inspection): InspectionResource|JsonResponse
     {
@@ -215,6 +224,17 @@ class InspectionController extends Controller
             // Warranty / services
             'with_service_history' => ['nullable', 'boolean'],
             'last_service_date' => ['nullable', 'date'],
+            // Primary vehicle photo — mandatory. Required on the first save; once
+            // the inspection has one it may be replaced but not left empty, so
+            // later saves don't have to re-send the same file.
+            'vehicle_image' => [
+                $inspection->vehicle_image ? 'nullable' : 'required',
+                'image', 'mimes:jpeg,jpg,png,webp,heic', 'max:'.InspectionMedia::MAX_DOCUMENT_KB,
+            ],
+        ], [
+            'vehicle_image.required' => 'A vehicle image is required.',
+            'vehicle_image.image' => 'The vehicle image must be a photo (JPG, PNG, WEBP or HEIC).',
+            'vehicle_image.max' => 'The vehicle image must be '.(int) (InspectionMedia::MAX_DOCUMENT_KB / 1024).' MB or smaller.',
         ]);
 
         if ($validator->fails()) {
@@ -224,9 +244,26 @@ class InspectionController extends Controller
             ], 422);
         }
 
-        $inspection->fill($validator->validated());
+        // The file is handled separately — it isn't a fillable column value.
+        $data = $validator->validated();
+        unset($data['vehicle_image']);
+
+        $inspection->fill($data);
+
+        $previousImage = $inspection->getOriginal('vehicle_image');
+
+        if ($request->hasFile('vehicle_image')) {
+            $inspection->vehicle_image = $request->file('vehicle_image')
+                ->store("inspections/{$inspection->id}/vehicle", 'public');
+        }
+
         $this->markStarted($inspection);
         $inspection->save();
+
+        // Drop the replaced/removed file only once the new state is committed.
+        if ($previousImage && $previousImage !== $inspection->vehicle_image) {
+            Storage::disk('public')->delete($previousImage);
+        }
 
         return new InspectionResource($inspection->fresh(['lead']));
     }
