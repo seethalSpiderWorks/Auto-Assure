@@ -1279,6 +1279,41 @@
             || VIDEO_EXT.test(m.url || ''));
 
     const AA = {
+        // "File too large" warning. Uses SweetAlert2 (loaded by partials._notify,
+        // the same dialog the rest of the CRM uses) and falls back to the native
+        // alert only if it somehow isn't on the page.
+        tooLarge(file, limitText) {
+            const size = (file.size / 1048576).toFixed(1);
+            const text = '"' + file.name + '" is ' + size + ' MB. ' + limitText;
+
+            if (!window.Swal) { alert(text); return; }
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'File too large',
+                text: text,
+                confirmButtonColor: '#04B084',
+                confirmButtonText: 'OK',
+            });
+        },
+
+        // Upload failure dialog. `e.message` already carries the server's own
+        // message (see post()), e.g. the PDF size limit, so it reads properly.
+        uploadFailed(file, e, hint) {
+            const text = 'Upload of "' + file.name + '" failed. ' + (e && e.message ? e.message : 'Unknown error.')
+                       + (hint ? ' ' + hint : '');
+
+            if (!window.Swal) { alert(text); return; }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Upload failed',
+                text: text,
+                confirmButtonColor: '#04B084',
+                confirmButtonText: 'OK',
+            });
+        },
+
         // Opens a media file in the lightbox. Returns false so the tile's href
         // (kept as a fallback for no-JS) doesn't navigate and trigger a download.
         playVideo(url) {
@@ -1366,7 +1401,7 @@
                     saved();
                 } catch (e) {
                     failed();
-                    alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + '). If it is a large video, the server upload limit may be too low.');
+                    AA.uploadFailed(file, e, 'If it is a large video, the server upload limit may be too low.');
                 }
             }
         },
@@ -1397,7 +1432,7 @@
                     saved();
                 } catch (e) {
                     failed();
-                    alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + ').');
+                    AA.uploadFailed(file, e);
                 }
             }
         },
@@ -1433,13 +1468,12 @@
             for (const file of files) {
                 if (isPdf(file) && file.size > MAX_DOC_BYTES) {
                     failed();
-                    alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1)
-                          + ' MB — PDF files must be ' + (MAX_DOC_BYTES / 1048576) + ' MB or smaller.');
+                    AA.tooLarge(file, 'PDF files must be ' + (MAX_DOC_BYTES / 1048576) + ' MB or smaller.');
                     continue;
                 }
                 if (file.size > MAX_BYTES) {
                     failed();
-                    alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB — the limit is 100 MB.');
+                    AA.tooLarge(file, 'The limit is 100 MB.');
                     continue;
                 }
                 saving();
@@ -1452,7 +1486,7 @@
                     saved();
                 } catch (e) {
                     failed();
-                    alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + ').');
+                    AA.uploadFailed(file, e);
                 }
             }
         },

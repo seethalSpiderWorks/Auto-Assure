@@ -29,9 +29,9 @@ class InspectionMedia extends Model
 
     /**
      * Size cap for documents, in kilobytes. Photos and videos keep the larger
-     * media limit; a PDF attachment is capped at 5 MB.
+     * media limit; a PDF attachment is capped at 10 MB.
      */
-    public const MAX_DOCUMENT_KB = 5120;
+    public const MAX_DOCUMENT_KB = 10240;
 
     /** The same cap in bytes, for client-side and byte-wise checks. */
     public const MAX_DOCUMENT_BYTES = self::MAX_DOCUMENT_KB * 1024;
