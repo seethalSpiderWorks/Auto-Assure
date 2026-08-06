@@ -306,9 +306,9 @@
             background:linear-gradient(160deg,var(--navy-2) 0%,var(--bar) 58%,#001a2b 100%); display:flex; flex-direction:column; }
         .cover .top{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:50px 30px; }
         .cover .logo-chip{ display:inline-flex; align-items:center; justify-content:center; background:#fff;
-            padding:16px 30px; border-radius:20px; margin-bottom:26px; box-shadow:0 14px 40px rgba(0,0,0,.28); }
+            padding:16px; border-radius:20px; margin-bottom:26px; box-shadow:0 14px 40px rgba(0,0,0,.28); }
         .cover .logo-chip img{ height:54px; width:auto; display:block; }
-        .cover h1{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:42px; color:#ffffff; line-height:1.2; }
+        .cover h1{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:36px; color:#ffffff; line-height:1.1; }
         .cover h1 .g{ color:#4fd18b; }
         .cover .site{ margin-top:14px; color:#b9c6d3; font-size:14px; font-weight:600; }
         .cover .site .ar{ color:#cdd8e2; }
@@ -322,7 +322,7 @@
         .cover .cover_right .card{ width:100%; }
         .cover .cover_right img{ max-width:100%; }
         /* cover rating gauge (dark theme) */
-        .cover .cover-gauge{ display:block; margin:35px auto 0; }
+        .cover .cover-gauge{ display:block; margin:0 auto 0; }
         .cover .cover-cond-legend{ display:flex; gap:16px; justify-content:center; margin-top:2px;
             font-size:12px; font-weight:600; color:#c2cede; }
         .cover .cover-cond-legend i{ display:inline-block; width:9px; height:9px; border-radius:50%;
@@ -522,7 +522,7 @@
             @if ($inspection->vehicleImageUrl())
                 <div class="card" style="padding:10px; text-align:center; margin-bottom:10px;">
                     <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle image"
-                         style="width:100%; max-width:520px; max-height:340px; object-fit:contain;  ">
+                         style="width:100%; max-width:520px; max-height:300px; object-fit:contain;  ">
 
                     {{-- Vehicle summary — compact spec list beneath the image (client request) --}}
                     <div style="margin-top:12px; padding-top:12px; border-top:1px solid #e6e9ee; text-align:left;">
