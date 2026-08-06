@@ -460,12 +460,8 @@ class InspectionController extends Controller
     {
         $user = $request->user();
 
-        // An admin may cancel any inspection; a technician only their own.
-        abort_unless(
-            $user?->isAdmin() || (int) $inspection->technician_id === (int) $user?->id,
-            403,
-            'You are not allowed to cancel this inspection.'
-        );
+        // Admin-only. The assigned technician is notified, not authorised.
+        abort_unless($user?->isAdmin(), 403, 'Only an admin can cancel an inspection.');
 
         if ($inspection->isCancelled()) {
             return back()->with('error', 'This inspection is already cancelled.');
@@ -494,6 +490,9 @@ class InspectionController extends Controller
 
         // Mirror it on the lead so the lead list/detail show the cancellation.
         $inspection->lead?->update(['status' => Lead::STATUS_CANCELLED]);
+
+        // Tell the assigned technician (stored notification + FCM push).
+        $inspection->notifyCancelled($user->id);
 
         return back()->with('success', 'Inspection cancelled.');
     }
@@ -879,9 +878,24 @@ class InspectionController extends Controller
         $stepIds = $inspection->type ? $inspection->type->steps()->pluck('inspection_steps.id')->all() : [];
         $prevTypeId = (int) $inspection->inspection_type_id;
         $prevTechnicianId = (int) $inspection->technician_id;
+        // Kept so a schedule change can be reported to the technician after save.
+        $prevScheduledAt = $inspection->scheduled_at ? $inspection->scheduled_at->copy() : null;
         // A completed inspection is locked — its technician can no longer change.
         $wasCompleted = $inspection->status === Inspection::STATUS_COMPLETED;
 
+        // Decided before the fill below, because a template change must leave the
+        // Customer & Vehicle card (the first wizard step) completely untouched.
+        $typeChanged = ! $wasCompleted
+            && ! empty($validated['inspection_type_id'])
+            && (int) $validated['inspection_type_id'] !== $prevTypeId;
+
+        // Only cards 2..N are replaced by a template switch. The Customer & Vehicle
+        // card is left exactly as stored: those fields are already persisted by
+        // the per-field autosave, and re-applying the posted form here would blank
+        // any select the browser submitted empty — car_model is rendered with no
+        // options at all (its list is injected by JS from the chosen make), so a
+        // template-change save was wiping the make and model.
+        if (! $typeChanged) {
         $inspection->fill([
             'customer_name' => $validated['customer_name'],
             'customer_name_ar' => $validated['customer_name_ar'] ?? null,
@@ -915,6 +929,7 @@ class InspectionController extends Controller
             'with_service_history' => $validated['with_service_history'] ?? null,
             'last_service_date' => $validated['last_service_date'] ?? null,
         ]);
+        }
 
         // Technician can only be (re)assigned while the inspection isn't completed.
         if (! $wasCompleted && ! empty($validated['technician_id'])) {
@@ -924,10 +939,6 @@ class InspectionController extends Controller
         // The template is likewise locked once completed — the edit screen renders
         // it read-only, and this makes that real rather than cosmetic: a hand-rolled
         // POST cannot swap the checklist out from under a finished report.
-        $typeChanged = ! $wasCompleted
-            && ! empty($validated['inspection_type_id'])
-            && (int) $validated['inspection_type_id'] !== $prevTypeId;
-
         if (! $wasCompleted && ! empty($validated['inspection_type_id'])) {
             $inspection->inspection_type_id = $validated['inspection_type_id'];
         }
@@ -1107,6 +1118,17 @@ class InspectionController extends Controller
 
         $inspection->save();
 
+        // Schedule moved — tell the technician the new date/time. A brand-new
+        // assignment below carries its own message, so this only fires when the
+        // technician is unchanged.
+        $technicianUnchanged = (int) $inspection->technician_id === $prevTechnicianId;
+        $rescheduled = $technicianUnchanged
+            && optional($inspection->scheduled_at)->format('Y-m-d H:i') !== optional($prevScheduledAt)->format('Y-m-d H:i');
+
+        if ($rescheduled) {
+            $inspection->notifyRescheduled($prevScheduledAt, $request->user()?->id);
+        }
+
         // Reassigned to a different technician from the edit screen — notify the
         // new technician via FCM push AND Pusher broadcast, same as the lead-assign flow.
         if ((int) $inspection->technician_id > 0 && (int) $inspection->technician_id !== $prevTechnicianId) {
@@ -1195,7 +1217,8 @@ class InspectionController extends Controller
             'recommendation' => null,
             'estimated_repair_cost' => null,
             'summary' => null,
-            'odometer' => null,
+            // Odometer is deliberately NOT cleared: it is captured on the
+            // Customer & Vehicle card, which a template change must preserve.
         ]);
     }
 

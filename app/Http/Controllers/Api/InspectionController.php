@@ -251,6 +251,9 @@ class InspectionController extends Controller
         $inspection->fill($data);
 
         $previousImage = $inspection->getOriginal('vehicle_image');
+        // Compared after save so a schedule change can be reported. getOriginal
+        // holds the value as loaded, before fill() applied the new one.
+        $previousSchedule = $inspection->getOriginal('scheduled_at');
 
         if ($request->hasFile('vehicle_image')) {
             $inspection->vehicle_image = $request->file('vehicle_image')
@@ -263,6 +266,12 @@ class InspectionController extends Controller
         // Drop the replaced/removed file only once the new state is committed.
         if ($previousImage && $previousImage !== $inspection->vehicle_image) {
             Storage::disk('public')->delete($previousImage);
+        }
+
+        // Schedule moved — store + push a notification for the technician.
+        if (optional($inspection->scheduled_at)->format('Y-m-d H:i')
+            !== ($previousSchedule ? Carbon::parse($previousSchedule)->format('Y-m-d H:i') : null)) {
+            $inspection->notifyRescheduled($previousSchedule, $request->user()?->id);
         }
 
         return new InspectionResource($inspection->fresh(['lead']));
@@ -981,10 +990,9 @@ class InspectionController extends Controller
     }
 
     /**
-     * Cancel an inspection. An admin (privilege 1 / 2) may cancel any inspection;
-     * a technician may cancel one assigned to them — the same rule the CRM web
-     * screens enforce. Records who cancelled it, when and why, and marks the
-     * lead "Inspection Cancelled".
+     * Cancel an inspection — admins only (privilege 1 / 2), the same rule the CRM
+     * web screens enforce. Records who cancelled it, when and why, marks the lead
+     * "Inspection Cancelled", and notifies the assigned technician.
      *
      * The cancelled inspection is kept as a permanent record; assigning the lead
      * again from the CRM creates a NEW inspection rather than reviving this one.
@@ -996,10 +1004,10 @@ class InspectionController extends Controller
     {
         $user = $request->user();
 
-        // An admin may cancel any inspection; a technician only their own.
-        if (! $user?->isAdmin() && (int) $inspection->technician_id !== (int) $user?->id) {
+        // Admin-only. The assigned technician is notified, not authorised.
+        if (! $user?->isAdmin()) {
             return response()->json([
-                'message' => 'You are not allowed to cancel this inspection.',
+                'message' => 'Only an admin can cancel an inspection.',
             ], 403);
         }
 
@@ -1036,6 +1044,9 @@ class InspectionController extends Controller
         ])->save();
 
         $inspection->lead?->update(['status' => Lead::STATUS_CANCELLED]);
+
+        // Tell the assigned technician (stored notification + FCM push).
+        $inspection->notifyCancelled($user->id);
 
         return response()->json([
             'message' => 'Inspection cancelled.',
