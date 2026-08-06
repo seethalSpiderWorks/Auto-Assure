@@ -374,9 +374,15 @@ class Inspection extends Model
 
             $inspection->technician_id = $technicianId;
             $inspection->inspection_type_id = $typeId;
+
+            $previousSchedule = $inspection->scheduled_at;
             if ($scheduledAt) {
                 $inspection->scheduled_at = $scheduledAt;
             }
+            // A moved slot for the SAME technician gets its own notification — the
+            // reassignment message below only fires when the technician changes.
+            $scheduleMoved = ! $technicianChanged
+                && optional($inspection->scheduled_at)->format('Y-m-d H:i') !== optional($previousSchedule)->format('Y-m-d H:i');
             // Fill in customer/vehicle fields that may still be empty from
             // an earlier assignment when the lead didn't have them yet.
             if (! $inspection->customer_name_ar && ($basicReg?->breg_fname_ar ?? null)) {
@@ -435,6 +441,10 @@ class Inspection extends Model
                 'status'             => static::STATUS_PENDING,
                 'scheduled_at'       => $scheduledAt ?: null,
             ]);
+        }
+
+        if (! empty($scheduleMoved)) {
+            $inspection->notifyRescheduled($previousSchedule, auth()->id());
         }
 
         // Push-notify the assigned technician on a new assignment, or on a
@@ -605,9 +615,121 @@ class Inspection extends Model
     }
 
     /**
-     * Who may cancel: an admin (any inspection), or the technician this
-     * inspection is assigned to (their own job, from the app or the web).
-     * The single source of truth for both the web and API cancel endpoints.
+     * Notify the assigned technician that this inspection was cancelled — stores
+     * an app_notifications row and sends the FCM push.
+     *
+     * No self-notification: a technician who cancels their own job already knows.
+     *
+     * @param  int|null  $actorId  the user who cancelled
+     */
+    public function notifyCancelled(?int $actorId = null): void
+    {
+        $this->notifyTechnician(
+            $actorId,
+            'Inspection Cancelled',
+            'Your inspection for '.$this->notificationVehicle().' was cancelled.'
+                .($this->cancel_reason ? ' Reason: '.$this->cancel_reason : ''),
+            'inspection_cancelled',
+            array_filter([
+                'cancel_reason' => $this->cancel_reason,
+                'cancelled_at' => optional($this->cancelled_at)->toIso8601String(),
+            ])
+        );
+    }
+
+    /**
+     * Notify the assigned technician that the schedule moved. Call AFTER saving,
+     * passing the previous value so the message can show both.
+     *
+     * @param  mixed  $previous  the scheduled_at value before the change
+     * @param  int|null  $actorId  the user who rescheduled
+     */
+    public function notifyRescheduled($previous = null, ?int $actorId = null): void
+    {
+        $fmt = fn ($v) => $v ? \Illuminate\Support\Carbon::parse($v)->format('d M Y, h:i A') : null;
+
+        $from = $fmt($previous);
+        $to = $fmt($this->scheduled_at);
+
+        // Nothing useful to say without a new slot.
+        if (! $to) {
+            return;
+        }
+
+        $this->notifyTechnician(
+            $actorId,
+            'Inspection Rescheduled',
+            'Your inspection for '.$this->notificationVehicle().' is now on '.$to.'.'
+                .($from ? ' (was '.$from.')' : ''),
+            'inspection_rescheduled',
+            array_filter([
+                'scheduled_at' => optional($this->scheduled_at)->toIso8601String(),
+                'previous_scheduled_at' => $previous ? \Illuminate\Support\Carbon::parse($previous)->toIso8601String() : null,
+            ])
+        );
+    }
+
+    /**
+     * Notify a technician that this inspection is now theirs — stored
+     * notification + FCM push + Pusher broadcast, the same trio the lead-assign
+     * flow sends. Call AFTER saving the new technician_id.
+     *
+     * @param  int|null  $actorId  the user who reassigned it
+     */
+    public function notifyReassigned(?int $actorId = null): void
+    {
+        $technicianId = (int) $this->technician_id;
+
+        if ($technicianId <= 0 || $technicianId === (int) $actorId) {
+            return;
+        }
+
+        $title = 'Inspection Reassigned to You';
+        $body = 'An inspection was reassigned to you: '.($this->customer_name ?: $this->notificationVehicle());
+
+        \App\Services\PushNotificationService::sendToUser($technicianId, $title, $body, [
+            'type' => 'inspection_reassigned',
+            'inspection_id' => (string) $this->id,
+            'lead_id' => (string) $this->lead_id,
+        ]);
+
+        \App\Events\InspectionAssigned::dispatch(
+            $technicianId, (int) $this->id, (int) $this->lead_id, $title, $body, 'inspection_reassigned'
+        );
+    }
+
+    /**
+     * Shared delivery for the notifications above: stored in app_notifications and
+     * pushed via FCM. Silently skipped when there is no technician, or when the
+     * technician is the one who made the change.
+     */
+    private function notifyTechnician(?int $actorId, string $title, string $body, string $type, array $data = []): void
+    {
+        $technicianId = (int) $this->technician_id;
+
+        if ($technicianId <= 0 || $technicianId === (int) $actorId) {
+            return;
+        }
+
+        \App\Services\PushNotificationService::sendToUser($technicianId, $title, $body, array_merge([
+            'type' => $type,
+            'inspection_id' => (string) $this->id,
+            'lead_id' => (string) $this->lead_id,
+        ], $data));
+    }
+
+    /**
+     * Vehicle description used in notification text.
+     */
+    private function notificationVehicle(): string
+    {
+        return trim(($this->car_make ?? '').' '.($this->car_model ?? '')) ?: 'a vehicle';
+    }
+
+    /**
+     * Who may cancel: admins only. The assigned technician is told about it
+     * (see notifyCancelled) but cannot cancel their own job. Single source of
+     * truth for both the web and API cancel endpoints.
      */
     public function canBeCancelledBy(?User $user): bool
     {
@@ -615,7 +737,7 @@ class Inspection extends Model
             return false;
         }
 
-        return $user->isAdmin() || (int) $this->technician_id === (int) $user->id;
+        return $user->isAdmin();
     }
 
     /**

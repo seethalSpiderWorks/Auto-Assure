@@ -11,10 +11,10 @@
     $hasFilters = request()->hasAny(['q', 'status', 'technician_id', 'from', 'to'])
         && collect(request()->only(['q','status','technician_id','from','to']))->filter()->isNotEmpty();
 
-    // Who sees a cancel column at all: admins (any inspection) and technicians
-    // (their own). The per-row check below decides each button.
+    // Only admins may cancel, so only they get the cancel column. The per-row
+    // check below decides whether each individual row can still be cancelled.
     $me = auth()->user();
-    $canCancel = $me?->isAdmin() || $me?->isTechnician();
+    $canCancel = (bool) $me?->isAdmin();
 @endphp
 
 <div class="page-content">

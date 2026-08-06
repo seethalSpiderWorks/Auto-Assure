@@ -95,8 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/inspections/{inspection}/submit', [InspectionController::class, 'submit']);
 
-    // Cancel an inspection. An admin may cancel any, a technician only their own
-    // (enforced in the controller). Body: cancel_reason (required, 5–500 chars).
+    // Cancel an inspection — admins only (enforced in the controller). The
+    // assigned technician is notified. Body: cancel_reason (5–500 chars).
     Route::post('/inspections/{inspection}/cancel', [InspectionController::class, 'cancel']);
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);

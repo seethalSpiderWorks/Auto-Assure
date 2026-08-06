@@ -460,12 +460,8 @@ class InspectionController extends Controller
     {
         $user = $request->user();
 
-        // An admin may cancel any inspection; a technician only their own.
-        abort_unless(
-            $user?->isAdmin() || (int) $inspection->technician_id === (int) $user?->id,
-            403,
-            'You are not allowed to cancel this inspection.'
-        );
+        // Admin-only. The assigned technician is notified, not authorised.
+        abort_unless($user?->isAdmin(), 403, 'Only an admin can cancel an inspection.');
 
         if ($inspection->isCancelled()) {
             return back()->with('error', 'This inspection is already cancelled.');
@@ -494,6 +490,9 @@ class InspectionController extends Controller
 
         // Mirror it on the lead so the lead list/detail show the cancellation.
         $inspection->lead?->update(['status' => Lead::STATUS_CANCELLED]);
+
+        // Tell the assigned technician (stored notification + FCM push).
+        $inspection->notifyCancelled($user->id);
 
         return back()->with('success', 'Inspection cancelled.');
     }
@@ -615,11 +614,47 @@ class InspectionController extends Controller
             'last_service_date' => ['nullable', 'date'],
         ]);
 
+        // Captured before the fill so a reassignment / reschedule can be reported.
+        // This endpoint — not update() — is what the edit screen posts to for the
+        // Customer & Vehicle card, so the notifications have to fire here too.
+        $prevTechnicianId = (int) $inspection->technician_id;
+        $prevScheduledAt = $inspection->scheduled_at ? $inspection->scheduled_at->copy() : null;
+
         $inspection->fill($data);
         $this->markStarted($inspection);
         $inspection->save();
 
+        $this->notifyAssignmentChanges($inspection, $prevTechnicianId, $prevScheduledAt, $request->user()?->id);
+
         return response()->json(['saved' => true]);
+    }
+
+    /**
+     * Fire the technician-facing notifications after an inspection is saved:
+     * a reassignment when the technician changed, otherwise a reschedule when the
+     * slot moved. Never both — a reassignment message already carries the new
+     * schedule's context, and two pushes for one action reads as a bug.
+     */
+    private function notifyAssignmentChanges(
+        Inspection $inspection,
+        int $prevTechnicianId,
+        $prevScheduledAt,
+        ?int $actorId
+    ): void {
+        $technicianChanged = (int) $inspection->technician_id !== $prevTechnicianId;
+
+        if ($technicianChanged) {
+            $inspection->notifyReassigned($actorId);
+
+            return;
+        }
+
+        $moved = optional($inspection->scheduled_at)->format('Y-m-d H:i')
+            !== optional($prevScheduledAt)->format('Y-m-d H:i');
+
+        if ($moved) {
+            $inspection->notifyRescheduled($prevScheduledAt, $actorId);
+        }
     }
 
     /**
@@ -879,9 +914,24 @@ class InspectionController extends Controller
         $stepIds = $inspection->type ? $inspection->type->steps()->pluck('inspection_steps.id')->all() : [];
         $prevTypeId = (int) $inspection->inspection_type_id;
         $prevTechnicianId = (int) $inspection->technician_id;
+        // Kept so a schedule change can be reported to the technician after save.
+        $prevScheduledAt = $inspection->scheduled_at ? $inspection->scheduled_at->copy() : null;
         // A completed inspection is locked — its technician can no longer change.
         $wasCompleted = $inspection->status === Inspection::STATUS_COMPLETED;
 
+        // Decided before the fill below, because a template change must leave the
+        // Customer & Vehicle card (the first wizard step) completely untouched.
+        $typeChanged = ! $wasCompleted
+            && ! empty($validated['inspection_type_id'])
+            && (int) $validated['inspection_type_id'] !== $prevTypeId;
+
+        // Only cards 2..N are replaced by a template switch. The Customer & Vehicle
+        // card is left exactly as stored: those fields are already persisted by
+        // the per-field autosave, and re-applying the posted form here would blank
+        // any select the browser submitted empty — car_model is rendered with no
+        // options at all (its list is injected by JS from the chosen make), so a
+        // template-change save was wiping the make and model.
+        if (! $typeChanged) {
         $inspection->fill([
             'customer_name' => $validated['customer_name'],
             'customer_name_ar' => $validated['customer_name_ar'] ?? null,
@@ -915,6 +965,7 @@ class InspectionController extends Controller
             'with_service_history' => $validated['with_service_history'] ?? null,
             'last_service_date' => $validated['last_service_date'] ?? null,
         ]);
+        }
 
         // Technician can only be (re)assigned while the inspection isn't completed.
         if (! $wasCompleted && ! empty($validated['technician_id'])) {
@@ -924,10 +975,6 @@ class InspectionController extends Controller
         // The template is likewise locked once completed — the edit screen renders
         // it read-only, and this makes that real rather than cosmetic: a hand-rolled
         // POST cannot swap the checklist out from under a finished report.
-        $typeChanged = ! $wasCompleted
-            && ! empty($validated['inspection_type_id'])
-            && (int) $validated['inspection_type_id'] !== $prevTypeId;
-
         if (! $wasCompleted && ! empty($validated['inspection_type_id'])) {
             $inspection->inspection_type_id = $validated['inspection_type_id'];
         }
@@ -1017,7 +1064,9 @@ class InspectionController extends Controller
 
         // Per-summary-type notes shown under the Overall Verdict. Unknown type ids
         // are ignored; a cleared box removes the row rather than storing "".
-        $typeSummaries = (array) $request->input('summaries', []);
+        // Skipped on a template change — these notes describe the discarded
+        // checklist and were just cleared by resetChecklistData().
+        $typeSummaries = $typeChanged ? [] : (array) $request->input('summaries', []);
         if ($typeSummaries) {
             $validTypeIds = array_keys(InspectionSummary::types());
 
@@ -1105,23 +1154,9 @@ class InspectionController extends Controller
 
         $inspection->save();
 
-        // Reassigned to a different technician from the edit screen — notify the
-        // new technician via FCM push AND Pusher broadcast, same as the lead-assign flow.
-        if ((int) $inspection->technician_id > 0 && (int) $inspection->technician_id !== $prevTechnicianId) {
-            $techId = (int) $inspection->technician_id;
-            $title  = 'Inspection Reassigned to You';
-            $body   = 'An inspection was reassigned to you: ' . ($inspection->customer_name ?: 'Vehicle inspection');
-
-            \App\Services\PushNotificationService::sendToUser($techId, $title, $body, [
-                'type' => 'inspection_reassigned',
-                'inspection_id' => (string) $inspection->id,
-                'lead_id' => (string) $inspection->lead_id,
-            ]);
-
-            \App\Events\InspectionAssigned::dispatch(
-                $techId, (int) $inspection->id, (int) $inspection->lead_id, $title, $body, 'inspection_reassigned'
-            );
-        }
+        // Reassigned, or the slot moved — notify the technician. Same helper the
+        // autosave endpoint uses, so both save paths behave identically.
+        $this->notifyAssignmentChanges($inspection, $prevTechnicianId, $prevScheduledAt, $request->user()?->id);
 
         if ($completing) {
             return redirect()->route('inspections.summary', $inspection)
@@ -1178,6 +1213,24 @@ class InspectionController extends Controller
 
         // Per-section notes/ratings reference the old template's sections.
         InspectionSectionSummary::where('inspection_id', $inspection->id)->delete();
+
+        // Per-area notes (Exterior, Engine, Brakes, …). The areas themselves are
+        // template-independent, but the notes describe the checklist that was
+        // just discarded.
+        InspectionSummary::where('inspection_id', $inspection->id)->delete();
+
+        // The overall verdict summarises the old checklist — an inspection that
+        // restarts from the first section cannot keep a rating and a
+        // recommendation derived from answers that no longer exist.
+        $inspection->forceFill([
+            'overall_condition' => null,
+            'overall_rating' => null,
+            'recommendation' => null,
+            'estimated_repair_cost' => null,
+            'summary' => null,
+            // Odometer is deliberately NOT cleared: it is captured on the
+            // Customer & Vehicle card, which a template change must preserve.
+        ]);
     }
 
     /**

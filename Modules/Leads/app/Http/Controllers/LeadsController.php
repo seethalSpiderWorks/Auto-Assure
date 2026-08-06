@@ -1678,9 +1678,15 @@ class LeadsController extends Controller
 		elseif($inspection)
 		{
 			// No technician chosen — just update the template/date on the existing inspection.
+			$prevSchedule = $inspection->scheduled_at;
 			if($typeId) { $inspection->inspection_type_id = $typeId; }
 			$inspection->scheduled_at = $sched;
 			$inspection->save();
+
+			// Schedule moved — notify the assigned technician (stored + pushed).
+			if (optional($inspection->scheduled_at)->format('Y-m-d H:i') !== optional($prevSchedule)->format('Y-m-d H:i')) {
+				$inspection->notifyRescheduled($prevSchedule, Auth::user()->id);
+			}
 		}
 		else
 		{
