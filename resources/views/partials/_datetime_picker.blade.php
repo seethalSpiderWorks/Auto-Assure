@@ -7,9 +7,14 @@
         <input type="datetime-local" name="scheduled_at" data-aa-datetime ...>
         @include('partials._datetime_picker')
 
-    Why not the native picker: the browser decides when its popup closes, so
-    after choosing a date and a time it sits open until you click elsewhere.
-    This swaps in a Flatpickr calendar that closes itself once the time is set.
+    Add data-aa-min="now" to stop past dates and times being selectable. An
+    existing past value is still shown (old records stay readable); the floor
+    only applies when the field is empty or already set to a future moment.
+
+    Why not the native picker: the browser's popup is inconsistent across
+    browsers and can't be styled. This swaps in a Flatpickr calendar that stays
+    open while you adjust the date and the time, and closes when you click
+    outside it — so nudging the hour a few times never shuts it mid-edit.
 
     The original input is kept (name and value untouched) and turned into a
     hidden field, so what gets posted stays byte-identical to what the native
@@ -27,11 +32,6 @@
 
     var CSS_URL = @json(asset('assets/libs/flatpickr/flatpickr.min.css'));
     var JS_URL  = @json(asset('assets/libs/flatpickr/flatpickr.min.js'));
-
-    // How long to wait after the last time tweak before closing. Long enough to
-    // type "0230" or click the hour arrows a few times without it shutting
-    // mid-edit; short enough to still feel automatic.
-    var CLOSE_DELAY = 800;
 
     function ensureCss() {
         if (document.querySelector('link[data-aa-fp]')) return;
@@ -56,28 +56,18 @@
     }
 
     /**
-     * Close the calendar shortly after the user settles on a time.
+     * Fold whatever the hour/minute boxes currently show into the selected date
+     * when the calendar closes.
      *
-     * Only real interaction inside the .flatpickr-time row counts. Flatpickr
-     * fills the hour/minute boxes by assigning .value directly when a day is
-     * clicked, and assigning .value fires no events — so picking a day cannot
-     * trip this, which is what keeps the calendar open for the time step.
+     * Flatpickr only commits a typed time on blur (it binds increment and blur,
+     * never input), so a time typed straight into the boxes would be discarded
+     * when the user clicks away. Reading the boxes on close covers typing, the
+     * arrows and the AM/PM toggle alike.
      */
-    function autoCloseOnTime(instance) {
-        var timeRow = instance.calendarContainer.querySelector('.flatpickr-time');
-        if (!timeRow) return;
-
-        var timer;
-
-        /**
-         * Fold whatever the hour/minute boxes currently show into the selected
-         * date. Flatpickr only commits a typed time on blur (it binds increment
-         * and blur, never input), so closing without this would silently discard
-         * a time the user typed. Reading the boxes covers typing, the arrows and
-         * the AM/PM toggle alike.
-         */
-        function commitTime() {
+    function commitTimeOnClose(instance) {
+        instance.config.onClose.push(function () {
             if (!instance.selectedDates.length) return;
+            if (!instance.hourElement || !instance.minuteElement) return;
 
             var hour = parseInt(instance.hourElement.value, 10);
             var minute = parseInt(instance.minuteElement.value, 10);
@@ -90,25 +80,7 @@
             var picked = new Date(instance.selectedDates[0]);
             picked.setHours(hour, minute, 0, 0);
             instance.setDate(picked, true);   // true → fires onChange, which syncs the hidden field
-        }
-
-        function scheduleClose() {
-            clearTimeout(timer);
-            if (!instance.selectedDates.length) return;   // time without a date is meaningless
-            timer = setTimeout(function () {
-                commitTime();
-                instance.close();
-            }, CLOSE_DELAY);
-        }
-
-        timeRow.addEventListener('input', scheduleClose);   // typing
-        timeRow.addEventListener('wheel', scheduleClose);   // scroll over hour/minute
-        timeRow.addEventListener('click', function (e) {
-            // The arrows and the AM/PM toggle each commit a time in one click.
-            if (e.target.closest('.arrowUp, .arrowDown, .flatpickr-am-pm')) scheduleClose();
         });
-
-        instance.config.onClose.push(function () { clearTimeout(timer); });
     }
 
     function initOne(input) {
@@ -144,15 +116,27 @@
             input.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        window.flatpickr(display, {
+        // Optional "no past dates" floor. Skipped when the stored value is already
+        // in the past, so an old record still displays its real schedule instead
+        // of being clamped or blanked by Flatpickr.
+        var opts = {
             enableTime: true,
             time_24hr: false,
             minuteIncrement: 5,
             dateFormat: 'd M Y, h:i K',      // display only — `input` holds the real value
             defaultDate: initial,
-            onReady: function (dates, str, instance) { autoCloseOnTime(instance); },
+            // The calendar stays open while the date and time are adjusted; only
+            // a click outside (Flatpickr's default) dismisses it.
+            closeOnSelect: false,
+            onReady: function (dates, str, instance) { commitTimeOnClose(instance); },
             onChange: function (dates) { sync(dates[0] || null); },
-        });
+        };
+
+        if (input.dataset.aaMin === 'now' && (!initial || initial > new Date())) {
+            opts.minDate = new Date();
+        }
+
+        window.flatpickr(display, opts);
     }
 
     function scan() {

@@ -1083,16 +1083,28 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
             var type = row.querySelector('.mla-row__type');
             var date = row.querySelector('.mla-row__date');
             var staff = row.querySelector('.mla-row__staff');
+            var errEl = document.getElementById('mla_error');
+            var isPast = false;
+
             if (type) row.classList.toggle('mla-row--err', type.value === '');
             if (date) {
-                var isPast = date.value && new Date(date.value) <= new Date();
+                isPast = !!date.value && new Date(date.value) <= new Date();
                 row.classList.toggle('mla-row--err-date', !date.value || isPast);
             }
             if (staff) row.classList.toggle('mla-row--err-staff', staff.value === '');
+
+            // Tell the user straight away rather than waiting for submit — a past
+            // date looks like a filled-in field, so a red border alone reads as
+            // "something is wrong" without saying what. Any other correction
+            // clears the message; submit recomputes it.
+            errEl.textContent = isPast
+                ? 'The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                : '';
         });
         // Clear the "Assign all to" staff red border on change too
         document.getElementById('mla_staff').addEventListener('change', function () {
             this.classList.toggle('mla-staff--err', this.value === '');
+            if (this.value !== '') { document.getElementById('mla_error').textContent = ''; }
         });
 
         document.getElementById('mla_submit').addEventListener('click', function () {
@@ -1105,7 +1117,10 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
 
             var body = new URLSearchParams();
             if (!each) { body.append('user_id', allStaff); }
-            var missing = false;
+            // Tracked separately so the message can name the actual problem —
+            // a red border alone leaves the user guessing, especially for a past
+            // date, where the field looks filled in.
+            var noType = false, noDate = false, pastDate = false, noStaff = false;
             rows.forEach(function (row) {
                 var id = row.getAttribute('data-lead-id');
                 var type = row.querySelector('.mla-row__type').value;
@@ -1113,11 +1128,15 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
                 var dateOnly = date ? date.split('T')[0] : '';                  // "2026-07-27" for the follow-up date
                 var staff = row.querySelector('.mla-row__staff').value;
                 var isPast = date && new Date(date) <= new Date();
+                if (!type) { noType = true; }
+                if (!date) { noDate = true; }
+                if (isPast) { pastDate = true; }
+                if (each && !staff) { noStaff = true; }
                 var rowMissing = !type || !date || isPast || (each && !staff);
                 row.classList.toggle('mla-row--err', !type);
                 row.classList.toggle('mla-row--err-date', !date || isPast);
                 row.classList.toggle('mla-row--err-staff', each && !staff);
-                if (rowMissing) { missing = true; return; }
+                if (rowMissing) { return; }
                 body.append('leads[]', id);
                 body.append('inspection_type_id[' + id + ']', type);
                 body.append('scheduled_at[' + id + ']', date);                 // full date + time -> inspections.scheduled_at
@@ -1126,8 +1145,18 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
             });
             // Highlight the "Assign all to" staff select when empty (red border, no text)
             var allStaffEl = document.getElementById('mla_staff');
-            allStaffEl.classList.toggle('mla-staff--err', !each && !allStaff);
-            if (missing || (!each && !allStaff)) { return; }
+            var noAllStaff = !each && !allStaff;
+            allStaffEl.classList.toggle('mla-staff--err', noAllStaff);
+
+            if (noType || noDate || pastDate || noStaff || noAllStaff) {
+                var problems = [];
+                if (pastDate)             { problems.push('The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'); }
+                if (noDate)               { problems.push('Select a scheduled date & time for every lead.'); }
+                if (noType)               { problems.push('Select an inspection template for every lead.'); }
+                if (noStaff || noAllStaff){ problems.push('Select the assigned person.'); }
+                err.textContent = problems.join(' ');
+                return;
+            }
 
             var btn = this; btn.disabled = true; err.textContent = '';
             fetch("{{ url('leads/assign_leads') }}", {

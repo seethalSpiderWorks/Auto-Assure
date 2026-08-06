@@ -208,6 +208,11 @@
                          display: flex; align-items: center; justify-content: center; font-size: 1rem; }
     .vid-thumb:hover .vid-thumb__play i { background: rgba(0,0,0,.8); }
 
+    /* Reschedule date validation message */
+    .sched-error { color:#e5484d; font-size:12.5px; margin-top:6px; }
+    .sched-error:empty { display:none; }
+    .sched-invalid { border-color:#e5484d !important; box-shadow:0 0 0 .15rem rgba(229,72,77,.15); }
+
     /* Primary vehicle photo on the Customer & Vehicle step */
     .veh-img { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
     .veh-img__preview { width: 220px; height: 150px; border-radius: 12px; overflow: hidden; background: #f7f9fc;
@@ -612,7 +617,11 @@
                                         {{-- Reference is the linked lead's unique id — derived, so no name attribute (nothing to post). --}}
                                         <div class="col-md-6 mb-3"><label class="form-label">Reference</label><input class="form-control text-monospace" value="{{ $inspection->reference }}" readonly></div>
                                         {{-- Inspection schedule (date + time). Stored on scheduled_at — the same field the CRM lead assignment sets. --}}
-                                        <div class="col-md-6 mb-3"><label class="form-label">Scheduled Date &amp; Time</label><input name="scheduled_at" type="datetime-local" data-aa-datetime class="form-control js-customer" value="{{ old('scheduled_at', optional($inspection->scheduled_at)->format('Y-m-d\TH:i')) }}"></div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Reschedule Date &amp; Time</label>
+                                            <input name="scheduled_at" id="scheduled_at" type="datetime-local" data-aa-datetime data-aa-min="now" class="form-control js-customer" value="{{ old('scheduled_at', optional($inspection->scheduled_at)->format('Y-m-d\TH:i')) }}">
+                                            <div class="sched-error" id="scheduled_at_error"></div>
+                                        </div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Owner</p>
@@ -1483,7 +1492,49 @@
         },
         debounceCustomer() {
             clearTimeout(timers.cust);
-            timers.cust = setTimeout(() => AA.saveCustomer(), 800);
+            timers.cust = setTimeout(() => {
+                // A past reschedule date must never be auto-saved — the message is
+                // already on screen, so just hold off until it is corrected.
+                if (!AA.validateScheduledAt()) return;
+                AA.saveCustomer();
+            }, 800);
+        },
+
+        /**
+         * The reschedule date must be in the future — same rule the lead
+         * assignment screens use. Paints the field and writes the message;
+         * returns false when it is invalid.
+         */
+        validateScheduledAt() {
+            const input = document.getElementById('scheduled_at');
+            const err = document.getElementById('scheduled_at_error');
+            if (!input) return true;
+
+            // Only a NEW value has to be in the future. An inspection already
+            // scheduled for a past date is legitimate history — flagging it on
+            // load would make an old job impossible to save.
+            if (input.value === input.dataset.original) {
+                input.nextElementSibling?.classList.remove('sched-invalid');
+                if (err) err.textContent = '';
+                return true;
+            }
+
+            // The picker hides the real input and shows a readonly text field
+            // next to it — that is the one the user actually sees.
+            const shown = input.nextElementSibling && input.nextElementSibling.tagName === 'INPUT'
+                ? input.nextElementSibling
+                : input;
+
+            const isPast = !!input.value && new Date(input.value) <= new Date();
+
+            shown.classList.toggle('sched-invalid', isPast);
+            if (err) {
+                err.textContent = isPast
+                    ? 'The reschedule date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                    : '';
+            }
+
+            return !isPast;
         },
         async uploadFiles(input, stepId, type) {
             const files = Array.from(input.files || []);
@@ -2000,6 +2051,31 @@
         const evt = (i.tagName === 'SELECT') ? 'change' : 'input';
         i.addEventListener(evt, () => AA.debounceCustomer());
     });
+
+    // Reschedule date: flag a past date/time the moment it is picked, and stop a
+    // full submit from saving one. The picker writes to the hidden input and
+    // dispatches change, so listening there covers both typing and the calendar.
+    (function () {
+        const sched = document.getElementById('scheduled_at');
+        if (!sched) return;
+
+        // Remember what was loaded, so an untouched past schedule stays valid.
+        sched.dataset.original = sched.value;
+
+        sched.addEventListener('change', () => AA.validateScheduledAt());
+        sched.addEventListener('input', () => AA.validateScheduledAt());
+
+        const form = sched.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                if (AA.validateScheduledAt()) return;
+                e.preventDefault();
+                document.getElementById('scheduled_at_error')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
+
+    })();
 
     // ---- Wizard navigation ------------------------------------------------
     const panels = Array.from(root.querySelectorAll('[data-wstep]'));

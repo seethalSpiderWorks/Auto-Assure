@@ -1589,17 +1589,28 @@ $("#assign_btn").click(function()
 	$("#error_assigns_lead").html("");
 	$("#error_assigns_type").html("");
 
-	var missing = false;
-	if (!insp_type) { $('#assign_insp_type').css('borderColor', '#e5484d'); missing = true; }
-	if (!insp_sched || new Date(insp_sched) <= new Date()) { $('#assign_insp_scheduled').css('borderColor', '#e5484d'); missing = true; }
-	if (!staff) { $('#assign_lead_staff').css('borderColor', '#e5484d'); missing = true; }
-	if (missing) return false;
+	// Red borders plus a message naming the problem — a past date looks like a
+	// filled-in field, so a border alone doesn't explain the refusal.
+	var problems = [];
+	if (!insp_type) { $('#assign_insp_type').css('borderColor', '#e5484d'); problems.push('Select an inspection template.'); }
+	if (!insp_sched) {
+		$('#assign_insp_scheduled').css('borderColor', '#e5484d');
+		problems.push('Select a scheduled date &amp; time.');
+	} else if (new Date(insp_sched) <= new Date()) {
+		$('#assign_insp_scheduled').css('borderColor', '#e5484d');
+		problems.push('The scheduled date &amp; time must be a future date and time — an inspection cannot be scheduled in the past.');
+	}
+	if (!staff) { $('#assign_lead_staff').css('borderColor', '#e5484d'); problems.push('Select an assigned person.'); }
+
+	if (problems.length) { $("#error_assigns_lead").html(problems.join(' ')); return false; }
 
 	if(rows_selected.length==0)
 	{
 		$("#error_assigns_lead").html("Please select at least one lead");
 		return false;
 	}
+
+	$("#error_assigns_lead").html('');
 
         $.ajax({
                    type: 'POST',
@@ -1650,10 +1661,15 @@ $("#assign_btn").click(function()
     }
     $('#assign_insp_type, #assign_insp_scheduled, #assign_lead_staff').on('change', function () {
         var el = this;
+        var isPastDate = el.id === 'assign_insp_scheduled' && el.value && new Date(el.value) <= new Date();
         var ok = el.id === 'assign_insp_type' ? el.value :
-                 el.id === 'assign_insp_scheduled' ? (el.value && new Date(el.value) > new Date()) :
+                 el.id === 'assign_insp_scheduled' ? (el.value && !isPastDate) :
                  el.value;
         el.style.borderColor = ok ? '' : '#e5484d';
+        // Flag a past date immediately; any other correction clears the message.
+        $("#error_assigns_lead").html(isPastDate
+            ? 'The scheduled date &amp; time must be a future date and time — an inspection cannot be scheduled in the past.'
+            : '');
     });
 })();
 
@@ -2046,31 +2062,68 @@ $(document).ready(function() {
     // Inspection details (template / assigned person / scheduled date) save.
     // Exposed globally so the main Lead Info "Update" saves it too before the
     // page reloads — otherwise the values entered here are lost on reload.
+    // Flag a past scheduled date on the lead's Inspection panel as soon as it is
+    // picked, rather than only when the user saves.
+    (function () {
+        var dateEl = document.getElementById('insp_scheduled');
+        if (!dateEl) return;
+
+        dateEl.addEventListener('change', function () {
+            var msg = document.getElementById('insp_msg');
+            var isPast = dateEl.value && new Date(dateEl.value) <= new Date();
+
+            dateEl.style.borderColor = isPast ? '#e5484d' : '';
+            if (!msg) return;
+
+            msg.style.color = '#e5484d';
+            msg.textContent = isPast
+                ? 'The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                : '';
+        });
+    })();
+
     window.saveLeadInspection = function (onDone) {
         var leadEl = document.getElementById('insp_lead_id');
         if (!leadEl) { if (onDone) onDone(); return; }   // section not on page (add mode)
 
-        // Validate all fields at once with red borders
+        // Validate all fields at once with red borders, and say what is wrong —
+        // a past date looks like a filled-in field, so a red border on its own
+        // reads as "something is wrong" without explaining what.
         var typeEl = document.getElementById('insp_type');
         var dateEl = document.getElementById('insp_scheduled');
         var staffEl = document.getElementById('insp_staff');
-        var missing = false;
+        var msg  = document.getElementById('insp_msg');
+        var problems = [];
+
         if (typeEl && !typeEl.disabled && !typeEl.value) {
             typeEl.style.borderColor = '#e5484d';
-            missing = true;
+            problems.push('Select an inspection template.');
         } else if (typeEl) typeEl.style.borderColor = '';
-        if (dateEl && !dateEl.disabled && (!dateEl.value || new Date(dateEl.value) <= new Date())) {
-            dateEl.style.borderColor = '#e5484d';
-            missing = true;
-        } else if (dateEl) dateEl.style.borderColor = '';
+
+        if (dateEl && !dateEl.disabled) {
+            var isPast = dateEl.value && new Date(dateEl.value) <= new Date();
+            if (!dateEl.value || isPast) {
+                dateEl.style.borderColor = '#e5484d';
+                problems.push(isPast
+                    ? 'The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                    : 'Select a scheduled date & time.');
+            } else {
+                dateEl.style.borderColor = '';
+            }
+        }
+
         if (staffEl && !staffEl.disabled && !staffEl.value) {
             staffEl.style.borderColor = '#e5484d';
-            missing = true;
+            problems.push('Select an assigned person.');
         } else if (staffEl) staffEl.style.borderColor = '';
-        if (missing) { if (onDone) onDone(); return; }
+
+        if (problems.length) {
+            if (msg) { msg.style.color = '#e5484d'; msg.textContent = problems.join(' '); }
+            if (onDone) onDone();
+            return;
+        }
 
         var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        var msg  = document.getElementById('insp_msg');
         var btn  = document.getElementById('insp_update_btn');
 
         if (msg) { msg.style.color = '#667085'; msg.textContent = 'Saving…'; }

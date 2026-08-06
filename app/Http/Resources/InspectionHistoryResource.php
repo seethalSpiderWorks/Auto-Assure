@@ -55,8 +55,6 @@ class InspectionHistoryResource extends JsonResource
             'vin'                  => $this->vin,
             'plate_no'             => $this->plate_no,
             'exterior_color'       => $this->exterior_color,
-            'vehicle_image'        => $this->vehicle_image,
-            'vehicle_image_url'    => $this->vehicleImageUrl(),
             'region'               => $this->region,
             'fuel_type'            => $this->fuel_type,
             'gearbox'              => $this->gearbox,
