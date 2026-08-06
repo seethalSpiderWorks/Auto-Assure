@@ -322,7 +322,7 @@
         .cover .cover_right .card{ width:100%; }
         .cover .cover_right img{ max-width:100%; }
         /* cover rating gauge (dark theme) */
-        .cover .cover-gauge{ display:block; margin:0 auto 0; }
+        .cover .cover-gauge{ display:block; margin:0 auto 0; max-width:350px; }
         .cover .cover-cond-legend{ display:flex; gap:16px; justify-content:center; margin-top:2px;
             font-size:12px; font-weight:600; color:#c2cede; }
         .cover .cover-cond-legend i{ display:inline-block; width:9px; height:9px; border-radius:50%;
@@ -521,8 +521,8 @@
                  a primary vehicle photo has been uploaded for the inspection. --}}
             @if ($inspection->vehicleImageUrl())
                 <div class="card" style="padding:10px; text-align:center; margin-bottom:10px;">
-                    <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle image"
-                         style="width:100%; max-width:520px; max-height:300px; object-fit:contain;  ">
+                    <img src="{{ \App\Support\Thumbnailer::url($inspection->vehicle_image, 760) }}" alt="Vehicle image" loading="lazy" decoding="async"
+                         style="width:100%; max-width:520px; max-height:260px; object-fit:contain;  ">
 
                     {{-- Vehicle summary — compact spec list beneath the image (client request) --}}
                     <div style="margin-top:12px; padding-top:12px; border-top:1px solid #e6e9ee; text-align:left;">
@@ -667,7 +667,7 @@
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
                         <figure>
-                            <img src="{{ $p['media']->url }}" alt="">
+                            <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
                             <figcaption>{{ $p['caption'] }}</figcaption>
                         </figure>
                     @endforeach
