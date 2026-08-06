@@ -7,15 +7,23 @@ use App\Models\InspectionStep;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 
 class InspectionStepController extends Controller
 {
     public function create(InspectionSection $section): View
     {
+        $section->load(['steps' => fn ($q) => $q->orderBy('sequence')->orderBy('id')]);
+
         return view('templates.steps.create', [
             'section' => $section,
-            'step' => new InspectionStep(['photos' => 'not_required', 'videos' => 'not_required']),
+            'step' => new InspectionStep([
+                'photos' => 'not_required',
+                'videos' => 'not_required',
+                // Every new question is a choice question and starts with the
+                // standard option set, so the builder needs no answer-input picker.
+                'show_multiple_choice' => true,
+                'multiple_choice_options' => InspectionStep::CHOICE_OPTIONS,
+            ]),
         ]);
     }
 
@@ -24,10 +32,12 @@ class InspectionStepController extends Controller
         $data = $this->validateStep($request);
         $data['sequence'] = $data['sequence'] ?? (($section->steps()->max('sequence') ?? 0) + 1);
 
-        $section->steps()->create($data);
+        $step = $section->steps()->create($data);
 
-        return redirect()->route('templates.show', $section->inspection_type_id)
-            ->with('success', 'Step added.');
+        // Back to the same form so questions can be added one after another; the
+        // section's questions are listed underneath it.
+        return redirect()->route('steps.create', $section)
+            ->with('success', 'Question added: '.$step->question);
     }
 
     public function edit(InspectionStep $step): View
@@ -62,29 +72,24 @@ class InspectionStepController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'description_ar' => ['nullable', 'string', 'max:2000'],
             'sequence' => ['nullable', 'integer', 'min:0'],
-            'show_rating' => ['nullable', 'boolean'],
-            'show_text_answer' => ['nullable', 'boolean'],
-            'show_multiple_choice' => ['nullable', 'boolean'],
-            // Comma separated in the form; mandatory once "Multiple choice" is selected.
-            'multiple_choice_options' => ['nullable', 'required_if:show_multiple_choice,1', 'string', 'max:1000'],
+            'multiple_choice_options' => ['nullable', 'string', 'max:1000'],
             'show_remedial_suggestions' => ['nullable', 'boolean'],
-            'photos' => ['required', 'in:not_required,optional,mandatory'],
-            'videos' => ['required', 'in:not_required,optional,mandatory'],
-        ], [
-            'multiple_choice_options.required_if' => 'Add at least one choice option (comma separated) when "Multiple choice" is selected.',
+            'photos' => ['nullable', 'in:not_required,optional,mandatory'],
+            'videos' => ['nullable', 'in:not_required,optional,mandatory'],
         ]);
 
-        // Normalise booleans + parse comma-separated choices into an array.
-        foreach (['show_rating', 'show_text_answer', 'show_multiple_choice', 'show_remedial_suggestions'] as $flag) {
-            $validated[$flag] = $request->boolean($flag);
-        }
+        // Multiple choice is the only answer input a question offers, so it is
+        // always on and rating / text answer are always off. The builder no
+        // longer renders those controls at all.
+        $validated['show_multiple_choice'] = true;
+        $validated['show_rating'] = false;
+        $validated['show_text_answer'] = false;
+        $validated['show_remedial_suggestions'] = $request->boolean('show_remedial_suggestions');
 
-        // At least one answer input must be selected.
-        if (! $validated['show_rating'] && ! $validated['show_text_answer'] && ! $validated['show_multiple_choice']) {
-            throw ValidationException::withMessages([
-                'answer_inputs' => 'Select at least one answer input: Rating, Text answer, or Multiple choice.',
-            ]);
-        }
+        // Media requirements are not editable in the builder; keep whatever the
+        // question already carries.
+        $validated['photos'] = $validated['photos'] ?? InspectionStep::MEDIA_NOT_REQUIRED;
+        $validated['videos'] = $validated['videos'] ?? InspectionStep::MEDIA_NOT_REQUIRED;
 
         $options = collect(explode(',', (string) $request->input('multiple_choice_options')))
             ->map(fn ($o) => trim($o))
@@ -92,16 +97,8 @@ class InspectionStepController extends Controller
             ->values()
             ->all();
 
-        // Guard against whitespace-only input (e.g. ", ,") slipping past required_if.
-        if ($validated['show_multiple_choice'] && empty($options)) {
-            throw ValidationException::withMessages([
-                'multiple_choice_options' => 'Add at least one choice option (comma separated) when "Multiple choice" is selected.',
-            ]);
-        }
-
-        $validated['multiple_choice_options'] = $validated['show_multiple_choice'] && $options
-            ? $options
-            : null;
+        // A question always ends up with choices — its own, or the standard set.
+        $validated['multiple_choice_options'] = $options ?: InspectionStep::CHOICE_OPTIONS;
 
         return $validated;
     }

@@ -2,8 +2,7 @@
     use App\Models\Inspection;
     use Illuminate\Support\Facades\Storage;
 
-    $lead      = $inspection->lead;
-    $reportNo  = optional($lead)->reference ?: ('AAQ-' . str_pad($inspection->id, 3, '0', STR_PAD_LEFT));
+    $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
     $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
@@ -89,11 +88,15 @@
         })->values();
     };
 
-    // Overall pass/fail/na tally for the Report Overview donut.
+    // Overall pass/fail/na tally for the Report Overview donut. N/A and
+    // unanswered steps are excluded so the percentages match the printed items.
     $tally = ['pass' => 0, 'fail' => 0, 'na' => 0];
     foreach ($inspection->type->sections as $sec) {
         if (in_array($sec->section_name, $skip, true)) continue;
-        foreach ($sec->steps as $stp) { $tally[$rowState($stp)]++; }
+        foreach ($sec->steps as $stp) {
+            if (! Inspection::isReportable($answers->get($stp->id))) continue;
+            $tally[$rowState($stp)]++;
+        }
     }
     $tTot  = max(1, array_sum($tally));
     $pPass = round($tally['pass'] / $tTot * 100);
@@ -104,35 +107,50 @@
     foreach ($inspection->type->sections as $sec) {
         foreach ($sec->steps as $stp) { $stepSection[$stp->id] = $sec; }
     }
+    // Category media has no step, so it must be resolved by its own section id.
+    $sectionById = $inspection->type->sections->keyBy('id');
+
     $reportPhotos = [];
     foreach ($inspection->details as $d) {
-        $sec = $stepSection[$d->inspection_step_id] ?? null;
+        $isCategory = is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id);
+        $sec = $isCategory
+            ? ($sectionById[$d->inspection_section_id] ?? null)
+            : ($stepSection[$d->inspection_step_id] ?? null);
+
         foreach ($d->media->where('type', 'photo') as $m) {
             try {
                 if (! $m->path || ! Storage::disk($m->disk ?: 'public')->exists($m->path)) continue;
             } catch (\Throwable $e) { continue; }
-            $reportPhotos[] = ['caption' => $m->label ?: ($sec?->section_name ?? 'Photo'), 'media' => $m];
+            // Photos uploaded against a category are captioned with the section
+            // name; per-question photos keep their own label when one was typed.
+            $caption = $isCategory
+                ? ($sec?->section_name ?? 'Photo')
+                : ($m->label ?: ($sec?->section_name ?? 'Photo'));
+            $reportPhotos[] = ['caption' => $caption, 'media' => $m];
         }
     }
     $heroPhoto = $reportPhotos[0]['media']->url ?? null;
 
     // Vehicle specification list (bilingual) for the summary card.
     $specs = [
-        ['Make', 'اسم الصانع', $val($inspection->manufacturer_name ?: $inspection->car_make)],
-        ['Model', 'الطراز', $val(trim($inspection->car_make . ' ' . $inspection->car_model))],
-        ['Model Year', 'سنة الطراز', $val($inspection->car_year)],
-        ['Vehicle Type', 'نوع المركبة', $val($inspection->vehicle_type)],
-        ['Transmission', 'ناقل الحركة', $val($inspection->transmission)],
-        ['Fuel Type', 'نوع الوقود', $val($inspection->fuel_type)],
-        ['Engine (Cyl / CC)', 'عدد السلندرات والقدرة', $val($inspection->cylinders_cc)],
+        ['Make', 'اسم الصانع', $val($inspection->car_make)],
+        ['Model', 'الطراز', $val($inspection->car_model)],
+        ['Year', 'سنة الطراز', $val($inspection->car_year)],
+        ['Manufacturing Year', 'سنة الصنع', $val($inspection->manufacturing_year)],
+        ['VIN / Chassis No', 'رقم الهيكل', $val($inspection->vin)],
+        ['Plate No', 'رقم اللوحة', $val($inspection->plate_no)],
         ['Odometer', 'قراءة العداد', $val($inspection->odometer)],
+        ['Region', 'المنطقة', $val($inspection->region)],
+        ['Exterior Colour', 'اللون الخارجي', $val($inspection->exterior_color)],
+        ['Gearbox', 'ناقل الحركة', $val($inspection->gearbox)],
+        ['Fuel Type', 'نوع الوقود', $val($inspection->fuel_type)],
+        ['Body Type', 'نوع الهيكل', $val($inspection->body_type)],
         ['No. of Keys', 'عدد المفاتيح', $val($inspection->number_of_keys)],
-        ['Colour', 'اللون', $val($inspection->color)],
-        ['Country of Origin', 'بلد المنشأ', $val($inspection->country_of_origin)],
-        ['No. of Passengers', 'عدد الركاب', $val($inspection->passengers)],
+        ['With Service History', 'مع سجل الصيانة', $inspection->with_service_history === null ? $val(null) : ($inspection->with_service_history ? 'Yes' : 'No')],
+        ['Last Service Date', 'تاريخ آخر صيانة', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
     ];
 
-    $makeHeading = $val($inspection->manufacturer_name ?: $inspection->car_make);
+    $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
 @endphp
 <!doctype html>
@@ -161,6 +179,18 @@
         /* ---- page shell ---- */
         .page{ background:var(--bg); border-radius:6px; padding:22px 24px 30px; margin-bottom:22px; }
         .page-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+
+        /* ---- body sheet: carries the running header + footer (see markup) ---- */
+        .body-sheet{ width:100%; border-collapse:collapse; }
+        .body-sheet > thead > tr > td,
+        .body-sheet > tfoot > tr > td,
+        .body-sheet > tbody > tr > td{ padding:0; }
+        .body-sheet > thead .page-header{ background:var(--bg); padding:16px 24px 18px; margin-bottom:0; }
+        .body-sheet > thead .brand-logo{ height:32px; }
+        .page-footer{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+            background:var(--bg); padding:10px 24px 14px; border-top:1px solid var(--line);
+            color:var(--muted); font-size:10.5px; font-weight:600; }
+        .page-footer b{ color:#3b4453; }
         .brand-pill{ display:inline-flex; align-items:center; gap:7px; background:var(--brand); color:#fff;
             font-weight:700; font-size:13px; padding:7px 15px 7px 10px; border-radius:20px; letter-spacing:.2px; }
         .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
@@ -318,7 +348,28 @@
 
         /* keep cards / rows intact across page breaks, never orphan a section bar */
         .item-card,.card,.gal figure,.res-box,.fact{ break-inside:avoid; }
-        .sec-bar,.make-h{ break-after:avoid; }
+        /* The photo gallery and the spec table are the cards that can outgrow the
+           space left on a sheet, and an unbreakable box that doesn't fit is pushed
+           whole to the next page — leaving a large blank behind it. These two
+           break between rows instead. */
+        .card.photos,.item-card.specs{ break-inside:auto; }
+        /* break-inside keeps the heading and its accent rule on one page — they
+           were landing on opposite sides of a break. */
+        .sec-bar,.make-h{ break-after:avoid; break-inside:avoid; }
+
+        /* Chrome cannot split a flex container across sheets, so the whole photo +
+           specification row jumped to the next page when it no longer fit under
+           the running header. As a two-cell table row it fragments, and the spec
+           list simply continues overleaf. Renders identically on screen. */
+        .grid2.summary-row{ display:table; width:100%; border-collapse:separate; border-spacing:16px 0; margin:0 -16px; }
+        /* break-inside:auto is what actually lets the row split — a cell that
+           refuses to break keeps the whole row together. */
+        .grid2.summary-row > .item-card{ display:table-cell; width:50%; vertical-align:top; break-inside:auto; }
+        /* The photo cell is only a frame around an image that already carries its
+           own border and radius. Dropping the frame means that when the spec list
+           overruns the sheet, the photo's half of the row continues as nothing at
+           all instead of an empty white panel. */
+        .grid2.summary-row > .item-card:first-child{ background:transparent; border:0; box-shadow:none; padding:0; }
 
         /* ---- toolbar / print ---- */
         .toolbar{ max-width:900px; margin:0 auto 14px; text-align:right; }
@@ -326,13 +377,38 @@
             font-size:13px; font-weight:600; text-decoration:none; }
         @page{ size:A4; margin:0; }
         @media print{
-            body{ background:#fff; padding:0; }
+            {{-- Print every colour, gradient and background exactly as it shows on
+                 screen. Without this Chrome drops them unless the person printing
+                 ticks "Background graphics" in the dialog. --}}
+            *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+            {{-- The page colour is carried by the canvas so that a section which
+                 ends mid-sheet doesn't leave bare white below it. --}}
+            body{ background:var(--bg); padding:0; }
             .toolbar{ display:none; }
             .sheet{ max-width:none; }
             .page,.cover,.thanks{ margin-bottom:0; border-radius:0; }
+            {{-- Cover and thank-you are single full-bleed sheets. Content pages
+                 are NOT stretched — the canvas colour above already fills the
+                 sheet, and a min-height here would force every section that
+                 flows mid-page down onto a page of its own. --}}
+            .cover,.thanks{ min-height:296mm; }
+            {{-- Sections that flow one after another shouldn't stack both panels'
+                 padding at the seam — that dead band is enough to tip a short
+                 closing section onto a page of its own. --}}
+            .page{ padding-bottom:14px; }
+            .page + .page{ padding-top:0; }
             .pb{ page-break-before:always; }
-            .card,.item-card,.sec-bar,.badge,.plg,.brand-pill,.gauge,.cover,.thanks{
-                -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+            {{-- Chrome's PDF export cannot blur a shadow: it paints the blur
+                 radius as a solid rectangle, which comes out as black/grey blocks
+                 behind the logo chip and every card. Drop the outer shadows (and
+                 image filters, same rasteriser) and keep a hairline instead. The
+                 accent edge on .sec-bar is an inset shadow with no blur, so it
+                 renders correctly and is deliberately left alone. --}}
+            .card,.item-card,.logo-chip,[style*="box-shadow"]{ box-shadow:none !important; }
+            .page .card,.page .item-card{ border:1px solid var(--line); }
+            .cover-art,.thanks-art,.hero,.thanks-logo{ filter:none !important; }
         }
     </style>
 </head>
@@ -420,15 +496,35 @@
             </div>
         </div>
 
-        {{-- ============================== VEHICLE SUMMARY ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        {{-- ==============================================================
+             Everything between the cover and the thank-you page lives in one
+             table. <thead> and <tfoot> are the only constructs Chrome repeats
+             on every printed page, so this is what puts the brand header and
+             the report footer on all sheets; the cover and thank-you sit
+             outside it and stay clean.
+             ============================================================== --}}
+        <table class="body-sheet">
+            <thead>
+                <tr><td>
+                    <div class="page-header">
+                        <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                        <span class="doc-tag">Comprehensive Inspection Report</span>
+                    </div>
+                </td></tr>
+            </thead>
+            <tfoot>
+                <tr><td>
+                    <div class="page-footer">
+                        <span>Report No. <b>{{ $reportNo }}</b></span>
+                        <span>{{ $val(trim($inspection->car_year.' '.$inspection->car_make.' '.$inspection->car_model)) }}</span>
+                        <span>{{ $reportDt }}</span>
+                    </div>
+                </td></tr>
+            </tfoot>
+            <tbody>
+                <tr><td>
 
-        
-
+        <div class="page">
             {{-- Inspection details strip --}}
             <div class="card tight">
                 <div class="facts">
@@ -454,7 +550,7 @@
 
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
 
-            <div class="grid2">
+            <div class="grid2 summary-row">
                 <div class="item-card" style="min-height:auto">
                     @if ($heroPhoto)
                         <img src="{{ $heroPhoto }}" style="width:100%;height:210px;object-fit:cover;border-radius:14px;border:1px solid var(--line)">
@@ -462,7 +558,7 @@
                         <img src="{{ asset('img/pdf_design/cover-photo.webp') }}" style="width:100%;height:210px;object-fit:contain;border-radius:14px;background:#f3f5f8;padding:8px">
                     @endif
                 </div>
-                <div class="item-card" style="min-height:auto">
+                <div class="item-card specs" style="min-height:auto">
                     <table class="kv">
                         @foreach ($specs as $sp)
                             <tr>
@@ -497,11 +593,7 @@
 
         {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
         @if ($hasEv)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">EV &amp; PHEV</span><span class="ar">للسيارات الكهربائية والهجينة</span></div>
             @php $evBanner = $bannerUrl('EV and PHEV') ?: $bannerUrl('EV & PHEV Details'); @endphp
             @if ($evBanner)<img class="sec-banner" src="{{ $evBanner }}" alt="">@endif
@@ -538,11 +630,7 @@
 
         {{-- ============================== TECHNICAL MEASUREMENTS (bilingual, if present) ============================== --}}
         @if ($hasTech)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Technical Inspection Measurements</span><span class="ar">قياسات الفحص الفني</span></div>
             @php $techBanner = $bannerUrl('Technical Inspection Measurements') ?: $bannerUrl('Technical & Emissions Tests'); @endphp
             @if ($techBanner)<img class="sec-banner" src="{{ $techBanner }}" alt="">@endif
@@ -582,11 +670,7 @@
         @endif
 
         {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
@@ -620,12 +704,17 @@
                 @php $secBanner = $bannerUrl($section->section_name); @endphp
                 @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
 
+                @php
+                    // N/A (and unanswered) items are left out of the report entirely.
+                    $steps = $steps->filter(fn ($s) => Inspection::isReportable($answers->get($s->id)))->values();
+                @endphp
                 <div class="grid2">
                     @foreach ($steps as $step)
                         @php
                             $state = $rowState($step);
                             $d = $answers->get($step->id);
-                            $note = $d->descriptive_answer ?: ($d->remedial_suggestion ?? null);
+                            // $d is null for an unanswered step — guard, as report.blade.php does.
+                            $note = optional($d)->descriptive_answer ?: (optional($d)->remedial_suggestion ?? null);
                             $photos = $stepPhotos($step);
                         @endphp
                         <div class="item-card">
@@ -653,13 +742,9 @@
 
         {{-- ============================== GENERAL PHOTOS ============================== --}}
         @if (! empty($reportPhotos))
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">General Photos</span><span class="ar">صور عامة</span></div>
-            <div class="card">
+            <div class="card photos">
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
                         <figure>
@@ -673,11 +758,7 @@
         @endif
 
         {{-- ============================== INSPECTOR COMMENT ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Inspector Comment</span><span class="ar">ملاحظات المفتش</span></div>
             <div class="card">
                 @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
@@ -707,11 +788,7 @@
         </div>
 
         {{-- ============================== TERMS & CONDITIONS ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Terms &amp; Conditions</span><span class="ar">الشروط والأحكام</span></div>
             <div class="card terms">
                 <div class="grid2">
@@ -736,6 +813,10 @@
                 </div>
             </div>
         </div>
+
+                </td></tr>
+            </tbody>
+        </table>
 
         {{-- ============================== THANK YOU ============================== --}}
         <div class="thanks pb">

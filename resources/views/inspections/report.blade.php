@@ -2,16 +2,30 @@
     use App\Models\Inspection;
     use Illuminate\Support\Facades\Storage;
 
-    $lead      = $inspection->lead;
-    $reportNo  = optional($lead)->reference ?: ('AAQ-' . str_pad($inspection->id, 3, '0', STR_PAD_LEFT));
+    $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
     $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
-    $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? '—';
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
     $typeName  = optional($inspection->type)->name ?: 'Inspection';
     $val = fn ($v) => ($v === null || $v === '') ? 'N/A' : e($v);
+
+    // Technician's overall rating (0–5, decimal) converted to % for the cover.
+    $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
+    $overallRatingPct = $overallRatingVal > 0 ? round(($overallRatingVal / 5) * 100) : 0;
+    $overallRatingBadge = match (true) {
+        $overallRatingVal >= 4.5 => 'Excellent',
+        $overallRatingVal >= 3.5 => 'Very Good',
+        $overallRatingVal >= 2.5 => 'Good',
+        $overallRatingVal >= 1.5 => 'Fair',
+        $overallRatingVal > 0    => 'Poor',
+        default                  => null,
+    };
+    $ratingColors = ['Excellent' => '#2fa84f', 'Very Good' => '#5ab84d', 'Good' => '#f2903f', 'Fair' => '#efb008', 'Poor' => '#e0483d'];
+    $ratingColor  = $ratingColors[$overallRatingBadge] ?? '#8ea3b5';
+    $condition    = $overallRatingBadge;
+    $overallCond  = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
 
     // question -> answer (detail) lookup, for the EV & Technical special blocks
     $qa = [];
@@ -62,7 +76,7 @@
     $rowState = fn ($step) => Inspection::choiceState($answers->get($step->id));
     $badge = fn ($state) => $state === 'pass'
         ? '<span class="badge b-pass">&#10003;</span>'
-        : ($state === 'fail' ? '<span class="badge b-fail">&#10007;</span>' : '<span class="badge b-na">N/A</span>');
+        : ($state === 'fail' ? '<span class="badge b-fail">&#10007;</span>' : '<span class="badge b-na">&#8764;</span>');
 
     // Photos attached to a given step, filtered to files that actually exist.
     $stepPhotos = function ($step) use ($answers) {
@@ -74,11 +88,15 @@
         })->values();
     };
 
-    // Overall pass/fail/na tally for the Report Overview donut.
+    // Overall pass/fail/na tally for the Report Overview donut. N/A and
+    // unanswered steps are excluded so the percentages match the printed items.
     $tally = ['pass' => 0, 'fail' => 0, 'na' => 0];
     foreach ($inspection->type->sections as $sec) {
         if (in_array($sec->section_name, $skip, true)) continue;
-        foreach ($sec->steps as $stp) { $tally[$rowState($stp)]++; }
+        foreach ($sec->steps as $stp) {
+            if (! Inspection::isReportable($answers->get($stp->id))) continue;
+            $tally[$rowState($stp)]++;
+        }
     }
     $tTot  = max(1, array_sum($tally));
     $pPass = round($tally['pass'] / $tTot * 100);
@@ -89,35 +107,50 @@
     foreach ($inspection->type->sections as $sec) {
         foreach ($sec->steps as $stp) { $stepSection[$stp->id] = $sec; }
     }
+    // Category media has no step, so it must be resolved by its own section id.
+    $sectionById = $inspection->type->sections->keyBy('id');
+
     $reportPhotos = [];
     foreach ($inspection->details as $d) {
-        $sec = $stepSection[$d->inspection_step_id] ?? null;
+        $isCategory = is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id);
+        $sec = $isCategory
+            ? ($sectionById[$d->inspection_section_id] ?? null)
+            : ($stepSection[$d->inspection_step_id] ?? null);
+
         foreach ($d->media->where('type', 'photo') as $m) {
             try {
                 if (! $m->path || ! Storage::disk($m->disk ?: 'public')->exists($m->path)) continue;
             } catch (\Throwable $e) { continue; }
-            $reportPhotos[] = ['caption' => $m->label ?: ($sec?->section_name ?? 'Photo'), 'media' => $m];
+            // Photos uploaded against a category are captioned with the section
+            // name; per-question photos keep their own label when one was typed.
+            $caption = $isCategory
+                ? ($sec?->section_name ?? 'Photo')
+                : ($m->label ?: ($sec?->section_name ?? 'Photo'));
+            $reportPhotos[] = ['caption' => $caption, 'media' => $m];
         }
     }
     $heroPhoto = $reportPhotos[0]['media']->url ?? null;
 
     // Vehicle specification list for the summary card.
     $specs = [
-        ['Make', $val($inspection->manufacturer_name ?: $inspection->car_make)],
-        ['Model', $val(trim($inspection->car_make . ' ' . $inspection->car_model))],
-        ['Model Year', $val($inspection->car_year)],
-        ['Vehicle Type', $val($inspection->vehicle_type)],
-        ['Transmission', $val($inspection->transmission)],
-        ['Fuel Type', $val($inspection->fuel_type)],
-        ['Engine (Cyl / CC)', $val($inspection->cylinders_cc)],
+        ['Make', $val($inspection->car_make)],
+        ['Model', $val($inspection->car_model)],
+        ['Year', $val($inspection->car_year)],
+        ['Manufacturing Year', $val($inspection->manufacturing_year)],
+        ['VIN / Chassis No', $val($inspection->vin)],
+        ['Plate No', $val($inspection->plate_no)],
         ['Odometer', $val($inspection->odometer)],
+        ['Region', $val($inspection->region)],
+        ['Exterior Colour', $val($inspection->exterior_color)],
+        ['Gearbox', $val($inspection->gearbox)],
+        ['Fuel Type', $val($inspection->fuel_type)],
+        ['Body Type', $val($inspection->body_type)],
         ['No. of Keys', $val($inspection->number_of_keys)],
-        ['Colour', $val($inspection->color)],
-        ['Country of Origin', $val($inspection->country_of_origin)],
-        ['No. of Passengers', $val($inspection->passengers)],
+        ['With Service History', $inspection->with_service_history === null ? $val(null) : ($inspection->with_service_history ? 'Yes' : 'No')],
+        ['Last Service Date', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
     ];
 
-    $makeHeading = $val($inspection->manufacturer_name ?: $inspection->car_make);
+    $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
 @endphp
 <!doctype html>
@@ -126,6 +159,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Inspection Report — {{ $reportNo }}</title>
+    <link rel="shortcut icon" href="{{ asset('assets/images/favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
@@ -146,6 +180,13 @@
         /* ---- page shell ---- */
         .page{ background:var(--bg); border-radius:6px; padding:22px 24px 30px; margin-bottom:22px; }
         .page-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+
+        /* ---- body sheet: carries the running brand header (see markup) ---- */
+        .body-sheet{ width:100%; border-collapse:collapse; }
+        .body-sheet > thead > tr > td,
+        .body-sheet > tbody > tr > td{ padding:0; }
+        .body-sheet > thead .page-header{ background:var(--bg); padding:16px 24px 18px; margin-bottom:0; }
+        .body-sheet > thead .brand-logo{ height:32px; }
         .brand-pill{ display:inline-flex; align-items:center; gap:7px; background:var(--brand); color:#fff;
             font-weight:700; font-size:13px; padding:7px 15px 7px 10px; border-radius:20px; letter-spacing:.2px; }
         .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
@@ -186,7 +227,7 @@
         /* ---- badges ---- */
         .badge{ display:inline-flex; align-items:center; justify-content:center; color:#fff; font-weight:700;
             min-width:20px; height:20px; padding:0 6px; border-radius:4px; line-height:1; font-size:12px; }
-        .b-pass{ background:var(--pass); } .b-fail{ background:#e02424; } .b-na{ background:var(--na); font-size:11px; letter-spacing:.4px; }
+        .b-pass{ background:var(--pass); } .b-fail{ background:#e02424; } .b-na{ background:#f5a623; font-size:11px; letter-spacing:.4px; }
 
         /* ---- key / value spec ---- */
         .kv{ width:100%; border-collapse:collapse; }
@@ -303,6 +344,10 @@
 
         /* keep cards / rows intact across page breaks, never orphan a section bar */
         .item-card,.card,.gal figure,.res-box,.fact{ break-inside:avoid; }
+        /* The photo gallery is the one card that can be taller than a sheet, and
+           an unbreakable box that doesn't fit is pushed whole to the next page —
+           which left an empty page behind it. It breaks between rows instead. */
+        .card.photos{ break-inside:auto; }
         .sec-bar,.make-h{ break-after:avoid; }
 
         /* ---- toolbar / print ---- */
@@ -311,13 +356,38 @@
             font-size:13px; font-weight:600; text-decoration:none; }
         @page{ size:A4; margin:0; }
         @media print{
-            body{ background:#fff; padding:0; }
+            {{-- Print every colour, gradient and background exactly as it shows on
+                 screen. Without this Chrome drops them unless the person printing
+                 ticks "Background graphics" in the dialog. --}}
+            *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+            {{-- The page colour is carried by the canvas so that a section which
+                 ends mid-sheet doesn't leave bare white below it. --}}
+            body{ background:var(--bg); padding:0; }
             .toolbar{ display:none; }
             .sheet{ max-width:none; }
             .page,.cover,.thanks{ margin-bottom:0; border-radius:0; }
+            {{-- Cover and thank-you are single full-bleed sheets. Content pages
+                 are NOT stretched — the canvas colour above already fills the
+                 sheet, and a min-height here would force every section that
+                 flows mid-page down onto a page of its own. --}}
+            .cover,.thanks{ min-height:296mm; }
+            {{-- Sections that flow one after another shouldn't stack both panels'
+                 padding at the seam — that dead band is enough to tip a short
+                 closing section onto a page of its own. --}}
+            .page{ padding-bottom:14px; }
+            .page + .page{ padding-top:0; }
             .pb{ page-break-before:always; }
-            .card,.item-card,.sec-bar,.badge,.plg,.brand-pill,.gauge,.cover,.thanks{
-                -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+            {{-- Chrome's PDF export cannot blur a shadow: it paints the blur
+                 radius as a solid rectangle, which comes out as black/grey blocks
+                 behind the logo chip and every card. Drop the outer shadows (and
+                 image filters, same rasteriser) and keep a hairline instead. The
+                 accent edge on .sec-bar is an inset shadow with no blur, so it
+                 renders correctly and is deliberately left alone. --}}
+            .card,.item-card,.logo-chip,[style*="box-shadow"]{ box-shadow:none !important; }
+            .page .card,.page .item-card{ border:1px solid var(--line); }
+            .cover-art,.thanks-art,.hero,.thanks-logo{ filter:none !important; }
         }
     </style>
 </head>
@@ -334,14 +404,22 @@
 
                 {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
                 @php
-                    $scoreF = round($tally['pass'] / $tTot * 100, 1);
-                    $scoreLbl = rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
+                    $scoreF = $overallRatingVal > 0 ? $overallRatingPct : round($tally['pass'] / $tTot * 100, 1);
+                    $scoreLbl = $overallRatingVal > 0 ? (string) $overallRatingPct : rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
                     $bands = [
-                        ['Bad', 0, 25, '#e0483d'], ['Fair', 25, 50, '#efb008'],
-                        ['Good', 50, 75, '#f2903f'], ['Excellent', 75, 100.01, '#2fa84f'],
+                        ['Poor', 0, 20, '#e0483d'], ['Fair', 20, 40, '#efb008'],
+                        ['Good', 40, 60, '#f2903f'], ['Very Good', 60, 80, '#5ab84d'],
+                        ['Excellent', 80, 100.01, '#2fa84f'],
                     ];
-                    $cond = 'Bad'; $cColor = '#e0483d';
+                    $cond = 'Poor'; $cColor = '#e0483d';
                     foreach ($bands as $b) { if ($scoreF >= $b[1] && $scoreF < $b[2]) { $cond = $b[0]; $cColor = $b[3]; break; } }
+
+                    // The printed condition is the TECHNICIAN'S verdict, not the gauge
+                    // band. The gauge measures a different thing (share of passed items),
+                    // so the two can legitimately differ. The band is only a fallback for
+                    // inspections saved before the verdict was made mandatory.
+                    $condColor  = $ratingColors[$overallRatingBadge] ?? $cColor;
+                    $condition  = $condition ?: $cond;
 
                     $cx = 200; $cy = 170;
                     $rBand = 150; $rMinO = 133; $rMinI = 126; $rMajI = 116; $rLabel = 102; $rNeedle = 112;
@@ -385,18 +463,19 @@
                     <div class="cover-score-num" style="font-size:34px; font-weight:800; color:#fff; line-height:1; font-family:'Poppins',sans-serif;">
                         {{ $scoreLbl }}<span style="font-size:18px; font-weight:700; color:#8ea3b5;"> / 100</span>
                     </div>
-                    <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $cColor }}; background:{{ $cColor }}22; border:1px solid {{ $cColor }};">
-                        {{ $cond }} Condition
+                    <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $condColor }}; background:{{ $condColor }}22; border:1px solid {{ $condColor }};">
+                        {{ $condition }}
                     </div>
                 </div>
 
                 <div class="cover-cond-legend">
-                    <span><i style="background:#e0483d"></i>Bad</span>
+                    <span><i style="background:#e0483d"></i>Poor</span>
                     <span><i style="background:#efb008"></i>Fair</span>
                     <span><i style="background:#f2903f"></i>Good</span>
+                    <span><i style="background:#5ab84d"></i>Very Good</span>
                     <span><i style="background:#2fa84f"></i>Excellent</span>
                 </div>
-                <div class="cover-rating-title">Overall Rating</div>
+                <div class="cover-rating-title">Overall Verdict</div>
 
                
 
@@ -404,7 +483,20 @@
               
                 <div class="card tight" style=" width :350px;">
                     <div class="facts">
-                        <div class="fact"><div class="fl">Overall Condition</div><div class="fv"> {{ $cond }}</div></div>
+                        <div class="fact" style="display:flex;flex-direction:column;align-items:center;">
+                            <div class="fl">Overall Rating</div>
+                            <div class="fv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+                                @if($overallRatingVal > 0)
+                                    @for($i = 1; $i <= 5; $i++)
+                                        @php $fill = max(0, min(1, $overallRatingVal - ($i - 1))); $pct = round($fill * 100, 1); @endphp
+                                        <span class="star" style="font-size:15px;line-height:1;{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#dfe3ea;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#dfe3ea '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>
+                                    @endfor
+                                    <span style="font-size:12px;font-weight:700;color:#1c2430;">{{ number_format($overallRatingVal, 1) }}/5</span>
+                                @else
+                                    {{ $overallCond ?? $condition }}
+                                @endif
+                            </div>
+                        </div>
                         <div class="fact"><div class="fl">Recommendation</div><div class="fv">{{ $recommend }}</div></div>
                     </div>
                 </div>
@@ -425,16 +517,26 @@
             </div>
         </div>
 
+        {{-- ==============================================================
+             Everything between the cover and the thank-you page lives in one
+             table. A <thead> is the only construct Chrome repeats on every
+             printed page, so this is what puts the brand header on all sheets;
+             the cover and thank-you sit outside it and stay header-free.
+             ============================================================== --}}
+        <table class="body-sheet">
+            <thead>
+                <tr><td>
+                    <div class="page-header">
+                        <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                        <span class="doc-tag">Comprehensive Inspection Report</span>
+                    </div>
+                </td></tr>
+            </thead>
+            <tbody>
+                <tr><td>
+
         {{-- ============================== VEHICLE SUMMARY ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
-
-        
- 
-
+        <div class="page">
             {{-- Vehicle summary --}}
             <div class="sec-bar"><span class="en">Vehicle Summary</span></div>
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
@@ -458,11 +560,7 @@
 
         {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
         @if ($hasEv)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">EV &amp; PHEV</span></div>
             @php $evBanner = $bannerUrl('EV and PHEV') ?: $bannerUrl('EV & PHEV Details'); @endphp
             @if ($evBanner)<img class="sec-banner" src="{{ $evBanner }}" alt="">@endif
@@ -499,11 +597,7 @@
 
         {{-- ============================== TECHNICAL MEASUREMENTS (bilingual, if present) ============================== --}}
         @if ($hasTech)
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Technical Inspection Measurements</span></div>
             @php $techBanner = $bannerUrl('Technical Inspection Measurements') ?: $bannerUrl('Technical & Emissions Tests'); @endphp
             @if ($techBanner)<img class="sec-banner" src="{{ $techBanner }}" alt="">@endif
@@ -543,11 +637,7 @@
         @endif
 
         {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
@@ -575,24 +665,30 @@
 
                 @php
                     $secMeta = ($sectionSummaries ?? collect())->get($section->id);
-                    $secRating = Inspection::sectionRating($section, $answers, optional($secMeta)->rating);
+                    // Only the rating the technician actually recorded on the edit
+                    // screen. Deliberately NOT Inspection::sectionRating(), which
+                    // falls back to a score derived from the answers — that printed
+                    // stars nobody had assessed. No rating given = no stars shown.
+                    $secRating = (float) (optional($secMeta)->rating ?: 0);
+                    // 4.0 prints as "4", 4.6 stays "4.6".
+                    $secRatingLbl = rtrim(rtrim(number_format($secRating, 1), '0'), '.');
                 @endphp
                 <div class="sec-bar" style="margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
                     <span class="en">{{ $sTitle }}</span>
-                    @if ($secRating || optional($secMeta)->summary)
-                        <span class="sec-summary" style="font-size:12px; color:#cfd4dc; display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; text-align:right;">
-                            @if ($secRating)
-                                <span style="white-space:nowrap;">@for($i=1;$i<=5;$i++)<span style="color:{{ $i <= $secRating ? '#f1b44c' : 'rgba(255,255,255,.3)' }};">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRating }}/5</span></span>
-                            @endif
-                            @if (optional($secMeta)->summary)<span style="font-style:italic;white-space:pre-line;">{{ $secMeta->summary }}</span>@endif
-                        </span>
+                    @if ($secRating)
+                        <span style="white-space:nowrap;">@for($i = 1; $i <= 5; $i++)@php $fill = max(0, min(1, $secRating - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span class="star" style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:rgba(255,255,255,.3);' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,rgba(255,255,255,.3) '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRatingLbl }}/5</span></span>
                     @endif
                 </div>
+                @if (optional($secMeta)->summary)
+                    <div style="background:var(--card);border-radius:10px;padding:12px 18px;box-shadow:0 6px 18px rgba(24,33,54,.06);margin:-8px 0 16px 0;white-space:pre-line;color:#3b4655;line-height:1.6;font-size:12.5px;">{{ $secMeta->summary }}</div>
+                @endif
                 @php $secBanner = $bannerUrl($section->section_name); @endphp
                 @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
 
                 @php
-                    // Show passed items first, then N/A, then failed items last.
+                    // N/A (and unanswered) items are left out of the report entirely.
+                    $steps = $steps->filter(fn ($s) => Inspection::isReportable($answers->get($s->id)));
+                    // Show passed items first, then failed items last.
                     $stateRank = ['pass' => 0, 'na' => 1, 'fail' => 2];
                     $steps = $steps->sortBy(fn ($s) => $stateRank[$rowState($s)] ?? 1)->values();
                 @endphp
@@ -618,14 +714,12 @@
         </div>
 
         {{-- ============================== GENERAL PHOTOS ============================== --}}
+        {{-- Continues straight after the checklist (no forced break, no repeated
+             logo strip) so the gallery fills the tail of that page. --}}
         @if (! empty($reportPhotos))
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">General Photos</span></div>
-            <div class="card">
+            <div class="card photos">
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
                         <figure>
@@ -638,12 +732,58 @@
         </div>
         @endif
 
-        {{-- ============================== INSPECTOR COMMENT ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
+        {{-- ============================== SUMMARY BY AREA ============================== --}}
+        @php
+            // Inline SVG (Lucide-style) per area — icon fonts don't embed in PDF,
+            // but inline SVG renders everywhere. Returns a 20px stroke icon.
+            $areaSvg = function ($name) {
+                $n = strtolower((string) $name);
+                $inner = match (true) {
+                    str_contains($n, 'exterior') => '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 1 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+                    str_contains($n, 'interior') => '<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2M19 18v2"/>',
+                    str_contains($n, 'engine') => '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+                    str_contains($n, 'brake') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+                    str_contains($n, 'transmission') || str_contains($n, 'gearbox') => '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+                    str_contains($n, 'suspension') || str_contains($n, 'steering') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M4.5 8.5 10 12M19.5 8.5 14 12M12 14v7"/>',
+                    str_contains($n, 'tire') || str_contains($n, 'tyre') || str_contains($n, 'wheel') => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8M8 12h8"/>',
+                    str_contains($n, 'undercarriage') => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+                    str_contains($n, 'safety') => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+                    str_contains($n, 'road') || str_contains($n, 'drive') => '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+                    str_contains($n, 'electr') => '<polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+                    default => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+                };
+                return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0b8a68" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'.$inner.'</svg>';
+            };
+
+            $areaNotes = [];
+            foreach (($summaryTypes ?? []) as $tid => $tname) {
+                $note = $summaries[$tid] ?? null;
+                if (filled($note)) {
+                    $areaNotes[] = ['name' => $tname, 'note' => $note, 'svg' => $areaSvg($tname)];
+                }
+            }
+        @endphp
+        @if (!empty($areaNotes))
+        <div class="page">
+            <div class="sec-bar"><span class="en">Summary Notes by Area</span></div>
+            <div class="grid2">
+                @foreach ($areaNotes as $an)
+                    <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#e8f7f1; border:1px solid #cdeee1;">{!! $an['svg'] !!}</span>
+                            <span style="font-family:'Quicksand',sans-serif; font-weight:700; color:#1c2431; font-size:13px;">{{ $an['name'] }}</span>
+                        </div>
+                        <div style="white-space:pre-line; color:#475467; line-height:1.6; font-size:11.5px; padding-left:2px;">{{ $an['note'] }}</div>
+                    </div>
+                @endforeach
             </div>
+        </div>
+        @endif
+
+        {{-- ============================== INSPECTOR COMMENT ============================== --}}
+        {{-- Comment, signatures and terms are all short: they follow the summary
+             notes on the same sheet rather than taking a page each. --}}
+        <div class="page">
             <div class="sec-bar"><span class="en">Inspector Comment</span></div>
             <div class="card">
                 @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
@@ -673,11 +813,7 @@
         </div>
 
         {{-- ============================== TERMS & CONDITIONS ============================== --}}
-        <div class="page pb">
-            <div class="page-header">
-                <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                <span class="doc-tag">Comprehensive Inspection Report</span>
-            </div>
+        <div class="page">
             <div class="sec-bar"><span class="en">Terms &amp; Conditions</span></div>
             <div class="card terms">
                 <div class="col">
@@ -691,6 +827,10 @@
                 </div>
             </div>
         </div>
+
+                </td></tr>
+            </tbody>
+        </table>
 
         {{-- ============================== THANK YOU ============================== --}}
         <div class="thanks pb">

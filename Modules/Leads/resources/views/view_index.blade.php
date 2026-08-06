@@ -167,7 +167,7 @@
                 <!-- End Page-content -->
           
 <!------------------------  Multiple Lead Assignment modal  ---------------------->
-	<div class="modal fade" id="multiAssignModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal fade" id="multiAssignModal" tabindex="-1" role="dialog" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
 		<div class="modal-dialog modal-dialog-centered modal-lg">
 			<div class="modal-content mla-modal">
 				<div class="modal-header">
@@ -399,21 +399,23 @@
 
     .mla-list-wrap { max-height:300px; overflow-y:auto; border:1px solid #eef1f5; border-radius:12px; padding:6px; margin-bottom:16px; background:#f9fbfc; }
     .mla-list { margin:0; padding:0; }
-    .mla-row { display:grid; grid-template-columns:1.4fr 1.2fr 1fr; gap:10px; align-items:center; padding:7px 10px; border-radius:8px; }
-    .mla-list.mla-mode-each .mla-row { grid-template-columns:1.3fr 1fr .9fr 1fr; }
+    .mla-row { display:grid; grid-template-columns:1.3fr 1.1fr 1.5fr; gap:10px; align-items:center; padding:7px 10px; border-radius:8px; }
+    .mla-list.mla-mode-each .mla-row { grid-template-columns:1.2fr .9fr 1.4fr 1fr; }
     .mla-row + .mla-row { border-top:1px solid #eef1f5; }
     .mla-row--head { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; border-bottom:1px solid #eef1f5; }
     .mla-row__name { display:flex; align-items:center; gap:6px; font-size:13.5px; color:#344054; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .mla-row__name i { color:var(--ld-brand); }
     .mla-row .form-select, .mla-row .form-control { border:1px solid #e4e8ee; border-radius:8px; }
     .mla-row--err .mla-row__type { border-color:#e5484d; }
+    .mla-row--err-date .mla-row__date { border-color:#e5484d; }
     .mla-row--err-staff .mla-row__staff { border-color:#e5484d; }
     #multiAssignModal .mla-row__staff { display:none !important; }
     #multiAssignModal .mla-list.mla-mode-each .mla-row__staff { display:block !important; }
     @media (max-width:575px){ .mla-row, .mla-list.mla-mode-each .mla-row { grid-template-columns:1fr; gap:5px; } .mla-row--head { display:none; } }
     .mla-label { font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin-bottom:5px; }
-    #mla_staff { border:1px solid #e4e8ee; border-radius:10px; }
+    #mla_staff { border:1px solid #e4e8ee; border-radius:10px; transition:border-color .15s; }
     #mla_staff:focus { border-color:var(--ld-brand); box-shadow:0 0 0 .18rem rgba(4,176,132,.15); }
+    #mla_staff.mla-staff--err { border-color:#e5484d; }
     .mla-error { color:#e5484d; font-size:12.5px; margin-top:8px; min-height:16px; }
     /* Footer buttons — Cancel + Assign Leads */
     .mla-modal .modal-footer { border-top:1px solid #eef1f5; padding:14px 18px; gap:10px; }
@@ -521,7 +523,7 @@
 		
 	   	<!-- parsleyjs -->
 		<script src="{{asset('assets/libs/parsleyjs/parsley.min.js')}}"></script>
-		<script src="{{asset('module.js/Leads/index_leads.js?ver=3.6')}}"></script>
+		<script src="{{asset('module.js/Leads/index_leads.js?ver=4.0')}}"></script>
 		<script src="{{asset('module.js/Leads/main.js?ver=1.2') }}"></script>  
 		<script src="{{asset('module.js/main.js?ver=1.3')}}"></script>
 <script>
@@ -1031,30 +1033,78 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
             return out;
         }
 
+        function nowISO() {
+            var d = new Date();
+            return d.getFullYear() +
+                '-' + String(d.getMonth()+1).padStart(2,'0') +
+                '-' + String(d.getDate()).padStart(2,'0') +
+                'T' + String(d.getHours()).padStart(2,'0') +
+                ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+
         openBtn.addEventListener('click', function () {
             var leads = selectedLeads();
             document.getElementById('mla_count').textContent = leads.length;
             document.getElementById('mla_error').textContent = '';
             document.getElementById('mla_staff').value = '';
+            document.getElementById('mla_staff').classList.remove('mla-staff--err');
             var list = document.getElementById('mla_list');
+            var minDt = nowISO();
 
             if (leads.length === 0) {
                 list.innerHTML = '<div class="text-muted p-2">No leads selected. Tick the checkboxes in the list first.</div>';
             } else {
                 list.innerHTML =
-                    '<div class="mla-row mla-row--head"><span>Lead</span><span>Template</span><span>Date</span><span class="mla-row__staff">Staff</span></div>' +
+                    '<div class="mla-row mla-row--head"><span>Lead</span><span>Template</span><span>Date &amp; Time</span><span class="mla-row__staff">Staff</span></div>' +
                     leads.map(function (l) {
                         return '<div class="mla-row" data-lead-id="' + l.id + '">' +
                             '<span class="mla-row__name" title="' + l.name + '"><i class="bx bx-user"></i> ' + l.name + '</span>' +
                             '<select class="form-select form-select-sm mla-row__type">' + typeOptions() + '</select>' +
-                            '<input type="date" class="form-control form-control-sm mla-row__date">' +
+                            '<input type="datetime-local" class="form-control form-control-sm mla-row__date" required min="' + minDt + '">' +
                             '<select class="form-select form-select-sm mla-row__staff">' + staffOptions() + '</select>' +
                             '</div>';
                     }).join('');
             }
             document.querySelector('input[name="mla_mode"][value="all"]').checked = true;
             applyMode();
-            new bootstrap.Modal(modalEl).show();
+            // Static backdrop + no keyboard dismiss so clicking the native
+            // date/time picker (which renders outside the modal) doesn't close it
+            // and wipe the entered values.
+            bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false }).show();
+        });
+
+        // Clear red error borders as soon as the user fills in a field —
+        // event delegation on #mla_list handles dynamically created rows.
+        document.getElementById('mla_list').addEventListener('change', function (e) {
+            var target = e.target.closest('.mla-row__type, .mla-row__date, .mla-row__staff');
+            if (!target) return;
+            var row = target.closest('.mla-row');
+            if (!row) return;
+            var type = row.querySelector('.mla-row__type');
+            var date = row.querySelector('.mla-row__date');
+            var staff = row.querySelector('.mla-row__staff');
+            var errEl = document.getElementById('mla_error');
+            var isPast = false;
+
+            if (type) row.classList.toggle('mla-row--err', type.value === '');
+            if (date) {
+                isPast = !!date.value && new Date(date.value) <= new Date();
+                row.classList.toggle('mla-row--err-date', !date.value || isPast);
+            }
+            if (staff) row.classList.toggle('mla-row--err-staff', staff.value === '');
+
+            // Tell the user straight away rather than waiting for submit — a past
+            // date looks like a filled-in field, so a red border alone reads as
+            // "something is wrong" without saying what. Any other correction
+            // clears the message; submit recomputes it.
+            errEl.textContent = isPast
+                ? 'The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                : '';
+        });
+        // Clear the "Assign all to" staff red border on change too
+        document.getElementById('mla_staff').addEventListener('change', function () {
+            this.classList.toggle('mla-staff--err', this.value === '');
+            if (this.value !== '') { document.getElementById('mla_error').textContent = ''; }
         });
 
         document.getElementById('mla_submit').addEventListener('click', function () {
@@ -1064,28 +1114,49 @@ function addFollowUp(id,date,status,remarks,assigned_user,convertstatus)
             var allStaff = document.getElementById('mla_staff').value;
 
             if (rows.length === 0) { err.textContent = 'No leads selected.'; return; }
-            if (!each && !allStaff) { err.textContent = 'Please select a staff member.'; return; }
 
             var body = new URLSearchParams();
             if (!each) { body.append('user_id', allStaff); }
-            var missingType = false, missingStaff = false;
+            // Tracked separately so the message can name the actual problem —
+            // a red border alone leaves the user guessing, especially for a past
+            // date, where the field looks filled in.
+            var noType = false, noDate = false, pastDate = false, noStaff = false;
             rows.forEach(function (row) {
                 var id = row.getAttribute('data-lead-id');
                 var type = row.querySelector('.mla-row__type').value;
-                var date = row.querySelector('.mla-row__date').value;
+                var date = row.querySelector('.mla-row__date').value;          // "2026-07-27T14:30" (date + time)
+                var dateOnly = date ? date.split('T')[0] : '';                  // "2026-07-27" for the follow-up date
                 var staff = row.querySelector('.mla-row__staff').value;
+                var isPast = date && new Date(date) <= new Date();
+                if (!type) { noType = true; }
+                if (!date) { noDate = true; }
+                if (isPast) { pastDate = true; }
+                if (each && !staff) { noStaff = true; }
+                var rowMissing = !type || !date || isPast || (each && !staff);
                 row.classList.toggle('mla-row--err', !type);
+                row.classList.toggle('mla-row--err-date', !date || isPast);
                 row.classList.toggle('mla-row--err-staff', each && !staff);
-                if (!type) { missingType = true; return; }
-                if (each && !staff) { missingStaff = true; return; }
+                if (rowMissing) { return; }
                 body.append('leads[]', id);
                 body.append('inspection_type_id[' + id + ']', type);
-                body.append('scheduled_at[' + id + ']', date);
-                body.append('date[' + id + ']', date);
+                body.append('scheduled_at[' + id + ']', date);                 // full date + time -> inspections.scheduled_at
+                body.append('date[' + id + ']', dateOnly);                     // date only -> follow-up next date
                 if (each) { body.append('user_id[' + id + ']', staff); }
             });
-            if (missingType)  { err.textContent = 'Please choose a template for each lead.'; return; }
-            if (missingStaff) { err.textContent = 'Please choose a staff member for each lead.'; return; }
+            // Highlight the "Assign all to" staff select when empty (red border, no text)
+            var allStaffEl = document.getElementById('mla_staff');
+            var noAllStaff = !each && !allStaff;
+            allStaffEl.classList.toggle('mla-staff--err', noAllStaff);
+
+            if (noType || noDate || pastDate || noStaff || noAllStaff) {
+                var problems = [];
+                if (pastDate)             { problems.push('The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'); }
+                if (noDate)               { problems.push('Select a scheduled date & time for every lead.'); }
+                if (noType)               { problems.push('Select an inspection template for every lead.'); }
+                if (noStaff || noAllStaff){ problems.push('Select the assigned person.'); }
+                err.textContent = problems.join(' ');
+                return;
+            }
 
             var btn = this; btn.disabled = true; err.textContent = '';
             fetch("{{ url('leads/assign_leads') }}", {

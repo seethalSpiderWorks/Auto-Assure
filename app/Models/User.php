@@ -56,6 +56,21 @@ class User extends Authenticatable
         return (int) $this->previlage === self::TECHNICIAN_PRIVILEGE;
     }
 
+    /**
+     * Privilege ids treated as admin across the CRM (the same 1 / 2 pair the
+     * Leads, Followup and Branch controllers already gate their own screens on).
+     */
+    public const ADMIN_PRIVILEGES = [1, 2];
+
+    /**
+     * Admins may perform destructive/administrative actions such as cancelling
+     * an inspection.
+     */
+    public function isAdmin(): bool
+    {
+        return in_array((int) $this->previlage, self::ADMIN_PRIVILEGES, true);
+    }
+
     public function dashboardAction()
     {
 	    $divisionData  = DivisionsModel::select('id', 'division_name')->where('status', '0')->orderBy('division_name')->get()->toArray();

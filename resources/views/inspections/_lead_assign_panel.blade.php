@@ -57,7 +57,7 @@
                     </div>
                     <div class="form-group mb-2">
                         <label class="form-label font-size-12">Schedule (optional)</label>
-                        <input type="datetime-local" name="scheduled_at" class="form-control"
+                        <input type="datetime-local" name="scheduled_at" class="form-control" data-aa-datetime
                                value="{{ optional($aaInspection?->scheduled_at)->format('Y-m-d\TH:i') }}">
                     </div>
                     <button class="btn btn-primary btn-sm">{{ $aaAssigned ? 'Reassign' : 'Assign' }} &amp; Create Inspection</button>
@@ -101,3 +101,5 @@
         </div>
     </div>
 </div>
+
+@include('partials._datetime_picker')

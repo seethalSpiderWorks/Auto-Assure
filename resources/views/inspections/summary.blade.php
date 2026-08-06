@@ -3,14 +3,29 @@
 
 @php
     $vehicleName = trim(($inspection->car_make ?? '').' '.($inspection->car_model ?? ''));
-    if ($vehicleName === '') { $vehicleName = $inspection->manufacturer_name ?: 'Vehicle'; }
+    if ($vehicleName === '') { $vehicleName = 'Vehicle'; }
     $cond = strtolower($overview['condition']);
-    $condClass = (str_contains($cond,'excellent') || str_contains($cond,'good')) ? 'is-good'
+    $condClass = str_contains($cond,'excellent') ? 'is-excellent'
+        : (str_contains($cond,'very good') ? 'is-very-good'
+        : (str_contains($cond,'good') ? 'is-good'
         : (str_contains($cond,'fair') ? 'is-fair'
-        : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'));
+        : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'))));
+    // Gauge colour based on condition rating.
+    $gaugeColor = match ($condClass) {
+        'is-excellent' => '#22c55e',
+        'is-very-good' => '#5ab84d',
+        'is-good'      => '#f5a623',
+        'is-fair'      => '#fbbf24',
+        'is-poor'      => '#ef4444',
+        default        => '#94a3b8',
+    };
     $goodCount = collect($sections)->where('status','Completed')->count();
-    $warnCount = collect($sections)->where('status','Need Attention')->count();
     $naCount   = collect($sections)->where('status','Not answered')->count();
+    // Drives whether the tile row and breakdown legend show the part-filled
+    // state at all; the row is 4 tiles wide while it does, 3 once everything
+    // is finished.
+    $inProgressCount = collect($sections)->where('status','In Progress')->count();
+    $tileCol = $inProgressCount ? 'col-md-3' : 'col-md-4';
 @endphp
 
 <div class="page-content">
@@ -22,7 +37,9 @@
                     <h4 class="mb-0">Inspection Summary</h4>
                     <div class="page-title-right d-flex align-items-center" style="gap:.5rem;">
                         <a href="{{ route('inspections.edit', $inspection) }}" class="btn btn-sm insp-hlbtn insp-hlbtn--edit"><i class="bx bx-edit"></i> Edit</a>
-                        <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm insp-hlbtn insp-hlbtn--report"><i class="bx bx-download"></i> Download Report</a>
+                        @unless($inspection->isCancelled())
+                            <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm insp-hlbtn insp-hlbtn--report"><i class="bx bx-download"></i> Download Report</a>
+                        @endunless
                         <ol class="breadcrumb m-0 ms-2">
                             <li class="breadcrumb-item"><a href="{{ url('inspections') }}">Inspections</a></li>
                             <li class="breadcrumb-item active">Summary</li>
@@ -46,7 +63,8 @@
                             <div class="insp-vehicle__meta">
                                 <span><i class="bx bx-user"></i><span class="insp-vehicle__lbl">Owner</span><span class="insp-vehicle__val">{{ $inspection->customer_name ?: 'N/A' }}</span></span>
                                 <span><i class="bx bx-phone"></i><span class="insp-vehicle__lbl">Phone</span><span class="insp-vehicle__val">{{ $inspection->customer_phone ?: 'N/A' }}</span></span>
-                                @if($inspection->registration_number)<span><i class="bx bx-id-card"></i><span class="insp-vehicle__lbl">Reg. No.</span><span class="insp-vehicle__val">{{ $inspection->registration_number }}</span></span>@endif
+                                @if($inspection->whatsapp_number)<span><i class="bx bxl-whatsapp"></i><span class="insp-vehicle__lbl">WhatsApp</span><span class="insp-vehicle__val">{{ $inspection->whatsapp_number }}</span></span>@endif
+                                @if($inspection->plate_no)<span><i class="bx bx-id-card"></i><span class="insp-vehicle__lbl">Plate No.</span><span class="insp-vehicle__val">{{ $inspection->plate_no }}</span></span>@endif
                                 @if($inspection->odometer)<span><i class="bx bx-tachometer"></i><span class="insp-vehicle__lbl">Odometer</span><span class="insp-vehicle__val">{{ number_format($inspection->odometer) }} km</span></span>@endif
                                 @if($inspection->fuel_type)<span><i class="bx bx-gas-pump"></i><span class="insp-vehicle__lbl">Fuel</span><span class="insp-vehicle__val">{{ $inspection->fuel_type }}</span></span>@endif
                                 @if($inspection->vin)<span><i class="bx bx-barcode"></i><span class="insp-vehicle__lbl">VIN</span><span class="insp-vehicle__val">{{ $inspection->vin }}</span></span>@endif
@@ -59,18 +77,29 @@
                 <div class="col-xl-7 col-lg-6">
                     <div class="insp-card insp-condition h-100">
                         <div class="insp-condition__gauge">
-                            <div class="insp-gauge" style="--pct: {{ $overview['percent'] }}; --gc: {{ ($overview['allAnswered'] ?? ($overview['percent'] >= 100)) ? '#22c55e' : '#f5a623' }};">
-                                <span class="insp-gauge__val">{{ $overview['percent'] }}<small>%</small></span>
-                                <span class="insp-gauge__sub">{{ $overview['completed'] }} / {{ $overview['total'] }}</span>
-                                <span class="insp-gauge__lbl">STEPS COMPLETED</span>
+                            <div class="insp-gauge" style="--pct: {{ $overview['ratingPercent'] }}; --gc: {{ $gaugeColor }};">
+                                <span class="insp-gauge__val">{{ $overview['ratingPercent'] }}<small>%</small></span>
+                                <span class="insp-gauge__sub">{{ number_format($overview['overall_rating'] ?? 0, 1) }} / 5</span>
+
                             </div>
                         </div>
                         <div class="insp-condition__body">
-                            <div class="insp-condition__title {{ $condClass }}">{{ $overview['condition'] }} @if($condClass !== 'is-none')Condition @endif</div>
+                            <div class="insp-condition__title {{ $condClass }}">{{ $overview['condition'] }}</div>
                             <div class="insp-condition__row">
                                 <div class="insp-stars">
+                                    @php
+                                        $rawRating = (float) ($overview['overall_rating'] ?? 0);
+                                    @endphp
                                     @for($i = 1; $i <= 5; $i++)
-                                        <i class="bx bxs-star {{ $i <= $overview['stars'] ? 'on' : '' }}"></i>
+                                        @php
+                                            $fill = min(max($rawRating - ($i - 1), 0), 1) * 100;
+                                        @endphp
+                                        <span class="insp-star-wrap">
+                                            <i class="bx bxs-star"></i>
+                                            @if($fill > 0)
+                                                <span class="insp-star-fill" style="width:{{ $fill }}%;"><i class="bx bxs-star"></i></span>
+                                            @endif
+                                        </span>
                                     @endfor
                                 </div>
                             </div>
@@ -85,17 +114,23 @@
 
             {{-- ===== Section status tallies ===== --}}
             <div class="row g-3 mt-4">
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--total"><span class="insp-stat__num">{{ count($sections) }}</span><span class="insp-stat__lbl">Sections</span></div></div>
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--good"><span class="insp-stat__num">{{ $goodCount }}</span><span class="insp-stat__lbl">Completed</span></div></div>
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--warn"><span class="insp-stat__num">{{ $warnCount }}</span><span class="insp-stat__lbl">Need Attention</span></div></div>
-                <div class="col-md-3 col-6"><div class="insp-stat insp-stat--na"><span class="insp-stat__num">{{ $naCount }}</span><span class="insp-stat__lbl">Not Answered</span></div></div>
+                <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--total"><span class="insp-stat__num">{{ count($sections) }}</span><span class="insp-stat__lbl">Sections</span></div></div>
+                <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--good"><span class="insp-stat__num">{{ $goodCount }}</span><span class="insp-stat__lbl">Completed</span></div></div>
+                @if($inProgressCount)
+                    <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--warn"><span class="insp-stat__num">{{ $inProgressCount }}</span><span class="insp-stat__lbl">In Progress</span></div></div>
+                @endif
+                <div class="{{ $tileCol }} col-6"><div class="insp-stat insp-stat--na"><span class="insp-stat__num">{{ $naCount }}</span><span class="insp-stat__lbl">Not Answered</span></div></div>
             </div>
 
             <div class="insp-breakdown-head">
                 <h5 class="insp-section-title mb-0">INSPECTION BREAKDOWN</h5>
                 <div class="insp-legend">
                     <span><i class="dot dot--good"></i> Completed</span>
-                    <span><i class="dot dot--warn"></i> Need Attention</span>
+                    {{-- Only worth a legend entry while a section is actually
+                         part-filled; once everything is done it is just noise. --}}
+                    @if($inProgressCount)
+                        <span><i class="dot dot--warn"></i> In Progress</span>
+                    @endif
                     <span><i class="dot dot--none"></i> Not answered</span>
                 </div>
             </div>
@@ -107,7 +142,6 @@
                             <tr>
                                 <th class="c-no">#</th>
                                 <th>Section</th>
-                                <th class="c-prog">Progress</th>
                                 <th class="c-count">Answered</th>
                                 <th class="c-status">Status</th>
                             </tr>
@@ -115,40 +149,40 @@
                         <tbody>
                             @forelse($sections as $s)
                                 @php
-                                    $stClass = $s['status'] === 'Completed' ? 'good' : ($s['status'] === 'Need Attention' ? 'warn' : 'none');
-                                    $pct = $s['total'] > 0 ? (int) round($s['answered'] / $s['total'] * 100) : 0;
+                                    $stClass = $s['status'] === 'Completed' ? 'good' : ($s['status'] === 'In Progress' ? 'warn' : 'none');
                                 @endphp
                                 <tr class="insp-brow insp-brow--{{ $stClass }}">
                                     <td class="c-no"><span class="insp-bno">{{ $s['number'] }}</span></td>
                                     <td class="c-name">
                                         {{ $s['name'] }}
                                         @if(!empty($s['rating']))
-                                            <span class="ml-1" title="{{ $s['rating'] }}/5" style="white-space:nowrap;">
-                                                @for($i=1;$i<=5;$i++)<span style="color:{{ $i <= $s['rating'] ? '#f1b44c' : '#d3d3d3' }};">★</span>@endfor
+                                            @php
+                                                // 4.0 reads as "4", 4.6 stays "4.6" — same label the edit box shows.
+                                                $rLbl = rtrim(rtrim(number_format($s['rating'], 1), '0'), '.');
+                                            @endphp
+                                            {{-- Partial fill so a 3.6 doesn't read as a flat 3, matching the report. --}}
+                                            <span class="ml-1" title="{{ $rLbl }}/5" style="white-space:nowrap;">
+                                                {{-- $starPct is deliberately not named $pct: the row's progress
+                                                     percentage above shares this scope and must survive this loop. --}}
+                                                @for($i=1;$i<=5;$i++)@php $fill = max(0, min(1, $s['rating'] - ($i - 1))); $starPct = round($fill * 100, 1); @endphp<span style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#d3d3d3;' : 'background:linear-gradient(90deg,#f1b44c '.$starPct.'%,#d3d3d3 '.$starPct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor
                                             </span>
                                         @endif
-                                        @if(!empty($s['summary']))
-                                            <div class="text-muted font-size-12 mt-1" style="white-space:pre-line;font-weight:400;">{{ $s['summary'] }}</div>
-                                        @endif
-                                    </td>
-                                    <td class="c-prog">
-                                        <div class="insp-btprog">
-                                            <span class="insp-btbar"><span style="--w: {{ $pct }}%"></span></span>
-                                            <span class="insp-btpct">{{ $pct }}%</span>
-                                        </div>
+                                        {{-- Section summary text is deliberately not printed here — this
+                                             table is the at-a-glance breakdown; the note belongs on the
+                                             report and the edit screen. Hover the stars for the value. --}}
                                     </td>
                                     <td class="c-count"><span class="insp-btcount">{{ $s['answered'] }}/{{ $s['total'] }}</span></td>
                                     <td class="c-status">
                                         <span class="insp-btstatus insp-btstatus--{{ $stClass }}">
                                             @if($s['status'] === 'Completed')<i class="bx bxs-check-circle"></i>
-                                            @elseif($s['status'] === 'Need Attention')<i class="bx bxs-error"></i>
+                                            @elseif($s['status'] === 'In Progress')<i class="bx bx-time-five"></i>
                                             @else<i class="bx bx-circle"></i>@endif
                                             {{ $s['status'] }}
                                         </span>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="text-center text-muted py-4">No inspection template configured.</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted py-4">No inspection template configured.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -225,8 +259,14 @@
     .insp-badge { display: inline-block; font-size: 12px; padding: 5px 14px; border-radius: 20px; }
     .insp-badge--warn { background: rgba(255,255,255,.12); color: #fff; }
     .insp-badge--ok { background: rgba(52,211,153,.18); color: #17BC8D; }
-    .insp-stars .bxs-star { color: rgba(255,255,255,.25); font-size: 18px; }
-    .insp-stars .bxs-star.on { color: #f5a623; }
+    .insp-stars { display: inline-flex; align-items: center; gap: 1px; }
+    .insp-star-wrap { position: relative; display: inline-flex; font-size: 18px; line-height: 1; }
+    .insp-star-wrap .bxs-star { color: rgba(255,255,255,.25); }
+    .insp-star-fill {
+        position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap;
+        color: #f5a623; pointer-events: none;
+    }
+    .insp-star-fill .bxs-star { color: inherit; }
     .insp-condition__note { font-size: 13.5px; opacity: .85; margin: 12px 0 0; }
     .insp-condition__rec { font-size: 13.5px; margin: 8px 0 0; color: #17BC8D; }
 
@@ -263,20 +303,11 @@
     .insp-brow td.c-name { font-weight: 600; color: #344054; }
 
     .c-no { width: 56px; }
-    .c-prog { width: 22%; }
     .c-count { width: 96px; white-space: nowrap; }
     .c-status { width: 160px; }
 
     .insp-bno { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; padding: 2px 8px; border-radius: 6px;
         background: #f2f5f8; color: #667085; font-size: 11.5px; font-weight: 700; }
-    .insp-btprog { display: flex; align-items: center; gap: 10px; }
-    .insp-btbar { flex: 1 1 auto; height: 5px; border-radius: 5px; background: #eef1f5; overflow: hidden; min-width: 60px; }
-    .insp-btbar span { display: block; height: 100%; width: 0; border-radius: 5px; background: #cbd5e1; animation: inspFill .9s ease-out forwards; }
-    .insp-brow--good .insp-btbar span { background: #04B084; }
-    .insp-brow--warn .insp-btbar span { background: #f5a623; }
-    .insp-btpct { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #98a2b3; min-width: 36px; text-align: right; }
-    .insp-brow--good .insp-btpct { color: #04B084; }
-    .insp-brow--warn .insp-btpct { color: #d98a12; }
     .insp-btcount { font-weight: 700; color: #667085; }
 
     .insp-btstatus { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
@@ -284,7 +315,6 @@
     .insp-btstatus--good { background: #e7f8ef; color: #04B084; }
     .insp-btstatus--warn { background: #fff4e0; color: #d98a12; }
     .insp-btstatus--none { background: #eef1f5; color: #8a94a6; }
-    @keyframes inspFill { from { width: 0; } to { width: var(--w); } }
 
     @media (max-width: 991px) {
         .insp-condition { flex-direction: column; text-align: center; }

@@ -23,7 +23,13 @@
     }
     .wiz-steps::-webkit-scrollbar { height: 6px; }
     .wiz-steps::-webkit-scrollbar-thumb { background: #c7ccd6; border-radius: 3px; }
-    .wiz-dot { display: flex; flex-direction: column; align-items: center; cursor: pointer; flex: 0 0 auto; }
+    .wiz-dot { display: flex; flex-direction: column; align-items: center; cursor: pointer; flex: 0 0 auto; position: relative; }
+    .wiz-dot__media {
+        position: absolute; top: -8px; right: 50%; transform: translateX(140%);
+        background: var(--brand, #04b084); color: #fff; font-size: .6rem; font-weight: 700; line-height: 1;
+        padding: 2px 4px; border-radius: 8px; display: inline-flex; align-items: center; gap: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    }
+    .wiz-dot__media i { font-size: .7rem; }
     .wiz-dot .bead {
         width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
         background: #e9edf1; color: #7a8593; font-weight: 700; font-size: .82rem; border: 2px solid #e9edf1; transition: all .18s;
@@ -32,6 +38,9 @@
     .wiz-dot.active .bead { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; box-shadow: 0 0 0 4px rgba(4,176,132,.22); }
     .wiz-dot.active .lbl { color: var(--brand-dark); font-weight: 600; }
     .wiz-dot.done .bead { background: var(--brand); border-color: var(--brand); color: #fff; }
+    /* Partially answered — some questions filled, section not finished yet. */
+    .wiz-dot.partial .bead { background: #f1b44c; border-color: #f1b44c; color: #fff; }
+    .wiz-dot.partial .lbl { color: #916417; }
     .wiz-line { flex: 0 0 20px; width: 20px; height: 2px; background: #e5e7eb; }
     .wiz-line.done { background: var(--brand); }
 
@@ -48,7 +57,13 @@
     .q-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
     .q-titlewrap { flex: 1 1 240px; min-width: 0; }
     .q-head .q-title { margin-bottom: 0; }
-    .q-answer { flex: 0 0 auto; display: flex; align-items: center; }
+    /* Rating and choice radios sit side by side here. Without a gap they collide
+       when a question enables both; wrap keeps them readable on narrow screens. */
+    .q-answer { flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: .35rem 1.25rem; justify-content: flex-end; }
+    /* The rating block carries mb-2 for the stacked layout — cancel it inline. */
+    .q-answer > [data-rating] { margin-bottom: 0 !important; }
+    /* Thin divider between the stars and the options when both are shown. */
+    .q-answer > [data-rating] + .choice-radios { border-left: 1px solid #e4e8ee; padding-left: 1.25rem; }
     .observation-wrap, .remedial-wrap { margin-top: .5rem; }
 
     /* Choice options as radio buttons */
@@ -62,6 +77,12 @@
 
     /* Star rating */
     .js-star, .js-secstar { cursor: pointer; font-size: 1.35rem; line-height: 1; }
+    /* Section rating row: label · stars · number box · readout. Spaced with a
+       flex gap so the parts never run together, and free to wrap on narrow
+       cards instead of squashing the number box. */
+    .sec-rating { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+    .sec-rating__stars { display: inline-flex; align-items: center; gap: .3rem; }
+    .sec-rating__box { width: 78px; }
 
     /* Dashed upload area */
     .upload-drop {
@@ -84,8 +105,12 @@
     .detail-group-title::before { content: ''; width: 16px; height: 3px; border-radius: 3px; background: var(--brand); }
     .detail-card .form-label { font-size: .8rem; font-weight: 600; color: #5b6472; margin-bottom: .3rem; }
     .detail-card .form-control, .detail-card .form-select, .detail-card select.form-control {
-        border: 1px solid #e4e8ee; border-radius: 10px; padding: .58rem .85rem; font-size: .92rem; background: #fff; transition: border-color .12s, box-shadow .12s; }
+        /* background-color, NOT the `background` shorthand — the shorthand would reset
+           background-image and wipe out the .form-select dropdown chevron. */
+        border: 1px solid #e4e8ee; border-radius: 10px; padding: .58rem .85rem; font-size: .92rem; background-color: #fff; transition: border-color .12s, box-shadow .12s; }
     .detail-card .form-control:hover, .detail-card select.form-control:hover { border-color: #cfd6df; }
+    /* Leave room on the right for the chevron and sit it inside the rounded border. */
+    .detail-card select.form-select { padding-right: 2.1rem; background-position: right .8rem center; background-size: 13px 10px; cursor: pointer; }
     .detail-card .row + .detail-group-title { margin-top: .5rem; padding-top: .55rem; border-top: 1px dashed #eef1f5; }
 
     /* Compact section / verdict cards + field spacing */
@@ -95,6 +120,63 @@
     .wizard-step .card:not(.detail-card) > .card-body { padding: .85rem 1.1rem .3rem; }
     .wizard-step .card-title { margin-bottom: .6rem !important; font-size: 1rem; color: var(--brand-dark); font-weight: 700; }
     .detail-sep { margin: .35rem 0 .55rem; border: 0; border-top: 1px dashed #e2e6ec; }
+
+    /* ---- Section card header icon --------------------------------------- */
+    .sec-head-icon {
+        flex: 0 0 auto; width: 40px; height: 40px; border-radius: 11px;
+        display: inline-flex; align-items: center; justify-content: center; font-size: 1.25rem;
+        color: var(--brand-dark, #00263D);
+        background: linear-gradient(135deg, rgba(4,176,132,.16), rgba(4,176,132,.06));
+        box-shadow: inset 0 0 0 1px rgba(4,176,132,.18);
+    }
+
+    /* ---- Summary area cards (icons) ------------------------------------- */
+    .sum-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .sum-card {
+        border: 1px solid #e5e9f0; border-radius: 14px; background: #fff; padding: 12px 14px 14px;
+        transition: border-color .18s, box-shadow .18s, transform .12s;
+    }
+    .sum-card:hover { box-shadow: 0 6px 18px rgba(16,40,70,.08); transform: translateY(-1px); }
+    .sum-card:focus-within { border-color: var(--brand, #04b084); box-shadow: 0 0 0 3px rgba(4,176,132,.16); }
+    .sum-card.is-filled { border-color: rgba(4,176,132,.55); background: linear-gradient(180deg, rgba(4,176,132,.05), #fff 40%); }
+    .sum-card__head { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .sum-card__icon {
+        flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; color: #fff; background: linear-gradient(135deg, #04b084, #0f9d69);
+        box-shadow: 0 2px 6px rgba(4,176,132,.3);
+    }
+    .sum-card__title { font-weight: 700; font-size: .86rem; color: #2c3a4b; flex: 1 1 auto; min-width: 0; }
+    .sum-card__tick { color: #04b084; font-size: 1.1rem; opacity: 0; transition: opacity .18s; }
+    .sum-card.is-filled .sum-card__tick { opacity: 1; }
+    .sum-card__input { border: 0; background: #f6f8fb; border-radius: 9px; resize: vertical; font-size: .84rem; }
+    .sum-card__input:focus { background: #fff; box-shadow: none; }
+    /* Faded so the example hint never reads as an answer already typed.
+       opacity:1 is needed — Firefox dims placeholders on its own otherwise. */
+    .sum-card__input::placeholder { color: #b6c0cc; opacity: 1; }
+    .sum-card__input::-webkit-input-placeholder { color: #b6c0cc; }
+    .sum-card__input:-ms-input-placeholder { color: #b6c0cc; }
+
+    /* ---- Completion-status section chips -------------------------------- */
+    .secstat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+    .secstat {
+        display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+        padding: 9px 11px; border-radius: 12px; border: 1px solid #e5e9f0; background: #fff;
+        transition: border-color .18s, box-shadow .18s, transform .12s;
+    }
+    .secstat:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(16,40,70,.1); }
+    .secstat__icon {
+        flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.05rem; color: #6b7280; background: #eef1f5;
+    }
+    .secstat__name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .84rem; color: #2c3a4b; }
+    .secstat__badge { flex: 0 0 auto; font-weight: 700; }
+    .secstat.is-done { border-color: rgba(4,176,132,.45); background: linear-gradient(180deg, rgba(4,176,132,.06), #fff 55%); }
+    .secstat.is-done .secstat__icon { color: #fff; background: linear-gradient(135deg, #04b084, #0f9d69); }
+    .secstat.is-done .secstat__badge { background: rgba(4,176,132,.15) !important; color: #0b7a5b !important; }
+    .secstat.is-partial { border-color: rgba(241,180,76,.5); }
+    .secstat.is-partial .secstat__icon { color: #b9821f; background: rgba(241,180,76,.18); }
+    .secstat.is-partial .secstat__badge { background: rgba(241,180,76,.18) !important; color: #916417 !important; }
+    .secstat.is-empty .secstat__badge { background: #eef1f5 !important; color: #7a8593 !important; }
 
     /* ---- Fixed bottom navigation ---------------------------------------- */
     .wiz-nav {
@@ -116,6 +198,50 @@
     .wiz-nav .btn-success:hover, #inspection-root .btn-success:hover { background: var(--brand-2); border-color: var(--brand-2); }
     #inspection-root a.text-success, #inspection-root .text-success { color: var(--brand) !important; }
 
+    /* Video tiles: first frame as the thumbnail, with a play badge over it.
+       Clicking opens the file in a new tab, where the browser's own player
+       handles it — the 96x64 inline control bar is too small to hit. */
+    .vid-thumb { position: relative; display: inline-block; line-height: 0; cursor: pointer; }
+    .vid-thumb video { pointer-events: none; display: block; }
+    .vid-thumb__play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .vid-thumb__play i { width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
+                         display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+    .vid-thumb:hover .vid-thumb__play i { background: rgba(0,0,0,.8); }
+
+    /* Reschedule date validation message */
+    .sched-error { color:#e5484d; font-size:12.5px; margin-top:6px; }
+    .sched-error:empty { display:none; }
+    .sched-invalid { border-color:#e5484d !important; box-shadow:0 0 0 .15rem rgba(229,72,77,.15); }
+
+    /* Primary vehicle photo on the Customer & Vehicle step */
+    .veh-img { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+    .veh-img__preview { width: 220px; height: 150px; border-radius: 12px; overflow: hidden; background: #f7f9fc;
+                        border: 1px dashed #dbe2ea; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .veh-img__preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .veh-img__empty { color: #98a2b3; font-size: .8rem; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+    .veh-img__empty i { font-size: 30px; }
+    .veh-img__actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; }
+    .veh-img__actions .btn { cursor: pointer; }
+    .veh-img__actions small { flex-basis: 100%; }
+
+    /* PDF tile — a document can't be previewed inline, so show a file card that
+       opens in a new tab instead of an <img> that would render as broken. */
+    .doc-thumb { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;
+                 justify-content: center; gap: 4px; background: #fdecec; color: #c0392b; text-decoration: none;
+                 padding: 6px; text-align: center; line-height: 1.15; }
+    .doc-thumb i { font-size: 26px; }
+    .doc-thumb span { font-size: 10px; word-break: break-all; }
+    .doc-thumb:hover { background: #fbdcdc; color: #96281b; }
+
+    /* Lightbox the tiles open into */
+    .vid-modal { position: fixed; inset: 0; z-index: 1080; background: rgba(0,0,0,.85);
+                 display: none; align-items: center; justify-content: center; }
+    .vid-modal.is-open { display: flex; }
+    .vid-modal video { max-width: 90vw; max-height: 85vh; background: #000; border-radius: .5rem; outline: none; }
+    .vid-modal__close { position: absolute; top: 12px; right: 20px; background: none; border: 0;
+                        color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; opacity: .85; }
+    .vid-modal__close:hover { opacity: 1; }
+
     /* Additional-media items with per-file labels */
     .extra-item { width: 116px; display: flex; flex-direction: column; gap: 5px; }
     .extra-item__thumb { position: relative; width: 100%; height: 78px; }
@@ -130,25 +256,181 @@
     .wiz-head .btn-info:hover { background: var(--brand); border-color: var(--brand); }
     .wiz-head .btn-primary { background: var(--brand-dark); border-color: var(--brand-dark); }
     .wiz-head .btn-primary:hover { background: var(--brand); border-color: var(--brand); }
+
+    /* ---- Stat badge tooltips (CSS-only, no title attribute needed) ------- */
+    .stat-badge {
+        position: relative;
+        cursor: default;
+    }
+    .stat-badge::after {
+        content: attr(data-label);
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1f2a37;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 5px;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .14s;
+    }
+    .stat-badge:hover::after {
+        opacity: 1;
+    }
+
+    /* ---- Faded stat badge colors ---------------------------------------- */
+    .stat-badge.badge-soft-success {
+        background: rgba(15, 157, 105, .18) !important;
+        color: rgba(15, 157, 105, .85) !important;
+    }
+    .stat-badge.badge-soft-danger {
+        background: rgba(228, 63, 63, .18) !important;
+        color: rgba(228, 63, 63, .85) !important;
+    }
+    .stat-badge.badge-soft-warning {
+        background: rgba(241, 180, 76, .22) !important;
+        color: rgba(180, 120, 30, .85) !important;
+    }
+    .stat-badge.badge-soft-secondary {
+        background: rgba(108, 117, 125, .18) !important;
+        color: rgba(108, 117, 125, .8) !important;
+    }
+
+    /* ---- Highlighted Overall Rating block in the Verdict step ----------- */
+    .overall-rating-wrap {
+        background: linear-gradient(135deg, #f0faf7 0%, #e8f5fe 100%);
+        border: 2px solid #04b084;
+        border-radius: 14px;
+        padding: 14px 18px 16px;
+        box-shadow: 0 0 0 3px rgba(4,176,132,.1), 0 4px 16px rgba(4,176,132,.08);
+        transition: box-shadow .2s;
+    }
+    .overall-rating-wrap:hover {
+        box-shadow: 0 0 0 3px rgba(4,176,132,.18), 0 6px 20px rgba(4,176,132,.12);
+    }
+    .overall-rating-wrap__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-weight: 700;
+        font-size: .95rem;
+        color: #00263d;
+        margin-bottom: 10px;
+    }
+    .overall-rating-wrap__header i {
+        color: #f1b44c;
+        font-size: 1.2rem;
+    }
+    .overall-rating-pct-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #fff;
+        font-size: .82rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 20px;
+        line-height: 1.3;
+        transition: background .15s, box-shadow .15s;
+    }
+    .overall-rating-pct-badge i {
+        color: #fff !important;
+        font-size: .9rem;
+    }
+    .overall-rating-pct-badge.is-zero {
+        background: #b0b8c4;
+        box-shadow: none;
+    }
+    .overall-rating-pct-badge.is-poor { background: #e0483d; box-shadow: 0 2px 6px rgba(224,72,61,.3); }
+    .overall-rating-pct-badge.is-fair { background: #efb008; box-shadow: 0 2px 6px rgba(239,176,8,.3); }
+    .overall-rating-pct-badge.is-good { background: #f2903f; box-shadow: 0 2px 6px rgba(242,144,63,.3); }
+    .overall-rating-pct-badge.is-very-good { background: #5ab84d; box-shadow: 0 2px 6px rgba(90,184,77,.3); }
+    .overall-rating-pct-badge.is-excellent { background: #2fa84f; box-shadow: 0 2px 6px rgba(47,168,79,.3); }
+    .overall-rating-wrap__body {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .85rem .65rem;
+    }
+    .overall-rating-grid {
+        display: inline-flex;
+        align-items: flex-start;
+        gap: 2px;
+    }
+    .overall-rating-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 10px 8px;
+        border-radius: 12px;
+        background: transparent;
+        cursor: pointer;
+        transition: background .15s, transform .12s;
+        min-width: 66px;
+    }
+    .overall-rating-cell:hover {
+        background: rgba(241,180,76,.08);
+        transform: translateY(-2px);
+    }
+    .overall-rating-cell.is-active {
+        background: rgba(241,180,76,.14);
+    }
+    .overall-rating-cell:hover .overall-star {
+        text-shadow: 0 1px 4px rgba(241,180,76,.4);
+    }
+    .overall-badge {
+        font-size: .68rem;
+        font-weight: 700;
+        color: #7a8593;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+        line-height: 1.1;
+        transition: color .15s;
+    }
+    .overall-badge.is-active {
+        color: #00263d;
+    }
+    .overall-pct {
+        font-size: .7rem;
+        font-weight: 600;
+        color: #9ba5b3;
+        line-height: 1;
+        transition: color .15s;
+    }
+    .overall-pct.is-active {
+        color: #04b084;
+    }
+    .overall-rating-input {
+        width: 82px;
+        border-radius: 10px;
+        border: 1px solid #d0d7e2;
+        background: #fff;
+    }
+    .overall-rating-input:focus {
+        border-color: #f1b44c;
+        box-shadow: 0 0 0 .2rem rgba(241,180,76,.25);
+    }
 </style>
 
 @php
-    $lead = $inspection->lead;
     $isCompleted = $inspection->status === 'completed';
+    // A cancelled inspection is read-only too — same lock as a completed one.
+    $isCancelled = $inspection->isCancelled();
+    $isLocked = $isCompleted || $isCancelled;
     $prog = $inspection->progress();
     $statusBadge = [
         'pending'     => 'badge-soft-secondary',
         'in_progress' => 'badge-soft-warning',
         'completed'   => 'badge-soft-success',
+        'cancelled'   => 'badge-soft-danger',
     ];
-
-    // Colour for a choice option so Pass/Fail/N-A read at a glance.
-    $choiceColor = function ($opt) {
-        $o = strtolower(trim($opt));
-        if (in_array($o, ['pass', 'yes', 'ok', 'good', 'passed', 'available', 'working'])) return '#0f9d69';
-        if (in_array($o, ['fail', 'no', 'bad', 'not ok', 'failed', 'faulty', 'damaged', 'not working', 'not available'])) return '#e43f3f';
-        return '#6b7280';
-    };
 
     // Build the wizard step list: Details → each checklist section → Verdict.
     $sections = $inspection->type->sections;
@@ -159,17 +441,91 @@
     $wsteps[] = ['type' => 'verdict', 'name' => 'Verdict & Complete'];
     $totalW = count($wsteps);
     $sectionProgress = $inspection->sectionProgress();
+    // Keyed by section id so the section card headers can print their own
+    // answered/total without re-walking the steps.
+    $secProgById = collect($sectionProgress)->keyBy('id');
+    // Completion Status totals, summed from the same per-section counts the JS
+    // recomputes live, so the server-rendered badge matches what JS paints.
+    $doneAnswered = (int) collect($sectionProgress)->sum('answered');
+    $doneTotal    = (int) collect($sectionProgress)->sum('total');    $donePercent  = $doneTotal > 0 ? (int) round($doneAnswered / $doneTotal * 100) : 0;
+
+    // Per-section answer breakdown (good / bad / avg / na).
+    $sectionStats = [];
+    foreach ($sections as $sec) {
+        $p = $f = $a = $n = 0;
+        foreach ($sec->steps as $step) {
+            $detail = $answers->get($step->id);
+            if (! \App\Models\Inspection::detailIsAnswered($detail)) {
+                continue; // unanswered — don't count as N/A
+            }
+            $choice = $detail->choice ?? '';
+            if (in_array($choice, \App\Models\Inspection::POSITIVE_CHOICES, true)) {
+                $p++;
+            } elseif ($choice === 'Average') {
+                $a++;
+            } elseif (in_array($choice, \App\Models\Inspection::NEGATIVE_CHOICES, true)) {
+                $f++;
+            } else {
+                $n++;
+            }
+        }
+        $sectionStats[$sec->id] = ['pass' => $p, 'fail' => $f, 'avg' => $a, 'na' => $n];
+    }
+
+    // Section name → stats lookup for the Summary area cards.
+    $sectionStatsByName = [];
+    foreach ($sections as $sec) {
+        $sectionStatsByName[strtolower(trim($sec->section_name))] =
+            $sectionStats[$sec->id] ?? ['pass'=>0,'fail'=>0,'avg'=>0,'na'=>0];
+    }
+
+    // Colour for a choice option so Pass/Fail/N-A read at a glance.
+    $choiceColor = function ($opt) {
+        $o = strtolower(trim($opt));
+        if (in_array($o, ['pass', 'yes', 'ok', 'good', 'passed', 'available', 'working'])) return '#0f9d69';
+        if (in_array($o, ['fail', 'no', 'bad', 'not ok', 'failed', 'faulty', 'damaged', 'not working', 'not available'])) return '#e43f3f';
+        return '#6b7280';
+    };
+
+    // Pick a boxicon for an area/section name so summary areas and section
+    // headers read at a glance. Falls back to a notepad for anything unmapped.
+    $areaIcon = function ($name) {
+        $n = strtolower((string) $name);
+        return match (true) {
+            str_contains($n, 'exterior')                              => 'bxs-car',
+            str_contains($n, 'interior') && str_contains($n, 'enter') => 'bx-music',
+            str_contains($n, 'interior')                              => 'bx-car',
+            str_contains($n, 'engine')                                => 'bxs-cog',
+            str_contains($n, 'brake')                                 => 'bx-disc',
+            str_contains($n, 'transmission') || str_contains($n, 'gearbox') => 'bx-transfer-alt',
+            str_contains($n, 'suspension') || str_contains($n, 'steering')  => 'bxs-wrench',
+            str_contains($n, 'tire') || str_contains($n, 'tyre') || str_contains($n, 'wheel') => 'bx-loader-circle',
+            str_contains($n, 'undercarriage') || str_contains($n, 'underbody') => 'bx-wrench',
+            str_contains($n, 'safety')                                => 'bxs-shield-alt-2',
+            str_contains($n, 'road') || str_contains($n, 'test drive') || str_contains($n, 'drive') => 'bx-map',
+            str_contains($n, 'electr')                                => 'bxs-bolt',
+            str_contains($n, 'performance')                           => 'bx-run',
+            str_contains($n, 'after')                                 => 'bx-purchase-tag',
+            str_contains($n, 'entertain') || str_contains($n, 'media') || str_contains($n, 'audio') => 'bx-music',
+            str_contains($n, 'battery')                               => 'bxs-battery',
+            default                                                   => 'bx-notepad',
+        };
+    };
 @endphp
 
 <div class="page-content">
     <div class="container-fluid">
 
         <div id="inspection-root"
+             data-completed="{{ $isCompleted ? '1' : '0' }}"
              data-step-url="{{ route('inspections.autosave.step', $inspection) }}"
              data-section-summary-url="{{ route('inspections.autosave.section-summary', $inspection) }}"
              data-customer-url="{{ route('inspections.autosave.customer', $inspection) }}"
              data-media-url="{{ route('inspections.media.upload', $inspection) }}"
              data-extra-media-url="{{ route('inspections.extra-media.upload', $inspection) }}"
+             data-vehicle-image-url="{{ route('inspections.vehicle-image.upload', $inspection) }}"
+             data-section-media-base="{{ url("inspections/".$inspection->id."/sections") }}"
+
              data-media-delete-base="{{ url('inspection-media') }}">
 
             @include('partials._notify')
@@ -182,7 +538,7 @@
                         <p class="text-muted mb-0 font-size-13">
                             <i class="bx bx-car"></i> {{ $inspection->car() }} ·
                             {{ $inspection->customer_name ?: '—' }} ·
-                            <span class="text-monospace">{{ optional($lead)->reference ?? '—' }}</span>
+                            <span class="text-monospace">{{ $inspection->reference }}</span>
                         </p>
                     </div>
                     <div class="d-flex align-items-center" style="gap:.5rem;">
@@ -191,10 +547,23 @@
                             {{ ucfirst(str_replace('_', ' ', $inspection->status)) }}
                         </span>
                         <a href="{{ route('inspections.summary', $inspection) }}" target="_blank" class="btn btn-sm btn-info"><i class="bx bx-list-check"></i> Summary</a>
-                        <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bx bx-download"></i> Download Report</a>
+                        @unless($isCancelled)
+                            <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bx bx-download"></i> Download Report</a>
+                        @endunless
                         <a href="{{ url('inspections') }}" class="btn btn-sm btn-light">Back</a>
                     </div>
                 </div>
+
+                @if($isCancelled)
+                    <div class="alert alert-danger d-flex align-items-start mt-2 mb-0" style="gap:.6rem;">
+                        <i class="bx bx-x-circle font-size-18"></i>
+                        <div>
+                            <strong>This inspection was cancelled{{ $inspection->cancelled_at ? ' on '.$inspection->cancelled_at->format('d M Y, h:i A') : '' }}.</strong>
+                            @if($inspection->cancel_reason)<div class="font-size-13 mt-1"><b>Reason:</b> {{ $inspection->cancel_reason }}</div>@endif
+                            <div class="font-size-12 mt-1">It is kept on record for its cancellation reason and is read-only. Assigning the lead again starts a new inspection.</div>
+                        </div>
+                    </div>
+                @endif
 
                 <div class="d-flex align-items-center justify-content-between mt-2">
                     <div class="font-size-13">
@@ -212,9 +581,14 @@
                 {{-- horizontal step dots --}}
                 <div class="wiz-steps mb-2">
                     @foreach ($wsteps as $i => $ws)
+                        @php($secMediaCount = ($ws['type'] === 'section') ? ($sectionMedia[$ws['section']->id] ?? collect())->count() : 0)
                         @if ($i > 0)<div class="wiz-line" data-wsline="{{ $i }}"></div>@endif
-                        <div class="wiz-dot @if($i===0) active @endif" data-wsdot="{{ $i }}" title="{{ $ws['name'] }}">
+                        <div class="wiz-dot @if($i===0) active @endif" data-wsdot="{{ $i }}"
+                             title="{{ $ws['name'] }}{{ $secMediaCount ? ' — '.$secMediaCount.' media' : '' }}">
                             <span class="bead">{{ $i + 1 }}</span>
+                            @if ($secMediaCount)
+                                <span class="wiz-dot__media" title="{{ $secMediaCount }} media uploaded"><i class="bx bx-image"></i>{{ $secMediaCount }}</span>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -238,37 +612,93 @@
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    <p class="detail-group-title">Owner</p>
+                                    <p class="detail-group-title">Report</p>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3"><label class="form-label">Customer name <span class="text-danger">*</span></label><input name="customer_name" data-wreq class="form-control js-customer" value="{{ old('customer_name', $inspection->customer_name) }}" required></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Phone</label><input name="customer_phone" class="form-control js-customer" value="{{ old('customer_phone', $inspection->customer_phone) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Email</label><input name="customer_email" type="email" class="form-control js-customer" value="{{ old('customer_email', $inspection->customer_email) }}"></div>
+                                        {{-- Reference is the linked lead's unique id — derived, so no name attribute (nothing to post). --}}
+                                        <div class="col-md-6 mb-3"><label class="form-label">Reference</label><input class="form-control text-monospace" value="{{ $inspection->reference }}" readonly></div>
+                                        {{-- Inspection schedule (date + time). Stored on scheduled_at — the same field the CRM lead assignment sets. --}}
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Reschedule Date &amp; Time</label>
+                                            <input name="scheduled_at" id="scheduled_at" type="datetime-local" data-aa-datetime data-aa-min="now" class="form-control js-customer" value="{{ old('scheduled_at', optional($inspection->scheduled_at)->format('Y-m-d\TH:i')) }}">
+                                            <div class="sched-error" id="scheduled_at_error"></div>
+                                        </div>
+                                    </div>
+
+                                    <p class="detail-group-title mt-2">Owner</p>
+                                    <div class="row">
+                                        <div class="col-md-3 mb-3"><label class="form-label">Customer name <span class="text-danger">*</span></label><input name="customer_name" data-wreq class="form-control js-customer" value="{{ old('customer_name', $inspection->customer_name) }}" required></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Name in Arabic</label><input name="customer_name_ar" dir="rtl" class="form-control js-customer" maxlength="255" value="{{ old('customer_name_ar', $inspection->customer_name_ar) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Phone</label><input name="customer_phone" class="form-control js-customer" value="{{ old('customer_phone', $inspection->customer_phone) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label"><i class="bx bxl-whatsapp text-success"></i> WhatsApp Number</label><input name="whatsapp_number" class="form-control js-customer" maxlength="50" value="{{ old('whatsapp_number', $inspection->whatsapp_number) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Email</label><input name="customer_email" type="email" class="form-control js-customer" value="{{ old('customer_email', $inspection->customer_email) }}"></div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Vehicle</p>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3"><label class="form-label">Make</label><input name="car_make" class="form-control js-customer" value="{{ old('car_make', $inspection->car_make) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Model</label><input name="car_model" class="form-control js-customer" value="{{ old('car_model', $inspection->car_model) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Year</label><input name="car_year" type="number" class="form-control js-customer" value="{{ old('car_year', $inspection->car_year) }}"></div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Make</label>
+                                            <select name="car_make" id="car_make" class="select2 form-control form-select js-customer">
+                                                <option value="">Select Make</option>
+                                                @foreach ($lookups['car_make'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('car_make', $inspection->car_make) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Model</label>
+                                            <select name="car_model" id="car_model" class="select2 form-select form-control select2-multiple js-customer"
+                                                data-selected-model="{{ old('car_model', $inspection->car_model) }}">
+                                                <option value="">Select Model</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Model Year</label>
+                                            <select name="car_year" class="form-control form-select js-customer">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['years'] as $yr)
+                                                    <option value="{{ $yr }}" @selected((int) old('car_year', $inspection->car_year) === $yr)>{{ $yr }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        {{-- Manufacturing Year is hidden from the form; the stored value is carried through so it is not wiped on save. --}}
+                                        <input type="hidden" name="manufacturing_year" value="{{ old('manufacturing_year', $inspection->manufacturing_year) }}">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Condition</label>
+                                            <select name="vehicle_condition" class="form-control form-select js-customer">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['vehicle_condition'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('vehicle_condition', $inspection->vehicle_condition) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Odometer (km)</label><input name="odometer" type="number" min="0" class="form-control js-customer" value="{{ old('odometer', $inspection->odometer) }}"></div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Assignment</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Assigned Technician</label>
-                                            <select name="technician_id" class="form-control">
+                                            <label class="form-label">Assigned Technician @if($isLocked)<small class="{{ $isCancelled ? 'text-danger' : 'text-success' }}"><i class="bx bx-lock-alt"></i> locked ({{ $isCancelled ? 'cancelled' : 'completed' }})</small>@endif</label>
+                                            <select name="technician_id" class="form-control form-select" @disabled($isLocked)>
                                                 <option value="">Select Technician</option>
                                                 @foreach ($technicians as $technician)
                                                     <option value="{{ $technician->id }}" @selected(old('technician_id', $inspection->technician_id) == $technician->id)>{{ $technician->name }}</option>
                                                 @endforeach
                                             </select>
+                                            @if($isLocked)
+                                                {{-- A disabled select posts nothing; keep the current technician on save. --}}
+                                                <input type="hidden" name="technician_id" value="{{ $inspection->technician_id }}">
+                                            @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Inspection Template</label>
-                                            @if(auth()->user()->isTechnician())
+                                            <label class="form-label">Inspection Template @if($isLocked)<small class="{{ $isCancelled ? 'text-danger' : 'text-success' }}"><i class="bx bx-lock-alt"></i> locked ({{ $isCancelled ? 'cancelled' : 'completed' }})</small>@endif</label>
+                                            {{-- Locked once completed, same rule as the technician above: swapping the
+                                                 template reloads a different checklist, which would strand the answers
+                                                 the completed report was built from. Enforced in update() too — the
+                                                 readonly input posts nothing, and the controller ignores it regardless. --}}
+                                            @if(auth()->user()->isTechnician() || $isLocked)
                                                 <input type="text" class="form-control" value="{{ optional($inspection->type)->name ?? '—' }}" readonly>
                                             @else
-                                                <select name="inspection_type_id" class="form-control" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">
+                                                <select name="inspection_type_id" class="form-control form-select" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">
                                                     @foreach ($inspectionTypes as $tid => $tname)
                                                         <option value="{{ $tid }}" @selected(old('inspection_type_id', $inspection->inspection_type_id) == $tid)>{{ $tname }}</option>
                                                     @endforeach
@@ -281,45 +711,93 @@
                                     <p class="detail-group-title mt-2"><i class="bx bxs-car"></i> Vehicle Details</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3"><label class="form-label">VIN / Chassis No.</label><input name="vin" class="form-control" maxlength="50" value="{{ old('vin', $inspection->vin) }}"></div>
-                                        <div class="col-md-6 mb-3"><label class="form-label">Registration No.</label><input name="registration_number" class="form-control" maxlength="50" value="{{ old('registration_number', $inspection->registration_number) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Variant / Trim</label><input name="variant" class="form-control" maxlength="100" value="{{ old('variant', $inspection->variant) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Color</label><input name="color" class="form-control" maxlength="50" value="{{ old('color', $inspection->color) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Plate Number</label><input name="plate_no" class="form-control" maxlength="50" value="{{ old('plate_no', $inspection->plate_no) }}"></div>
+                                        {{-- Free text, not a lookup select: the colour arrives from the lead
+                                             (lead_color) as whatever was typed there — "Metallic beige", "grey",
+                                             "wine red". A select could only show values that matched the lookup
+                                             list exactly, so anything else read as blank and saving wiped it. --}}
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Exterior Color</label>
+                                            <input name="exterior_color" class="form-control" maxlength="50" value="{{ old('exterior_color', $inspection->exterior_color) }}">
+                                        </div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Region</label><input name="region" class="form-control" maxlength="100" value="{{ old('region', $inspection->region) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
+                                        <div class="col-md-3 mb-3"><label class="form-label">No. of Keys</label><input name="number_of_keys" type="number" min="0" max="20" class="form-control" value="{{ old('number_of_keys', $inspection->number_of_keys) }}"></div>
+                                    </div>
+
+                                    {{-- Primary vehicle photo. Uploaded on its own (AJAX) rather than with
+                                         the form, so it saves immediately and survives a validation bounce. --}}
+                                    <div class="row">
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">Vehicle Image</label>
+                                            <div class="veh-img" id="veh-img" data-has="{{ $inspection->vehicle_image ? '1' : '0' }}">
+                                                <div class="veh-img__preview" id="veh-img-preview">
+                                                    @if($inspection->vehicle_image)
+                                                        <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle">
+                                                    @else
+                                                        <span class="veh-img__empty"><i class="bx bxs-car"></i> No vehicle image</span>
+                                                    @endif
+                                                </div>
+                                                @unless($isLocked)
+                                                    <div class="veh-img__actions">
+                                                        <label class="btn btn-sm btn-light mb-0">
+                                                            <i class="bx bx-image-add"></i>
+                                                            <span id="veh-img-btn-text">{{ $inspection->vehicle_image ? 'Replace image' : 'Add image' }}</span>
+                                                            <input type="file" accept="image/*" class="d-none" onchange="AA.uploadVehicleImage(this)">
+                                                        </label>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" id="veh-img-remove"
+                                                                onclick="AA.deleteVehicleImage()"
+                                                                @style(['display:none' => ! $inspection->vehicle_image])>
+                                                            <i class="bx bx-trash"></i> Remove
+                                                        </button>
+                                                        <small class="text-muted d-block mt-1">JPG, PNG, WEBP or HEIC — max 10 MB.</small>
+                                                    </div>
+                                                @endunless
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Powertrain</p>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Fuel Type</label>
-                                            <select name="fuel_type" class="form-control">
+                                            <select name="fuel_type" class="form-control form-select">
                                                 <option value="">Select</option>
-                                                @foreach (['Petrol','Diesel','Hybrid','Electric','Other'] as $ft)
-                                                    <option value="{{ $ft }}" @selected(old('fuel_type', $inspection->fuel_type) === $ft)>{{ $ft }}</option>
+                                                @foreach ($lookups['fuel_type'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('fuel_type', $inspection->fuel_type) === $opt)>{{ $opt }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label">Transmission</label>
-                                            <select name="transmission" class="form-control">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Gearbox</label>
+                                            <select name="gearbox" class="form-control form-select">
                                                 <option value="">Select</option>
-                                                @foreach (['Automatic','Manual'] as $tr)
-                                                    <option value="{{ $tr }}" @selected(old('transmission', $inspection->transmission) === $tr)>{{ $tr }}</option>
+                                                @foreach ($lookups['gearbox'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('gearbox', $inspection->gearbox) === $opt)>{{ $opt }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Electric Motor Power (kW)</label><input name="motor_power_kw" type="number" min="0" class="form-control" value="{{ old('motor_power_kw', $inspection->motor_power_kw) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">No. of Cylinders &amp; CC</label><input name="cylinders_cc" class="form-control" maxlength="50" placeholder="e.g. 4 / 2000cc or N/A" value="{{ old('cylinders_cc', $inspection->cylinders_cc) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Fuel Economy</label><input name="fuel_economy" class="form-control" maxlength="30" placeholder="e.g. 16.9 km/l or N/A" value="{{ old('fuel_economy', $inspection->fuel_economy) }}"></div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">No. of Passengers</label><input name="passengers" type="number" min="0" max="100" class="form-control" value="{{ old('passengers', $inspection->passengers) }}"></div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Steering Side</label>
+                                            <select name="steering_side" class="form-control form-select">
+                                                <option value="">Select</option>
+                                                @foreach ($lookups['steering_side'] as $opt)
+                                                    <option value="{{ $opt }}" @selected(old('steering_side', $inspection->steering_side) === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </div>
 
-                                    <p class="detail-group-title mt-2">Origin &amp; Keys</p>
+                                    <p class="detail-group-title mt-2">Warranty / Services</p>
                                     <div class="row">
-                                        <div class="col-md-3 mb-3"><label class="form-label">Vehicle Type</label><input name="vehicle_type" class="form-control" maxlength="50" placeholder="e.g. CUV, Sedan" value="{{ old('vehicle_type', $inspection->vehicle_type) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Manufacturer</label><input name="manufacturer_name" class="form-control" maxlength="100" value="{{ old('manufacturer_name', $inspection->manufacturer_name) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Country of Origin</label><input name="country_of_origin" class="form-control" maxlength="100" value="{{ old('country_of_origin', $inspection->country_of_origin) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Country of Export</label><input name="country_of_export" class="form-control" maxlength="100" value="{{ old('country_of_export', $inspection->country_of_export) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">No. of Keys</label><input name="number_of_keys" type="number" min="0" max="20" class="form-control" value="{{ old('number_of_keys', $inspection->number_of_keys) }}"></div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">With Service History</label>
+                                            <select name="with_service_history" class="form-control form-select">
+                                                <option value="0" @selected(! old('with_service_history', $inspection->with_service_history))>No</option>
+                                                <option value="1" @selected(old('with_service_history', $inspection->with_service_history))>Yes</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 mb-3"><label class="form-label">Last Service Date</label><input name="last_service_date" type="date" class="form-control" value="{{ old('last_service_date', optional($inspection->last_service_date)->format('Y-m-d')) }}"></div>
                                     </div>
                                 </div>
                             </div>
@@ -329,13 +807,33 @@
                             @php($section = $ws['section'])
                             <div class="card" data-section="{{ $section->id }}" id="section-card-{{ $section->id }}">
                                 <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                                    <div>
-                                        @if($section->group_name)
-                                            <div class="text-uppercase text-muted font-size-11 font-weight-bold" style="letter-spacing:.04em;">{{ $section->group_name }}@if($section->group_name_ar)<span dir="rtl"> — {{ $section->group_name_ar }}</span>@endif</div>
+                                    <div class="d-flex align-items-center" style="gap:.7rem;min-width:0;">
+                                        <span class="sec-head-icon"><i class="bx {{ $areaIcon($section->section_name) }}"></i></span>
+                                        <div style="min-width:0;">
+                                            @if($section->group_name)
+                                                <div class="text-uppercase text-muted font-size-11 font-weight-bold" style="letter-spacing:.04em;">{{ $section->group_name }}@if($section->group_name_ar)<span dir="rtl"> — {{ $section->group_name_ar }}</span>@endif</div>
+                                            @endif
+                                            <h5 class="mb-0 text-truncate">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
+                                        </div>                     </div>
+                                    @php($secProg = $secProgById->get($section->id, ['answered' => 0, 'total' => $section->steps->count(), 'done' => false]))
+                                    @php($ss = $sectionStats[$section->id] ?? ['pass'=>0,'fail'=>0,'avg'=>0,'na'=>0])
+                                    @php($hasChoices = $section->steps->contains(fn($s) => $s->show_multiple_choice))
+                                    @php($hasAnswers = ($ss['pass'] + $ss['fail'] + $ss['avg'] + $ss['na']) > 0)
+                                    <span class="d-flex align-items-center" style="gap:12px;">
+                                        @if($hasChoices && $hasAnswers && $ss['pass'])
+                                            <span class="stat-badge badge badge-soft-success font-size-11" data-label="Good">{{ $ss['pass'] }}</span>
                                         @endif
-                                        <h5 class="mb-0">{{ $section->section_name }}@if($section->section_name_ar)<small class="text-muted" dir="rtl"> — {{ $section->section_name_ar }}</small>@endif</h5>
-                                    </div>
-                                    <span class="badge badge-soft-secondary font-size-12" data-section-badge="{{ $section->id }}">0/{{ $section->steps->count() }}</span>
+                                        @if($hasChoices && $hasAnswers && $ss['fail'])
+                                            <span class="stat-badge badge badge-soft-danger font-size-11" data-label="Bad">{{ $ss['fail'] }}</span>
+                                        @endif
+                                        @if($hasChoices && $hasAnswers && $ss['na'])
+                                            <span class="stat-badge badge badge-soft-warning font-size-11" data-label="N/A">{{ $ss['na'] }}</span>
+                                        @endif
+                                        @if($hasChoices && $hasAnswers && $ss['avg'])
+                                            <span class="stat-badge badge badge-soft-secondary font-size-11" data-label="Average">{{ $ss['avg'] }}</span>
+                                        @endif
+                                        <span class="badge {{ $secProg['done'] ? 'badge-soft-success' : 'badge-soft-secondary' }} font-size-12" data-section-badge="{{ $section->id }}">{{ $secProg['answered'] }}/{{ $secProg['total'] }}</span>
+                                    </span>
                                 </div>
                                 <div class="card-body">
                                     @forelse ($section->steps as $step)
@@ -375,24 +873,30 @@
                                                 </div>
                                             </div>
 
-                                            @php($choiceGated = $step->show_multiple_choice && (in_array('Pass', $step->multiple_choice_options ?? [], true) || in_array('Fail', $step->multiple_choice_options ?? [], true)))
-                                            {{-- The "negative" option that reveals the remedial box (Not Working / No / Fail). --}}
-                                            @php($negChoice = collect($step->multiple_choice_options ?? [])->first(fn ($o) => in_array($o, ['Fail', 'No', 'Not Working'], true)))
-                                            @php($remedialGated = $step->show_multiple_choice && $negChoice !== null)
+                                            {{-- Options that call for a written note (Bad / Average / Fail / No / …).
+                                                 Both the Observations and Remedial boxes are gated to these. --}}
+                                            @php($attentionTriggers = collect($step->multiple_choice_options ?? [])
+                                                    ->filter(fn ($o) => in_array($o, \App\Models\Inspection::ATTENTION_CHOICES, true))
+                                                    ->values()->all())
+                                            @php($choiceGated = $step->show_multiple_choice && $attentionTriggers !== [])
+                                            @php($remedialTriggers = $attentionTriggers)
+                                            @php($remedialGated = $choiceGated)
                                             @if ($step->show_text_answer || $choiceGated)
                                                 <div class="observation-wrap mt-2" data-observation="{{ $choiceGated ? $step->id : '' }}"
-                                                    style="{{ $choiceGated && ($detail->choice ?? '') !== 'Fail' ? 'display:none;' : '' }}">
-                                                    <textarea name="answers[{{ $step->id }}][text]" rows="2" placeholder="Observations…"
+                                                    data-observation-triggers="{{ implode('|', $attentionTriggers) }}"
+                                                    style="{{ $choiceGated && ! in_array($detail->choice ?? '', $attentionTriggers, true) ? 'display:none;' : '' }}">
+                                                    <label class="form-label font-size-12 text-danger mb-1">Observation{{ $choiceGated ? ' (for '.implode(' / ', $attentionTriggers).')' : '' }}</label>
+                                                    <textarea name="answers[{{ $step->id }}][text]" rows="2" placeholder="What was observed…"
                                                         oninput="AA.debounceStep({{ $step->id }})" class="form-control mb-2">{{ $detail->descriptive_answer ?? '' }}</textarea>
                                                 </div>
                                             @endif
 
                                             @if ($step->show_remedial_suggestions)
-                                                {{-- Remedial is gated to the question's negative option (e.g. "Not Working",
-                                                     "No", "Fail"). Questions without a negative option always show it. --}}
-                                                <div class="remedial-wrap" data-remedial="{{ $remedialGated ? $step->id : '' }}" data-remedial-neg="{{ $negChoice }}"
-                                                    style="{{ $remedialGated && ($detail->choice ?? '') !== $negChoice ? 'display:none;' : '' }}">
-                                                    <label class="form-label font-size-12 text-danger mb-1">Remedial suggestion{{ $remedialGated ? ' (for '.$negChoice.')' : '' }}</label>
+                                                {{-- Remedial is gated to the question's less-than-pass options (Bad, Average,
+                                                     Fail, No, …). Questions with none of them always show it. --}}
+                                                <div class="remedial-wrap" data-remedial="{{ $remedialGated ? $step->id : '' }}" data-remedial-triggers="{{ implode('|', $remedialTriggers) }}"
+                                                    style="{{ $remedialGated && ! in_array($detail->choice ?? '', $remedialTriggers, true) ? 'display:none;' : '' }}">
+                                                    <label class="form-label font-size-12 text-danger mb-1">Remedial suggestion{{ $remedialGated ? ' (for '.implode(' / ', $remedialTriggers).')' : '' }}</label>
                                                     <textarea name="answers[{{ $step->id }}][remedial]" rows="2" placeholder="What needs to be repaired / replaced…"
                                                         oninput="AA.debounceStep({{ $step->id }})" class="form-control mb-2">{{ $detail->remedial_suggestion ?? '' }}</textarea>
                                                 </div>
@@ -423,10 +927,19 @@
                                                     @if ($detail)
                                                         @foreach ($detail->media as $m)
                                                             <div class="position-relative" data-media="{{ $m->id }}">
-                                                                @if ($m->type === 'photo')
+                                                                @if (! $m->isVideo())
                                                                     <img src="{{ $m->url }}" style="width:64px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;">
                                                                 @else
-                                                                    <video src="{{ $m->url }}" controls preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"></video>
+                                                                    {{-- #t=0.1 paints the first frame as the thumbnail; without it the
+                                                                         tile stays black and reads as broken. The explicit source type
+                                                                         matters because app uploads are stored with mime
+                                                                         application/octet-stream. Click plays it in a new tab. --}}
+                                                                    <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video">
+                                                                        <video muted playsinline preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;">
+                                                                            <source src="{{ $m->url }}#t=0.1" type="{{ $m->mime_type && str_starts_with($m->mime_type, 'video/') ? $m->mime_type : 'video/mp4' }}">
+                                                                        </video>
+                                                                        <span class="vid-thumb__play"><i class="bx bx-play"></i></span>
+                                                                    </a>
                                                                 @endif
                                                                 <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
                                                                     class="btn btn-danger btn-sm position-absolute p-0"
@@ -441,9 +954,46 @@
                                         <p class="text-muted mb-0">No items in this section.</p>
                                     @endforelse
 
+                                    {{-- Category-level media, kept apart from the questions above:
+                                         a single picker taking photos and videos, several at a time. --}}
+                                    <div class="sec-media border-top pt-3 mt-3" data-section-media="{{ $section->id }}">
+                                        <label class="form-label font-size-13 font-weight-bold mb-1">
+                                            {{ $section->section_name }} media
+                                            <small class="text-muted font-weight-normal">— photos or videos, select multiple</small>
+                                        </label>
+                                        <label class="upload-drop">
+                                            {{-- One picker for both kinds; the type is derived per file from its MIME type. --}}
+                                            <input type="file" accept="image/*,video/*" multiple class="d-none"
+                                                   onchange="AA.uploadSection(this, {{ $section->id }})">
+                                            <i class="bx bx-images"></i>
+                                            <span>Add files <small class="text-muted">(photos or videos)</small></span>
+                                        </label>
+                                        <div class="d-flex flex-wrap mt-2" style="gap:.75rem;" id="media-section-{{ $section->id }}">
+                                            @foreach (($sectionMedia[$section->id] ?? collect()) as $m)
+                                                <div class="extra-item" data-media="{{ $m->id }}">
+                                                    <div class="extra-item__thumb">
+                                                        @if (! $m->isVideo())
+                                                            <img src="{{ $m->url }}">
+                                                        @else
+                                                            <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
+                                                                <video muted playsinline preload="metadata">
+                                                                    <source src="{{ $m->url }}#t=0.1" type="{{ $m->mime_type && str_starts_with($m->mime_type, 'video/') ? $m->mime_type : 'video/mp4' }}">
+                                                                </video>
+                                                                <span class="vid-thumb__play"><i class="bx bx-play"></i></span>
+                                                            </a>
+                                                        @endif
+                                                        <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
+                                                            class="btn btn-danger btn-sm position-absolute p-0"
+                                                            style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+
                                     {{-- Section-level summary + optional rating (shown on the report's Inspection Summary) --}}
                                     @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
-                                    @php($secRating = (int) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
+                                    @php($secRating = (float) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
                                     <div class="border-top pt-3 mt-2" data-section-summary="{{ $section->id }}">
                                         <label class="form-label font-size-13 font-weight-bold mb-1">
                                             {{ $section->section_name }} summary
@@ -454,14 +1004,22 @@
                                             oninput="AA.debounceSectionSummary({{ $section->id }})"
                                             class="form-control">{{ old('section_summaries.'.$section->id, $sectionSummary->summary ?? '') }}</textarea>
 
-                                        <div class="d-inline-flex align-items-center mt-2" data-section-rating="{{ $section->id }}">
-                                            <span class="font-size-12 text-muted mr-2">Section rating <span class="text-muted">(optional)</span>:</span>
-                                            <input type="hidden" name="section_ratings[{{ $section->id }}]" value="{{ $secRating ?: '' }}">
-                                            @for ($n = 1; $n <= 5; $n++)
-                                                <span class="js-secstar" data-section="{{ $section->id }}" data-val="{{ $n }}"
-                                                      style="color:{{ $n <= $secRating ? '#f1b44c' : '#ccc' }};">★</span>
-                                            @endfor
-                                            <small class="text-muted ml-2 js-secrating-label" data-section="{{ $section->id }}">{{ $secRating ? $secRating.'/5' : '' }}</small>
+                                        <div class="sec-rating mt-2" data-section-rating="{{ $section->id }}">
+                                            <span class="font-size-12 text-muted">Section rating <span class="text-muted">(optional)</span>:</span>
+                                            {{-- Stars set whole values; the box beside them takes any
+                                                 0.1 step (0.5, 4.6). Both write to the same input. --}}
+                                            <input type="hidden" name="section_ratings[{{ $section->id }}]" value="{{ $secRating ? rtrim(rtrim(number_format($secRating, 1), '0'), '.') : '' }}">
+                                            <span class="sec-rating__stars">
+                                                @for ($n = 1; $n <= 5; $n++)
+                                                    <span class="js-secstar" data-section="{{ $section->id }}" data-val="{{ $n }}"
+                                                          style="color:#ccc;">★</span>
+                                                @endfor
+                                            </span>
+                                            <input type="number" class="form-control form-control-sm js-secrating-input sec-rating__box"
+                                                   data-section="{{ $section->id }}" step="0.1" min="0" max="5"
+                                                   placeholder="0.0" aria-label="{{ $section->section_name }} rating out of 5"
+                                                   value="{{ $secRating ? rtrim(rtrim(number_format($secRating, 1), '0'), '.') : '' }}">
+                                            <small class="text-muted js-secrating-label" data-section="{{ $section->id }}"></small>
                                         </div>
                                     </div>
                                 </div>
@@ -473,44 +1031,99 @@
                                 <div class="card-body">
                                     <h5 class="card-title mb-3">Overall Verdict</h5>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3"><label class="form-label">Odometer (km)</label><input name="odometer" type="number" class="form-control" value="{{ old('odometer', $inspection->odometer) }}"></div>
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label">Overall condition</label>
-                                            <select name="overall_condition" class="form-control">
-                                                <option value="">—</option>
-                                                @foreach (\App\Models\Inspection::CONDITIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->overall_condition === $v)>{{ $l }}</option>@endforeach
-                                            </select>
+                                        {{-- Odometer is captured under Customer & Vehicle; verdict reads the saved value. --}}
+                                        <input type="hidden" name="overall_condition" value="{{ $inspection->overall_condition ?? '' }}">
+
+                                        {{-- Overall Rating — highlighted section, shown first --}}
+                                        @php($overallRating = (float) old('overall_rating', $inspection->overall_rating ?? 0))
+                                        @php($labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'])
+                                        @php($pcts = [20, 40, 60, 80, 100])
+                                        @php($overallRatingBadgeClass = $overallRating == 0 ? 'is-zero' : ($overallRating >= 4.6 ? 'is-excellent' : ($overallRating >= 3.6 ? 'is-very-good' : ($overallRating >= 2.6 ? 'is-good' : ($overallRating >= 1.6 ? 'is-fair' : 'is-poor')))))
+                                        <div class="col-12 mb-3">
+                                            <div class="overall-rating-wrap">
+                                                <div class="overall-rating-wrap__header">
+                                                    <span>
+                                                        <i class="bx bxs-star"></i>
+                                                        <span>Overall Rating</span>
+                                                    </span>
+                                                    <span class="overall-rating-pct-badge {{ $overallRatingBadgeClass }}" id="overall-pct-badge">
+                                                        <i class="bx bx-pie-chart-alt"></i>
+                                                        <span id="overall-pct-text">{{ $overallRating ? round(($overallRating / 5) * 100) . '%' : '0%' }}</span>                                                     </span>
+                                                </div>
+                                                <div class="overall-rating-wrap__body">
+                                                    <input type="hidden" name="overall_rating" id="overall_rating_hidden" value="{{ $overallRating ? rtrim(rtrim(number_format($overallRating, 1), '0'), '.') : '' }}">
+                                                    <div class="overall-rating-grid" id="overall-rating-grid">
+                                                        @for ($n = 1; $n <= 5; $n++)
+                                                            <div class="overall-rating-cell" data-val="{{ $n }}">
+                                                                <span class="overall-star" data-val="{{ $n }}"
+                                                                      style="font-size:1.65rem; cursor:pointer; transition:color .12s;">★</span>
+                                                                <span class="overall-badge" data-val="{{ $n }}">{{ $labels[$n - 1] }}</span>
+                                                                <span class="overall-pct" data-val="{{ $n }}">{{ $pcts[$n - 1] }}%</span>
+                                                            </div>
+                                                        @endfor
+                                                    </div>
+                                                    <input type="number" class="form-control form-control-sm overall-rating-input"
+                                                           id="overall_rating_input" step="0.1" min="0" max="5"
+                                                           placeholder="0.0" aria-label="Overall rating out of 5"
+                                                           value="{{ $overallRating ? rtrim(rtrim(number_format($overallRating, 1), '0'), '.') : '' }}">
+                                                    <small class="text-muted" id="overall-rating-label"></small>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="col-md-4 mb-3"><label class="form-label">Est. repair cost</label><input name="estimated_repair_cost" type="number" step="0.01" class="form-control" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div>
-                                        <div class="col-md-12 mb-3">
-                                            <label class="form-label">Recommendation</label>
-                                            <select name="recommendation" data-wreq class="form-control">
+
+                                        {{-- Est. repair cost + Recommendation side by side --}}
+                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><div class="input-group"><select name="currency" class="form-control form-select" style="flex:0 0 auto;width:auto;border-radius:10px 0 0 10px;border:1px solid #e4e8ee;border-right:0;background:#f7f9fc;color:#475467;font-weight:600;font-size:.92rem;padding:.58rem .5rem;min-width:72px;">@foreach(['AED','SAR','USD','EUR','GBP','OMR','BHD','QAR','KWD'] as $c)<option value="{{ $c }}" @selected(old('currency', $inspection->currency ?? 'AED') === $c)>{{ $c }}</option>@endforeach</select><input name="estimated_repair_cost" type="text" inputmode="decimal" required class="form-control" style="border-radius:0 10px 10px 0;" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div></div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Recommendation <span class="text-danger">*</span></label>
+                                            <select name="recommendation" data-wreq required class="form-control form-select">
                                                 <option value="">—</option>
                                                 @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-12"><label class="form-label">Summary report</label><textarea name="summary" rows="4" class="form-control">{{ old('summary', $inspection->summary) }}</textarea></div>
+                                        <div class="col-md-12"><label class="form-label">Technician note <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter technician's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
                                     </div>
+
+                                    {{-- Per-type summaries. Types come from tbl_summary_type, the same
+                                         lookup the legacy /inspectionreport summary tab reads. --}}
+                                    @if (!empty($summaryTypes))
+                                        <hr class="detail-sep">
+                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary <span class="text-danger">*</span></h6>
+                                        <p class="text-muted font-size-12 mb-3">A note per area — all are required and shown on the report.</p>
+                                        <div class="sum-grid">
+                                            @foreach ($summaryTypes as $typeId => $typeName)
+                                                @php($hasNote = filled(old('summaries.'.$typeId, $summaries[$typeId] ?? '')))
+                                                <div class="sum-card {{ $hasNote ? 'is-filled' : '' }}" data-sum-card="{{ $typeId }}">
+                                                    <div class="sum-card__head">
+                                                        <span class="sum-card__icon"><i class="bx {{ $areaIcon($typeName) }}"></i></span>
+                                                        <span class="sum-card__title">{{ $typeName }} <span class="text-danger">*</span></span>
+                                                        <i class="bx bx-check-circle sum-card__tick"></i>
+                                                    </div>
+                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" required class="form-control sum-card__input"
+                                                        placeholder="e.g. {{ $typeName }} is in good condition"
+                                                        oninput="this.closest('.sum-card').classList.toggle('is-filled', this.value.trim().length>0)">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
 
                                     <hr class="detail-sep">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <h6 class="mb-0"><i class="bx bx-list-check text-success"></i> Completion Status</h6>
-                                        <span class="badge badge-soft-info font-size-13" id="overall-badge">0/0 answered</span>
+                                        <span class="badge badge-soft-info font-size-13" id="overall-badge">{{ $doneAnswered }}/{{ $doneTotal }} answered</span>
                                     </div>
                                     <div class="progress mb-3" style="height:10px;">
-                                        <div id="completion-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div>
+                                        <div id="completion-bar" class="progress-bar bg-success" role="progressbar" style="width:{{ $donePercent }}%"></div>
                                     </div>
                                     <p class="text-muted font-size-12 mb-3">Every section must be fully answered before the inspection can be completed. Tap a section to jump to it.</p>
-                                    <div class="row">
+                                    <div class="secstat-grid">
                                         @foreach ($sectionProgress as $sp)
-                                            <div class="col-md-6 col-lg-4 mb-2">
-                                                <button type="button" class="d-flex justify-content-between align-items-center p-2 rounded section-status-item w-100"
-                                                        data-status-sec="{{ $sp['id'] }}" data-goto-section="{{ $sp['id'] }}"
-                                                        style="border:1px solid #e5e7eb;background:#fff;gap:.5rem;">
-                                                    <span class="text-truncate text-dark" style="max-width:72%">{{ $sp['name'] }}</span>
-                                                    <span class="badge badge-soft-warning section-status-badge text-nowrap">{{ $sp['answered'] }}/{{ $sp['total'] }}</span>
-                                                </button>
-                                            </div>
+                                            @php($isDone = ($sp['total'] ?? 0) > 0 && ($sp['answered'] ?? 0) >= $sp['total'])
+                                            <button type="button" class="secstat {{ $isDone ? 'is-done' : (($sp['answered'] ?? 0) > 0 ? 'is-partial' : 'is-empty') }}"
+                                                    data-status-sec="{{ $sp['id'] }}" data-goto-section="{{ $sp['id'] }}">
+                                                <span class="secstat__icon"><i class="bx {{ $areaIcon($sp['name']) }}"></i></span>
+                                                <span class="secstat__name text-truncate">{{ $sp['name'] }}</span>
+                                                <span class="badge section-status-badge secstat__badge text-nowrap">{{ $sp['answered'] }}/{{ $sp['total'] }}</span>
+                                            </button>
                                         @endforeach
                                     </div>
                                     @if ($isCompleted)<div class="mt-2 text-success"><i class="bx bx-check-circle"></i> Completed {{ optional($inspection->completed_at)->format('d M Y, H:i') }}</div>@endif
@@ -547,15 +1160,32 @@
                                     <span>Add videos <small class="text-muted">(optional)</small></span>
                                 </label>
                             </div>
+                            <div class="col-sm-6 mb-2">
+                                <label class="upload-drop">
+                                    <input type="file" accept="application/pdf" multiple class="d-none" onchange="AA.uploadExtra(this, 'document')">
+                                    <i class="bx bxs-file-pdf"></i>
+                                    <span>Add PDF documents <small class="text-muted">(optional)</small></span>
+                                </label>
+                            </div>
                         </div>
                         <div class="d-flex flex-wrap mt-2" style="gap:.75rem;" id="media-extra">
                             @forelse ($extraMedia as $m)
                                 <div class="extra-item" data-media="{{ $m->id }}">
                                     <div class="extra-item__thumb">
-                                        @if ($m->type === 'photo')
+                                        @if ($m->isDocument())
+                                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="doc-thumb" title="{{ $m->original_name }}">
+                                                <i class="bx bxs-file-pdf"></i>
+                                                <span>{{ \Illuminate\Support\Str::limit($m->original_name ?: 'Document', 18) }}</span>
+                                            </a>
+                                        @elseif (! $m->isVideo())
                                             <img src="{{ $m->url }}">
                                         @else
-                                            <video src="{{ $m->url }}" controls preload="metadata"></video>
+                                            <a href="{{ $m->url }}" target="_blank" rel="noopener" onclick="return AA.playVideo('{{ $m->url }}')" class="vid-thumb" title="Play video" style="width:100%;height:100%;">
+                                                <video muted playsinline preload="metadata">
+                                                    <source src="{{ $m->url }}#t=0.1" type="{{ $m->mime_type && str_starts_with($m->mime_type, 'video/') ? $m->mime_type : 'video/mp4' }}">
+                                                </video>
+                                                <span class="vid-thumb__play"><i class="bx bx-play"></i></span>
+                                            </a>
                                         @endif
                                         <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
                                             class="btn btn-danger btn-sm position-absolute p-0"
@@ -576,15 +1206,23 @@
                 <div class="wiz-nav">
                     <button type="button" id="wiz-prev" class="btn btn-outline-secondary" disabled><i class="bx bx-chevron-left"></i> Previous</button>
                     <div class="wiz-spacer"></div>
-                    <button type="submit" name="complete" value="0" class="btn btn-light"><i class="bx bx-save"></i> Save</button>
+                    {{-- Draft save: the Verdict step's fields are required, but they are only
+                         mandatory to COMPLETE. formnovalidate keeps a half-filled inspection
+                         savable (and avoids the browser refusing to submit over a required
+                         field sitting on a hidden step). The server still validates. --}}
+                    @unless($isCancelled)
+                        <button type="submit" name="complete" value="0" formnovalidate class="btn btn-light"><i class="bx bx-save"></i> Save</button>
+                    @endunless
                     <button type="button" id="wiz-next" class="btn btn-primary btn-next">Next <i class="bx bx-chevron-right"></i></button>
                     <span id="wiz-finish" style="display:none;">
-                        @unless($isCompleted)
+                        @if($isCancelled)
+                            <span class="text-danger"><i class="bx bx-x-circle"></i> Cancelled</span>
+                        @elseif($isCompleted)
+                            <span class="text-success"><i class="bx bx-check-circle"></i> Completed</span>
+                        @else
                             <button type="submit" name="complete" value="1" id="btn-complete" class="btn btn-success btn-complete" disabled><i class="bx bx-check-double"></i> Complete</button>
                             <span id="complete-hint" class="text-muted font-size-12 ms-2 d-none d-md-inline">⚠ Answer all questions first.</span>
-                        @else
-                            <span class="text-success"><i class="bx bx-check-circle"></i> Completed</span>
-                        @endunless
+                        @endif
                     </span>
                 </div>
             </form>
@@ -609,6 +1247,14 @@
 })();
 </script>
 
+{{-- Video lightbox. A plain link to the file makes the browser download it
+     (app uploads are served as application/octet-stream), so the tiles open
+     the clip here instead of navigating. --}}
+<div class="vid-modal" id="aa-vid-modal" onclick="AA.closeVideo(event)">
+    <button type="button" class="vid-modal__close" onclick="AA.closeVideo(event, true)" aria-label="Close">&times;</button>
+    <video id="aa-vid-player" controls playsinline preload="metadata"></video>
+</div>
+
 @endsection
 
 @section('js')
@@ -623,6 +1269,8 @@
         customer: root.dataset.customerUrl,
         media: root.dataset.mediaUrl,
         extraMedia: root.dataset.extraMediaUrl,
+        vehicleImage: root.dataset.vehicleImageUrl,
+        sectionMediaBase: root.dataset.sectionMediaBase,
         mediaDelete: root.dataset.mediaDeleteBase,
     };
     let timers = {};
@@ -640,7 +1288,18 @@
         if (body instanceof FormData) { opts.body = body; }
         else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
         const res = await fetch(url, opts);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) {
+            // Surface the server's own message ("...larger than the server allows",
+            // validation errors, ...) rather than a bare "HTTP 422" the user
+            // can't act on.
+            let msg = 'HTTP ' + res.status;
+            try {
+                const body = await res.json();
+                const first = body.errors ? Object.values(body.errors)[0] : null;
+                msg = (Array.isArray(first) ? first[0] : first) || body.message || msg;
+            } catch (_) { /* non-JSON error page — keep the status */ }
+            throw new Error(msg);
+        }
         return res.json();
     }
 
@@ -659,7 +1318,135 @@
         };
     }
 
+    // Mirrors InspectionMedia::isVideo(): some clips are stored with type
+    // 'photo' because the app declares application/octet-stream, so trust the
+    // file extension too rather than rendering a video into an <img>.
+    const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|ogv|qt)(\?|#|$)/i;
+    // Mirrors InspectionMedia::isDocument() — a PDF must never reach an <img>.
+    const DOC_EXT = /\.pdf(\?|#|$)/i;
+    const isDocumentMedia = (m) => m.type === 'document'
+        || (m.mime_type || '') === 'application/pdf'
+        || DOC_EXT.test(m.url || '');
+    const isVideoMedia = (m) => ! isDocumentMedia(m)
+        && (m.type === 'video'
+            || (m.mime_type || '').indexOf('video/') === 0
+            || VIDEO_EXT.test(m.url || ''));
+
     const AA = {
+        // "File too large" warning. Uses SweetAlert2 (loaded by partials._notify,
+        // the same dialog the rest of the CRM uses) and falls back to the native
+        // alert only if it somehow isn't on the page.
+        tooLarge(file, limitText) {
+            const size = (file.size / 1048576).toFixed(1);
+            const text = '"' + file.name + '" is ' + size + ' MB. ' + limitText;
+
+            if (!window.Swal) { alert(text); return; }
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'File too large',
+                text: text,
+                confirmButtonColor: '#04B084',
+                confirmButtonText: 'OK',
+            });
+        },
+
+        // Primary vehicle photo — uploads immediately and swaps the preview in
+        // place, so it is saved even if the user never submits the form.
+        async uploadVehicleImage(input) {
+            const file = (input.files || [])[0];
+            input.value = '';
+            if (!file) return;
+
+            const MAX = 10 * 1024 * 1024;
+            if (file.size > MAX) { AA.tooLarge(file, 'The vehicle image must be 10 MB or smaller.'); return; }
+
+            saving();
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const res = await post(urls.vehicleImage, fd);
+                AA.setVehicleImage(res.url);
+                saved();
+            } catch (e) {
+                failed();
+                AA.uploadFailed(file, e);
+            }
+        },
+
+        async deleteVehicleImage() {
+            if (window.aaConfirmDelete) {
+                const r = await aaConfirmDelete({ title: 'Remove vehicle image?', text: 'The photo will be deleted.' });
+                if (!r.isConfirmed) return;
+            } else if (!confirm('Remove the vehicle image?')) {
+                return;
+            }
+
+            saving();
+            try {
+                const res = await fetch(urls.vehicleImage, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                AA.setVehicleImage(null);
+                saved();
+            } catch (e) {
+                failed();
+            }
+        },
+
+        // Swap the preview, the button label and the Remove button together, so
+        // the empty and filled states can never disagree.
+        setVehicleImage(url) {
+            const preview = document.getElementById('veh-img-preview');
+            const remove = document.getElementById('veh-img-remove');
+            const btnText = document.getElementById('veh-img-btn-text');
+            if (!preview) return;
+
+            preview.innerHTML = url
+                ? '<img src="' + url + '" alt="Vehicle">'
+                : '<span class="veh-img__empty"><i class="bx bxs-car"></i> No vehicle image</span>';
+            if (remove) remove.style.display = url ? '' : 'none';
+            if (btnText) btnText.textContent = url ? 'Replace image' : 'Add image';
+        },
+
+        // Upload failure dialog. `e.message` already carries the server's own
+        // message (see post()), e.g. the PDF size limit, so it reads properly.
+        uploadFailed(file, e, hint) {
+            const text = 'Upload of "' + file.name + '" failed. ' + (e && e.message ? e.message : 'Unknown error.')
+                       + (hint ? ' ' + hint : '');
+
+            if (!window.Swal) { alert(text); return; }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Upload failed',
+                text: text,
+                confirmButtonColor: '#04B084',
+                confirmButtonText: 'OK',
+            });
+        },
+
+        // Opens a media file in the lightbox. Returns false so the tile's href
+        // (kept as a fallback for no-JS) doesn't navigate and trigger a download.
+        playVideo(url) {
+            const modal = document.getElementById('aa-vid-modal');
+            const player = document.getElementById('aa-vid-player');
+            if (!modal || !player) return true;   // no lightbox on the page — let the link through
+            player.src = url;
+            modal.classList.add('is-open');
+            player.play().catch(() => {});        // autoplay may be blocked; controls still work
+            return false;
+        },
+        // Backdrop clicks close it; clicks on the player itself must not.
+        closeVideo(e, force) {
+            if (!force && e && e.target && e.target.id !== 'aa-vid-modal') return;
+            const modal = document.getElementById('aa-vid-modal');
+            const player = document.getElementById('aa-vid-player');
+            if (player) { player.pause(); player.removeAttribute('src'); player.load(); }
+            if (modal) modal.classList.remove('is-open');
+        },
         async saveStep(stepId) {
             saving();
             try {
@@ -683,7 +1470,7 @@
                 await post(urls.sectionSummary, {
                     section_id: sectionId,
                     summary: el ? el.value : null,
-                    rating: rt && rt.value ? parseInt(rt.value, 10) : null,
+                    rating: rt && rt.value ? parseFloat(rt.value) : null,   // decimal, e.g. 4.6
                 });
                 saved();
             } catch (e) { failed(); }
@@ -705,7 +1492,49 @@
         },
         debounceCustomer() {
             clearTimeout(timers.cust);
-            timers.cust = setTimeout(() => AA.saveCustomer(), 800);
+            timers.cust = setTimeout(() => {
+                // A past reschedule date must never be auto-saved — the message is
+                // already on screen, so just hold off until it is corrected.
+                if (!AA.validateScheduledAt()) return;
+                AA.saveCustomer();
+            }, 800);
+        },
+
+        /**
+         * The reschedule date must be in the future — same rule the lead
+         * assignment screens use. Paints the field and writes the message;
+         * returns false when it is invalid.
+         */
+        validateScheduledAt() {
+            const input = document.getElementById('scheduled_at');
+            const err = document.getElementById('scheduled_at_error');
+            if (!input) return true;
+
+            // Only a NEW value has to be in the future. An inspection already
+            // scheduled for a past date is legitimate history — flagging it on
+            // load would make an old job impossible to save.
+            if (input.value === input.dataset.original) {
+                input.nextElementSibling?.classList.remove('sched-invalid');
+                if (err) err.textContent = '';
+                return true;
+            }
+
+            // The picker hides the real input and shows a readonly text field
+            // next to it — that is the one the user actually sees.
+            const shown = input.nextElementSibling && input.nextElementSibling.tagName === 'INPUT'
+                ? input.nextElementSibling
+                : input;
+
+            const isPast = !!input.value && new Date(input.value) <= new Date();
+
+            shown.classList.toggle('sched-invalid', isPast);
+            if (err) {
+                err.textContent = isPast
+                    ? 'The reschedule date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                    : '';
+            }
+
+            return !isPast;
         },
         async uploadFiles(input, stepId, type) {
             const files = Array.from(input.files || []);
@@ -728,18 +1557,79 @@
                     saved();
                 } catch (e) {
                     failed();
-                    alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + '). If it is a large video, the server upload limit may be too low.');
+                    AA.uploadFailed(file, e, 'If it is a large video, the server upload limit may be too low.');
                 }
             }
+        },
+        /**
+         * Category-level upload. The picker is `multiple`, so every selected file
+         * is posted to this section's bucket in turn and thumbnailed as it lands.
+         */
+        async uploadSection(input, sectionId) {
+            const files = Array.from(input.files || []);
+            input.value = '';
+            const MAX_BYTES = 100 * 1024 * 1024;
+            const url = urls.sectionMediaBase + '/' + sectionId + '/media';
+            for (const file of files) {
+                if (file.size > MAX_BYTES) {
+                    failed();
+                    alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB — the limit is 100 MB.');
+                    continue;
+                }
+                // One picker takes both, so classify each file by its MIME type.
+                const type = (file.type || '').startsWith('video/') ? 'video' : 'photo';
+                saving();
+                const fd = new FormData();
+                fd.append('type', type);
+                fd.append('file', file);
+                try {
+                    const m = await post(url, fd);
+                    AA.addSectionThumb(sectionId, m);
+                    saved();
+                } catch (e) {
+                    failed();
+                    AA.uploadFailed(file, e);
+                }
+            }
+        },
+        addSectionThumb(sectionId, m) {
+            const box = document.getElementById('media-section-' + sectionId);
+            if (!box) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'extra-item';
+            wrap.dataset.media = m.id;
+            const name = (m.original_name || 'Document');
+            const media = isDocumentMedia(m)
+                ? '<a href="' + m.url + '" target="_blank" rel="noopener" class="doc-thumb" title="' + name.replace(/"/g, '&quot;') + '">'
+                  + '<i class="bx bxs-file-pdf"></i><span>' + (name.length > 18 ? name.slice(0, 18) + '…' : name) + '</span></a>'
+                : (! isVideoMedia(m)
+                    ? '<img src="' + m.url + '">'
+                    : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
+                      + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                      + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>');
+            wrap.innerHTML =
+                '<div class="extra-item__thumb">' + media +
+                '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>';
+            wrap.querySelector('button').addEventListener('click', () => AA.deleteMedia(m.id));
+            box.appendChild(wrap);
         },
         async uploadExtra(input, type) {
             const files = Array.from(input.files || []);
             input.value = '';
             const MAX_BYTES = 100 * 1024 * 1024;
+            // PDFs are capped tighter than photos/videos (mirrors
+            // InspectionMedia::MAX_DOCUMENT_BYTES, re-checked server-side).
+            const MAX_DOC_BYTES = {{ \App\Models\InspectionMedia::MAX_DOCUMENT_BYTES }};
+            const isPdf = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
             for (const file of files) {
+                if (isPdf(file) && file.size > MAX_DOC_BYTES) {
+                    failed();
+                    AA.tooLarge(file, 'PDF files must be ' + (MAX_DOC_BYTES / 1048576) + ' MB or smaller.');
+                    continue;
+                }
                 if (file.size > MAX_BYTES) {
                     failed();
-                    alert('"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB — the limit is 100 MB.');
+                    AA.tooLarge(file, 'The limit is 100 MB.');
                     continue;
                 }
                 saving();
@@ -752,7 +1642,7 @@
                     saved();
                 } catch (e) {
                     failed();
-                    alert('Upload of "' + file.name + '" failed (' + (e.message || 'error') + ').');
+                    AA.uploadFailed(file, e);
                 }
             }
         },
@@ -763,9 +1653,15 @@
             const wrap = document.createElement('div');
             wrap.className = 'extra-item';
             wrap.dataset.media = m.id;
-            const media = m.type === 'photo'
-                ? '<img src="' + m.url + '">'
-                : '<video src="' + m.url + '" controls preload="metadata"></video>';
+            const name = (m.original_name || 'Document');
+            const media = isDocumentMedia(m)
+                ? '<a href="' + m.url + '" target="_blank" rel="noopener" class="doc-thumb" title="' + name.replace(/"/g, '&quot;') + '">'
+                  + '<i class="bx bxs-file-pdf"></i><span>' + (name.length > 18 ? name.slice(0, 18) + '…' : name) + '</span></a>'
+                : (! isVideoMedia(m)
+                    ? '<img src="' + m.url + '">'
+                    : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
+                      + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                      + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>');
             wrap.innerHTML =
                 '<div class="extra-item__thumb">' + media +
                 '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>' +
@@ -793,9 +1689,11 @@
             const wrap = document.createElement('div');
             wrap.className = 'position-relative';
             wrap.dataset.media = m.id;
-            const inner = m.type === 'photo'
+            const inner = ! isVideoMedia(m)
                 ? '<img src="' + m.url + '" style="width:64px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;">'
-                : '<video src="' + m.url + '" controls preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"></video>';
+                : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video">'
+                  + '<video muted playsinline preload="metadata" style="width:96px;height:64px;object-fit:cover;border-radius:.5rem;border:1px solid #eee;background:#000;"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                  + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>';
             wrap.innerHTML = inner + '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>';
             wrap.querySelector('button').addEventListener('click', () => AA.deleteMedia(m.id));
             box.appendChild(wrap);
@@ -820,6 +1718,11 @@
     };
     window.AA = AA;
 
+    // Esc closes the video lightbox.
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') AA.closeVideo(null, true);
+    });
+
     // ---- Live completion status ------------------------------------------
     function stepAnswered(el) {
         if (el.querySelector('input[type="radio"]:checked')) return true;
@@ -832,7 +1735,11 @@
 
     function recompute() {
         let total = 0, ans = 0;
-        root.querySelectorAll('[data-section]').forEach(function (sec) {
+        // Only the section CARDS — the section-rating stars (.js-secstar) and
+        // their label (.js-secrating-label) also carry data-section. Matching
+        // those too would re-resolve the same badge with zero question cards
+        // inside and overwrite the real count with 0/0.
+        root.querySelectorAll('.card[data-section]').forEach(function (sec) {
             // Only count question cards — rating stars & labels also carry
             // data-step, which would otherwise inflate the section total.
             const steps = sec.querySelectorAll('.q-card[data-step]');
@@ -848,10 +1755,11 @@
             }
             const item = root.querySelector('[data-status-sec="' + sec.dataset.section + '"]');
             if (item) {
-                item.style.borderColor = done ? '#34c38f' : '#e5e7eb';
-                item.style.background = done ? '#f1fbf6' : '#fff';
+                // Reflect state on the section chip: done / partial / empty.
+                item.classList.remove('is-done', 'is-partial', 'is-empty');
+                item.classList.add(done ? 'is-done' : (a > 0 ? 'is-partial' : 'is-empty'));
                 const b = item.querySelector('.section-status-badge');
-                if (b) { b.textContent = a + '/' + steps.length; b.className = 'badge section-status-badge text-nowrap ' + (done ? 'badge-soft-success' : 'badge-soft-warning'); }
+                if (b) { b.textContent = a + '/' + steps.length; }
             }
         });
 
@@ -864,14 +1772,83 @@
         const ac = document.getElementById('answered-count');
         if (ac) ac.textContent = ans;
 
+        // Completion needs the whole checklist AND the Verdict step: the overall
+        // verdict fields and a Summary note for every area. Mirrors the checks
+        // the server re-runs on submit, so the button never lies.
         const allDone = total > 0 && ans >= total;
+        const vOk = verdictReady();
+        const sOk = summariesReady();
+        const canComplete = allDone && vOk && sOk;
+
         const btn = document.getElementById('btn-complete');
-        if (btn) btn.disabled = !allDone;
+        if (btn) btn.disabled = !canComplete;
         const hint = document.getElementById('complete-hint');
-        if (hint) hint.style.display = allDone ? 'none' : '';
+        if (hint) {
+            hint.style.display = canComplete ? 'none' : '';
+            hint.textContent = !allDone ? '⚠ Answer all questions first.'
+                : (!vOk ? '⚠ Fill the Overall Verdict.'
+                        : '⚠ Add a Summary note for every area.');
+        }
 
         recomputeStepper();
         return allDone;
+    }
+
+    // Every field of the Overall Verdict block. Declared once so the Complete
+    // gate, the bead colour and the save warning can never disagree about what
+    // counts as filled in. A cost of 0 is a real answer — only an empty box is
+    // treated as missing.
+    const VERDICT_FIELDS = {
+        estimated_repair_cost: 'Est. repair cost',
+        recommendation: 'Recommendation',
+        summary: 'Technician note',
+    };
+
+    function verdictFields() {
+        return Object.keys(VERDICT_FIELDS)
+            .map(n => root.querySelector('[name="' + n + '"]'))
+            .filter(Boolean);
+    }
+
+    function verdictReady() {
+        const f = verdictFields();
+        return f.length === Object.keys(VERDICT_FIELDS).length
+            && f.every(el => (el.value || '').trim() !== '');
+    }
+
+    // Every input the Verdict step needs — the three verdict fields plus one
+    // note per summary area — so the bead can show partial progress.
+    function verdictCounts() {
+        const all = verdictFields().concat(Array.from(root.querySelectorAll('.sum-card__input')));
+        return {
+            filled: all.filter(el => (el.value || '').trim() !== '').length,
+            total: all.length,
+        };
+    }
+
+    // A note per summary area (Exterior, Engine, …). Templates with no areas
+    // configured pass trivially.
+    function summariesReady() {
+        const boxes = Array.from(root.querySelectorAll('.sum-card__input'));
+        return boxes.every(t => t.value.trim() !== '');
+    }
+
+    // Human-readable list of what is still blank on the Verdict card, for the
+    // warning shown when it is saved unfinished. Same fields the Complete gate
+    // and the server-side check use.
+    function verdictMissing() {
+        const out = [];
+
+        Object.keys(VERDICT_FIELDS).forEach(function (name) {
+            const el = root.querySelector('[name="' + name + '"]');
+            if (! el || (el.value || '').trim() === '') out.push(VERDICT_FIELDS[name]);
+        });
+
+        const blank = Array.from(root.querySelectorAll('.sum-card__input'))
+            .filter(t => t.value.trim() === '').length;
+        if (blank) out.push(blank + ' summary note' + (blank === 1 ? '' : 's'));
+
+        return out;
     }
     window.AA.recompute = recompute;
 
@@ -893,11 +1870,13 @@
         }
     }
     function toggleAnswerFields(stepId, value) {
-        toggleField('[data-observation="', stepId, value === 'Fail');
-        // Remedial uses each question's own "negative" option, not a fixed "Fail".
-        const remWrap = root.querySelector('[data-remedial="' + stepId + '"]');
-        const neg = remWrap ? remWrap.getAttribute('data-remedial-neg') : '';
-        toggleField('[data-remedial="', stepId, !!neg && value === neg);
+        // Both boxes show for any of the question's less-than-pass options (Bad, Average, …).
+        const triggersOf = (sel, attr) => {
+            const el = root.querySelector('[' + sel + '="' + stepId + '"]');
+            return (el ? el.getAttribute(attr) || '' : '').split('|').filter(Boolean);
+        };
+        toggleField('[data-observation="', stepId, triggersOf('data-observation', 'data-observation-triggers').includes(value));
+        toggleField('[data-remedial="', stepId, triggersOf('data-remedial', 'data-remedial-triggers').includes(value));
     }
     root.addEventListener('change', function (e) {
         const t = e.target;
@@ -929,26 +1908,141 @@
         });
     });
 
-    // Optional per-section rating stars.
+    // Optional per-section rating. The stars set whole values; the number box
+    // beside them takes any 0.1 step (0.5, 4.6). Both write the same hidden
+    // section_ratings[...] field, which is what the form actually posts.
+
+    // Paint one star as empty, full, or partially filled. A fraction is drawn
+    // by clipping a gold/grey gradient to the glyph, so 4.6 reads as four full
+    // stars plus a 60%-filled fifth.
+    function fillStar(el, fill) {
+        if (fill >= 0.999 || fill <= 0.001) {
+            el.style.background = '';
+            el.style.webkitBackgroundClip = '';
+            el.style.backgroundClip = '';
+            el.style.color = fill >= 0.999 ? '#f1b44c' : '#ccc';
+            return;
+        }
+        const pct = (fill * 100).toFixed(1) + '%';
+        el.style.background = 'linear-gradient(90deg,#f1b44c ' + pct + ',#ccc ' + pct + ')';
+        el.style.webkitBackgroundClip = 'text';
+        el.style.backgroundClip = 'text';
+        el.style.color = 'transparent';
+    }
+
     function paintSecStars(sectionId, val) {
         root.querySelectorAll('.js-secstar[data-section="' + sectionId + '"]').forEach(s => {
-            s.style.color = parseInt(s.dataset.val, 10) <= val ? '#f1b44c' : '#ccc';
+            fillStar(s, val - (parseInt(s.dataset.val, 10) - 1));
         });
         const label = root.querySelector('.js-secrating-label[data-section="' + sectionId + '"]');
         if (label) label.textContent = val ? val + '/5' : '';
     }
+
+    // Clamp to 0–5 at one decimal, then push the value everywhere it is shown.
+    // skipBox leaves the number input alone so it does not fight the typist.
+    function setSecRating(sectionId, raw, skipBox) {
+        const val = Math.max(0, Math.min(5, Math.round((parseFloat(raw) || 0) * 10) / 10));
+        const hidden = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
+        if (hidden) hidden.value = val ? String(val) : '';
+        if (! skipBox) {
+            const box = root.querySelector('.js-secrating-input[data-section="' + sectionId + '"]');
+            if (box) box.value = val ? String(val) : '';
+        }
+        paintSecStars(sectionId, val);
+        return val;
+    }
+
     root.querySelectorAll('.js-secstar').forEach(star => {
         star.addEventListener('click', () => {
             const sectionId = star.dataset.section;
             const val = parseInt(star.dataset.val, 10);
             const hidden = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
-            const current = hidden.value ? parseInt(hidden.value, 10) : 0;
-            const next = current === val ? 0 : val;       // click same star again to clear
-            hidden.value = next || '';
-            paintSecStars(sectionId, next);
+            const current = parseFloat(hidden && hidden.value) || 0;
+            setSecRating(sectionId, current === val ? 0 : val);   // click same star again to clear
             AA.saveSectionSummary(sectionId);
         });
     });
+
+    root.querySelectorAll('.js-secrating-input').forEach(box => {
+        const sectionId = box.dataset.section;
+        box.addEventListener('input', () => {
+            setSecRating(sectionId, box.value, true);
+            AA.debounceSectionSummary(sectionId);
+        });
+        // Normalise on blur, so "4.63" or "9" settles to 4.6 / 5 on screen.
+        box.addEventListener('blur', () => setSecRating(sectionId, box.value));
+        // Initial paint — partial fills cannot be rendered from Blade.
+        paintSecStars(sectionId, parseFloat(box.value) || 0);
+    });
+
+    // ---- Overall Rating (stars + badges + %, supports partial fills) -----
+    const overallHidden = document.getElementById('overall_rating_hidden');
+    const overallGrid = document.getElementById('overall-rating-grid');
+    const overallInput = document.getElementById('overall_rating_input');
+    const overallLabel = document.getElementById('overall-rating-label');
+    const overallPctBadge = document.getElementById('overall-pct-badge');
+    const overallPctText = document.getElementById('overall-pct-text');
+
+    function paintOverallStars(val) {
+        if (!overallGrid) return;
+        overallGrid.querySelectorAll('.overall-rating-cell').forEach(cell => {
+            const n = parseInt(cell.dataset.val, 10);
+            // fill: 1.0 for fully covered, (val%1) for the partial star, 0.0 for untouched
+            const fill = Math.max(0, Math.min(1, val - (n - 1)));
+            const active = fill >= 0.5;
+            const star = cell.querySelector('.overall-star');
+            const badge = cell.querySelector('.overall-badge');
+            const pct = cell.querySelector('.overall-pct');
+
+            cell.classList.toggle('is-active', active);
+
+            // Reuse the section-rating fillStar function for partial fills
+            if (star) fillStar(star, fill);
+            if (badge) badge.classList.toggle('is-active', active);
+            if (pct) pct.classList.toggle('is-active', active);
+        });
+        if (overallLabel) overallLabel.textContent = val ? val + '/5' : '';
+
+        // Update the percentage badge at top right
+        const pctVal = val ? Math.round((val / 5) * 100) : 0;
+        if (overallPctText) overallPctText.textContent = pctVal + '%';
+        if (overallPctBadge) {
+            overallPctBadge.classList.toggle('is-zero', pctVal === 0);
+            overallPctBadge.classList.remove('is-poor', 'is-fair', 'is-good', 'is-very-good', 'is-excellent');
+            if (val >= 4.6) overallPctBadge.classList.add('is-excellent');
+            else if (val >= 3.6) overallPctBadge.classList.add('is-very-good');
+            else if (val >= 2.6) overallPctBadge.classList.add('is-good');
+            else if (val >= 1.6) overallPctBadge.classList.add('is-fair');
+            else if (val > 0) overallPctBadge.classList.add('is-poor');
+        }
+    }
+
+    function setOverallRating(raw, skipInput) {
+        const val = Math.max(0, Math.min(5, Math.round((parseFloat(raw) || 0) * 10) / 10));
+        if (overallHidden) overallHidden.value = val ? String(val) : '';
+        if (!skipInput && overallInput) overallInput.value = val ? String(val) : '';
+        paintOverallStars(val);
+        return val;
+    }
+
+    if (overallGrid) {
+        overallGrid.querySelectorAll('.overall-rating-cell').forEach(cell => {
+            cell.addEventListener('click', () => {
+                const val = parseInt(cell.dataset.val, 10);
+                const current = parseFloat(overallHidden && overallHidden.value) || 0;
+                setOverallRating(current === val ? 0 : val);
+            });
+        });
+    }
+
+    if (overallInput) {
+        overallInput.addEventListener('input', () => {
+            setOverallRating(overallInput.value, true);
+        });
+        overallInput.addEventListener('blur', () => setOverallRating(overallInput.value));
+        // Initial paint
+        paintOverallStars(parseFloat(overallInput.value) || 0);
+    }
 
     // Customer/vehicle/assignment field auto-save (all fields except the
     // template selector, which is applied on full submit).
@@ -957,6 +2051,31 @@
         const evt = (i.tagName === 'SELECT') ? 'change' : 'input';
         i.addEventListener(evt, () => AA.debounceCustomer());
     });
+
+    // Reschedule date: flag a past date/time the moment it is picked, and stop a
+    // full submit from saving one. The picker writes to the hidden input and
+    // dispatches change, so listening there covers both typing and the calendar.
+    (function () {
+        const sched = document.getElementById('scheduled_at');
+        if (!sched) return;
+
+        // Remember what was loaded, so an untouched past schedule stays valid.
+        sched.dataset.original = sched.value;
+
+        sched.addEventListener('change', () => AA.validateScheduledAt());
+        sched.addEventListener('input', () => AA.validateScheduledAt());
+
+        const form = sched.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                if (AA.validateScheduledAt()) return;
+                e.preventDefault();
+                document.getElementById('scheduled_at_error')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
+
+    })();
 
     // ---- Wizard navigation ------------------------------------------------
     const panels = Array.from(root.querySelectorAll('[data-wstep]'));
@@ -974,19 +2093,44 @@
     const RESUME_KEY = 'aaInspStep:{{ $inspection->id }}';
     function rememberStep(i) { try { localStorage.setItem(RESUME_KEY, String(i)); } catch (e) {} }
 
-    function panelDone(p, idx) {
+    // 'done' (all answered) | 'partial' (some answered) | 'empty' (none).
+    // Panels without question cards (media, verdict) fall back to their single
+    // required field, which can only be filled or not.
+    function panelState(p) {
         const steps = p.querySelectorAll('.q-card[data-step]');
-        if (steps.length) return Array.from(steps).every(stepAnswered);
+        if (steps.length) {
+            const a = Array.from(steps).filter(stepAnswered).length;
+            return a >= steps.length ? 'done' : (a > 0 ? 'partial' : 'empty');
+        }
+
+        // The Verdict panel has no question cards, so counting [data-wreq]
+        // alone would call it done as soon as Recommendation was picked — with
+        // the rest of the verdict and every area note still blank. Score it on
+        // everything completion actually requires.
+        if (p.dataset.wtype === 'verdict') {
+            const c = verdictCounts();
+            if (c.total === 0) return 'empty';
+            return c.filled >= c.total ? 'done' : (c.filled > 0 ? 'partial' : 'empty');
+        }
+
         const req = p.querySelector('[data-wreq]');
-        return req ? req.value.trim() !== '' : false;
+        return (req && req.value.trim() !== '') ? 'done' : 'empty';
+    }
+
+    function panelDone(p, idx) {
+        return panelState(p) === 'done';
     }
 
     function recomputeStepper() {
         panels.forEach(function (p, idx) {
             const dot = dots[idx];
             if (!dot) return;
-            const done = panelDone(p, idx);
+            const state = panelState(p);
+            const done = state === 'done';
+            // The active bead keeps its own styling, so done/partial are only
+            // painted on the beads the user is not currently standing on.
             dot.classList.toggle('done', done && idx !== cur);
+            dot.classList.toggle('partial', state === 'partial' && idx !== cur);
             if (lines[idx - 1]) lines[idx - 1].classList.toggle('done', done);
         });
     }
@@ -1018,7 +2162,7 @@
     root.querySelectorAll('[data-goto-section]').forEach(function (el) {
         el.addEventListener('click', function () {
             const secId = el.dataset.gotoSection;
-            const panel = root.querySelector('[data-wstep] [data-section="' + secId + '"]');
+            const panel = root.querySelector('[data-wstep] .card[data-section="' + secId + '"]');
             if (!panel) return;
             const step = panel.closest('[data-wstep]');
             showStep(panels.indexOf(step));
@@ -1063,7 +2207,42 @@
     if (saveBtn) {
         saveBtn.addEventListener('click', async function (e) {
             const panel = panels[cur];
-            if (!panel || panel.dataset.wtype === 'verdict') return;   // allow full submit
+            if (! panel) return;   // allow full submit
+
+            // The Verdict card always needs a real submit to persist its fields,
+            // so every path below it returns rather than falling through to the
+            // AJAX fast-save.
+            if (panel.dataset.wtype === 'verdict') {
+                // Only guard once the inspection is COMPLETED — there, blanking a
+                // field silently leaves it "completed" holding data the Complete
+                // gate would have rejected. While it is still in progress blanks
+                // are normal, so Save is left alone and Complete does the
+                // enforcing.
+                if (root.dataset.completed !== '1') return;
+
+                // Second pass, after the user chose "Save anyway" — let it through.
+                if (saveBtn.dataset.ok === '1') { saveBtn.dataset.ok = ''; return; }
+
+                const missing = verdictMissing();
+                if (! missing.length) return;                          // allow full submit
+
+                e.preventDefault();
+                const text = 'Still blank: ' + missing.join(', ') + '.';
+
+                if (! window.aaConfirm) {
+                    if (confirm(text + '\n\nSave anyway?')) { saveBtn.dataset.ok = '1'; saveBtn.click(); }
+                    return;
+                }
+                aaConfirm({
+                    title: 'Verdict not filled in',
+                    text: text,
+                    icon: 'warning', confirmColor: '#f1b44c', confirmText: 'Save anyway'
+                }).then(function (r) {
+                    if (r.isConfirmed) { saveBtn.dataset.ok = '1'; saveBtn.click(); }
+                });
+                return;
+            }
+
             // Changing the Inspection Template must reload so the new checklist's
             // questions render — let that Save go through as a full submit.
             const typeSel = panel.querySelector('select[name="inspection_type_id"]');
@@ -1071,7 +2250,8 @@
             e.preventDefault();
             try {
                 if (panel.dataset.wtype === 'details') {
-                    if (timers.cust) { clearTimeout(timers.cust); await AA.saveCustomer(); }
+                    if (timers.cust) clearTimeout(timers.cust);
+                    await AA.saveCustomer();
                 } else {
                     // Flush only steps whose debounced save is still pending.
                     const pending = Array.from(panel.querySelectorAll('.q-card[data-step]'))
@@ -1102,6 +2282,52 @@
             });
         });
     }
+
 })();
+
+// Dynamic model filtering by make (like the leads edit page).
+$(document).ready(function () {
+    var $make  = $('#car_make');
+    var $model = $('#car_model');
+    var modelsByMake = @json($lookups['modelsByMake']);
+    var selectedModel = ($model.data('selected-model') || '').toString();
+
+    // Select2 sizes itself from the field's rendered width. When the wizard
+    // resumes on a later card (completed inspections land on Verdict), the
+    // Customer & Vehicle card is display:none at load, the field measures 0 and
+    // Select2 falls back to width:auto — Make/Model then render collapsed. Pin
+    // the width so it is right whether the card is visible at init or not.
+    function initSelect2($el) {
+        if ($el.data('select2')) $el.select2('destroy');
+        $el.select2({ width: '100%' });
+    }
+
+    function refreshSelect2() { initSelect2($model); }
+
+    function filterModels(make) {
+        var models = (make && modelsByMake[make]) ? modelsByMake[make].slice() : [];
+        if (selectedModel && models.indexOf(selectedModel) === -1) models.push(selectedModel);
+        var selModel = (models.indexOf(selectedModel) !== -1) ? selectedModel : '';
+        $model.empty().append('<option value="">Select Model</option>');
+        $.each(models, function (i, name) {
+            var sel = (name === selModel) ? ' selected' : '';
+            $model.append('<option value="' + name + '"' + sel + '>' + name + '</option>');
+        });
+        refreshSelect2();
+    }
+
+    // Re-run over both fields: the theme's form-advanced.init.js already ran
+    // $('.select2').select2() on them at page load, without a width.
+    initSelect2($make);
+
+    if ($make.val()) filterModels($make.val()); else initSelect2($model);
+
+    $make.on('change', function () { filterModels($(this).val()); AA.debounceCustomer(); });
+    $model.on('change', function () { AA.debounceCustomer(); });
+});
 </script>
+
+{{-- Scheduled Date & Time: Flatpickr calendar that closes itself once the time
+     is set, instead of the native popup you have to click away from. --}}
+@include('partials._datetime_picker')
 @endsection

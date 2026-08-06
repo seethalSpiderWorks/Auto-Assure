@@ -1,2 +1,11 @@
 .env
 .env.*
+
+/node_modules
+.DS_Store
+
+# Firebase service account credentials (never commit)
+/storage/app/firebase/
+
+# Environment-specific symlink created by `php artisan storage:link`.
+/public/storage

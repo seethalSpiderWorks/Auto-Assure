@@ -27,7 +27,6 @@
     $enquiry = $clean([
         'Make'           => $data->lead_make,
         'Model'          => $data->lead_model,
-        'Year'           => $data->lead_year,
         'Make/Model Year'=> $data->make_model_year,
         'Year From'      => $data->lead_year_from,
         'Year To'        => $data->lead_year_to,
@@ -88,13 +87,38 @@
             </div>
         </div>
 
-        {{-- Assignment option — assigns the lead & opens an inspection --}}
-        <div class="ldv-card ldv-assign mb-3">
+        {{-- Cancelled inspection: reason + date, and where to re-add it from. --}}
+        @if($inspection && ($inspection->status ?? null) === 'cancelled')
+            <div class="alert alert-danger d-flex align-items-start" style="gap:.6rem;">
+                <i class="bx bx-x-circle font-size-18"></i>
+                <div>
+                    <strong>Inspection cancelled{{ !empty($inspection->cancelled_at) ? ' on '.\Carbon\Carbon::parse($inspection->cancelled_at)->format('d M Y, h:i A') : '' }}.</strong>
+                    @if(!empty($inspection->cancel_reason))
+                        <div style="font-size:13px;margin-top:2px;"><b>Reason:</b> {{ $inspection->cancel_reason }}</div>
+                    @endif
+                    <div style="font-size:12px;margin-top:2px;">
+                        <a href="{{ url('leads?id='.$data->lead_id) }}" target="_blank">Edit this lead</a>
+                        and save the Inspection section to start a new inspection for this lead.
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- "Assign & create inspection" panel — hidden on request. Its @php block
+             ($curTypeId / $curSched / $inspLocked) fed nothing else in this view,
+             and the script that drove it is commented out in @section('js') too —
+             leaving that behind would throw on the missing #ldv_assign_btn and take
+             the rest of the page's JS with it. Assignment is unaffected elsewhere. --}}
+        {{--
+        @php
+            $curTypeId = $inspection->inspection_type_id ?? null;
+            $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d\TH:i') : '';
+            // Locked when the inspection is completed OR the lead is "Inspection Completed".
+            $inspLocked = (optional($inspection)->status === 'completed')
+                || ((optional($data)->lead_assigned_status ?? null) === 'Inspection Completed');
+        @endphp
+        <div class="ldv-card ldv-assign ldv-assign--highlight mb-3">
             <div class="ldv-assign__label"><i class="bx bx-user-plus"></i> Assign &amp; create inspection</div>
-            @php
-                $curTypeId = $inspection->inspection_type_id ?? null;
-                $curSched  = ($inspection && $inspection->scheduled_at) ? \Carbon\Carbon::parse($inspection->scheduled_at)->format('Y-m-d') : '';
-            @endphp
             <div class="ldv-assign__field">
                 <label>Inspection Template</label>
                 <select id="ldv_type" class="form-select">
@@ -105,8 +129,8 @@
                 </select>
             </div>
             <div class="ldv-assign__field">
-                <label>Scheduled Date</label>
-                <input type="date" id="ldv_date" class="form-control" value="{{ $curSched }}">
+                <label>Scheduled Date &amp; Time</label>
+                <input type="datetime-local" id="ldv_date" class="form-control" value="{{ $curSched }}" required>
             </div>
             <div class="ldv-assign__field">
                 <label>Technician</label>
@@ -117,9 +141,10 @@
                     @endforeach
                 </select>
             </div>
-            <button type="button" id="ldv_assign_btn" class="btn btn-brand"><i class="bx bx-check"></i> Assign</button>
+            <button type="button" id="ldv_assign_btn" class="btn btn-brand" @disabled($inspLocked)><i class="bx bx-check"></i> Assign</button>
             <span id="ldv_assign_msg" class="ldv-assign__msg"></span>
         </div>
+        --}}
 
         <div class="row g-3">
             {{-- Contact --}}
@@ -298,13 +323,26 @@
 
     /* Assign option */
     .ldv-assign { display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; padding:18px 22px; }
+    /* Highlighted assign card — draws attention to the primary action. */
+    .ldv-assign--highlight { border:1.5px solid var(--ld-brand); background:linear-gradient(180deg, rgba(4,176,132,.06), #fff 60%); box-shadow:0 4px 16px rgba(4,176,132,.12); }
     .ldv-assign__label { font-weight:700; color:var(--ld-dark); display:flex; align-items:center; gap:8px; flex:1 1 100%; }
     .ldv-assign__label i { color:var(--ld-brand); font-size:18px; }
     .ldv-assign__field { display:flex; flex-direction:column; gap:5px; flex:1 1 190px; min-width:160px; }
     .ldv-assign__field > label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin:0; }
     .ldv-assign .form-select, .ldv-assign .form-control { border:1px solid #e4e8ee; border-radius:10px; height:40px; }
     .ldv-assign .form-select:focus, .ldv-assign .form-control:focus { border-color:var(--ld-brand); box-shadow:0 0 0 .18rem rgba(4,176,132,.15); }
-    .ldv-assign #ldv_assign_btn { height:40px; }
+    /* Highlighted primary Assign button */
+    .ldv-assign #ldv_assign_btn {
+        height:42px; padding:0 22px; border:0; border-radius:10px; font-weight:700; letter-spacing:.2px;
+        color:#fff; background:linear-gradient(135deg, var(--ld-brand) 0%, var(--ld-dark) 100%);
+        box-shadow:0 6px 16px rgba(4,176,132,.35); display:inline-flex; align-items:center; gap:7px;
+        transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+    }
+    .ldv-assign #ldv_assign_btn i { font-size:18px; }
+    .ldv-assign #ldv_assign_btn:hover { transform:translateY(-2px); box-shadow:0 10px 22px rgba(4,176,132,.45); filter:brightness(1.05); }
+    .ldv-assign #ldv_assign_btn:active { transform:translateY(0); box-shadow:0 4px 10px rgba(4,176,132,.35); }
+    /* Completed → button disabled: flat grey, no glow/hover. */
+    .ldv-assign #ldv_assign_btn:disabled { background:#cfd4dc; box-shadow:none; transform:none; filter:none; cursor:not-allowed; }
     .btn-brand { background:var(--ld-dark); border-color:var(--ld-dark); color:#fff; border-radius:10px; font-weight:600; }
     .btn-brand:hover { background:var(--ld-brand); border-color:var(--ld-brand); color:#fff; }
     .ldv-assign__msg { font-size:13px; font-weight:600; }
@@ -316,15 +354,52 @@
 @endsection
 
 @section('js')
+{{-- Drove the hidden "Assign & create inspection" panel above — commented out with
+     it. Note for whoever restores this: lines 379-382 below reference `staff`,
+     `type` and `date`, which are never declared anywhere in this file. The handler
+     disables the button, prints "Assigning…", then throws a ReferenceError before
+     the fetch is ever created — so .catch never runs and the message sticks forever.
+     That needs fixing (read the values off typeEl/dateEl/staffEl) before this panel
+     goes back. --}}
+{{--
 <script>
+    // Set min to current datetime so the picker blocks past dates/times
+    var ldvDate = document.getElementById('ldv_date');
+    if (ldvDate) {
+        var now = new Date();
+        ldvDate.min = now.getFullYear() +
+            '-' + String(now.getMonth()+1).padStart(2,'0') +
+            '-' + String(now.getDate()).padStart(2,'0') +
+            'T' + String(now.getHours()).padStart(2,'0') +
+            ':' + String(now.getMinutes()).padStart(2,'0');
+    }
+
+    // Clear red borders when user fills in fields
+    ['ldv_type','ldv_date','ldv_staff'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function () {
+            var ok = id === 'ldv_date'
+                ? (this.value && new Date(this.value) > new Date())
+                : !!this.value;
+            this.style.borderColor = ok ? '' : '#e5484d';
+        });
+    });
+
     document.getElementById('ldv_assign_btn').addEventListener('click', function () {
-        var type  = document.getElementById('ldv_type').value;
-        var date  = document.getElementById('ldv_date').value;
-        var staff = document.getElementById('ldv_staff').value;
+        var typeEl = document.getElementById('ldv_type');
+        var dateEl = document.getElementById('ldv_date');
+        var staffEl = document.getElementById('ldv_staff');
         var msg   = document.getElementById('ldv_assign_msg');
 
-        if (!staff) { msg.className = 'ldv-assign__msg err'; msg.textContent = 'Please select a technician.'; return; }
-        if (!type)  { msg.className = 'ldv-assign__msg err'; msg.textContent = 'Please select an inspection template.'; return; }
+        // Clear previous borders
+        [typeEl, dateEl, staffEl].forEach(function (el) { if (el) el.style.borderColor = ''; });
+
+        var missing = false;
+        if (!typeEl || !typeEl.value) { if (typeEl) typeEl.style.borderColor = '#e5484d'; missing = true; }
+        if (!dateEl || !dateEl.value || new Date(dateEl.value) <= new Date()) { if (dateEl) dateEl.style.borderColor = '#e5484d'; missing = true; }
+        if (!staffEl || !staffEl.value) { if (staffEl) staffEl.style.borderColor = '#e5484d'; missing = true; }
+        if (missing) { return; }
 
         var btn = this; btn.disabled = true;
         msg.className = 'ldv-assign__msg'; msg.textContent = 'Assigning…';
@@ -350,4 +425,5 @@
         .catch(function () { msg.className = 'ldv-assign__msg err'; msg.textContent = '⚠ Assignment failed.'; btn.disabled = false; });
     });
 </script>
+--}}
 @endsection

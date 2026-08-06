@@ -12,6 +12,8 @@ class Inspection extends Model
     public const STATUS_PENDING = 'pending';
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_COMPLETED = 'completed';
+    /** Cancelled by an admin. Kept out of the technician's active list; can be re-opened from the lead. */
+    public const STATUS_CANCELLED = 'cancelled';
 
     public const CONDITIONS = [
         'excellent' => 'Excellent',
@@ -28,23 +30,29 @@ class Inspection extends Model
 
     protected $fillable = [
         'lead_id', 'branch_id', 'technician_id', 'inspection_type_id',
-        'customer_name', 'customer_email', 'customer_phone', 'car_make', 'car_model', 'car_year',
+        'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone', 'whatsapp_number',
+        'date_of_inspection', 'car_make', 'car_model', 'car_year',
         'status', 'scheduled_at', 'started_at', 'completed_at',
-        'odometer', 'overall_condition', 'summary', 'recommendation', 'estimated_repair_cost',
+        'cancelled_at', 'cancel_reason', 'cancelled_by',
+        'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
-        'vin', 'registration_number', 'variant', 'color', 'fuel_type', 'transmission',
-        'body_type', 'number_of_keys', 'vehicle_type', 'manufacturer_name',
-        'country_of_origin', 'country_of_export', 'motor_power_kw', 'cylinders_cc',
-        'passengers', 'fuel_economy',
+        'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
+        'exterior_color', 'vehicle_image', 'region',
+        'fuel_type', 'gearbox', 'steering_side', 'body_type',
+        'number_of_keys', 'with_service_history', 'last_service_date',
     ];
 
     protected function casts(): array
     {
         return [
+            'date_of_inspection' => 'date',
+            'last_service_date' => 'date',
+            'with_service_history' => 'boolean',
             'scheduled_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
-            'estimated_repair_cost' => 'decimal:2',
+            'cancelled_at' => 'datetime',
+            'overall_rating' => 'decimal:1',
         ];
     }
 
@@ -85,6 +93,15 @@ class Inspection extends Model
     }
 
     /**
+     * Free-text notes per summary type (Exterior, Engine, Brakes, …) shown
+     * under the Overall Verdict.
+     */
+    public function summaries(): HasMany
+    {
+        return $this->hasMany(InspectionSummary::class);
+    }
+
+    /**
      * Number of template steps that have been answered so far.
      */
     public function progress(): array
@@ -109,6 +126,17 @@ class Inspection extends Model
     }
 
     /**
+     * Reference shown for this inspection: the linked lead's unique id
+     * (tbl_lead.lead_unq_id, e.g. "LD01272"), falling back to a generated id
+     * for inspections with no lead.
+     */
+    public function getReferenceAttribute(): string
+    {
+        return optional($this->lead)->reference
+            ?: 'AAQ-'.str_pad((string) $this->id, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Is this saved answer meaningful (a choice, a rating, or written text)?
      */
     public static function detailIsAnswered($detail): bool
@@ -126,7 +154,34 @@ class Inspection extends Model
     // summary and API. Kept here so every surface reads the same rule.
     public const POSITIVE_CHOICES = ['Pass', 'Yes', 'Working', 'Good', 'Available', 'OK'];
 
-    public const NEGATIVE_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available'];
+    public const NEGATIVE_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available', 'Bad'];
+
+    /**
+     * Choices that mean "doesn't apply to this vehicle". These line items are
+     * omitted from the printable report entirely — an unanswered step counts the
+     * same way.
+     */
+    public const NA_CHOICES = ['NA', 'N/A', 'Not Applicable'];
+
+    /**
+     * Choices that need a written note — anything less than a clean pass: the
+     * outright negatives plus "Average". Picking one of these reveals the
+     * Observations box (and the Remedial box, on templates that use it).
+     */
+    public const ATTENTION_CHOICES = ['Fail', 'No', 'Not Working', 'Poor', 'Not Available', 'Bad', 'Average'];
+
+    /**
+     * Should this answer appear as a line item in the report?
+     * False when the step was never answered or was explicitly marked N/A.
+     */
+    public static function isReportable($detail): bool
+    {
+        if (! self::detailIsAnswered($detail)) {
+            return false;
+        }
+
+        return ! in_array($detail->choice, self::NA_CHOICES, true);
+    }
 
     /**
      * pass | fail | na for a saved answer, recognising the checklist's choice vocab
@@ -157,10 +212,12 @@ class Inspection extends Model
      *
      * @param  \Illuminate\Support\Collection  $byStep  answers keyed by inspection_step_id
      */
-    public static function sectionRating($section, $byStep, ?int $manual = null): ?int
+    public static function sectionRating($section, $byStep, float|int|string|null $manual = null): ?float
     {
-        if ($manual) {
-            return max(1, min(5, $manual));
+        // A rating the technician actually recorded wins, and keeps its decimal
+        // place (4.6 stays 4.6). Only the derived fallback below is whole.
+        if (filled($manual) && (float) $manual > 0) {
+            return round(max(0.5, min(5, (float) $manual)), 1);
         }
 
         $answered = 0;
@@ -261,10 +318,13 @@ class Inspection extends Model
     }
 
     /**
-     * Create (or re-point) the inspection for a legacy lead when a technician
-     * is assigned for inspection. One inspection per lead: if it already exists
-     * the technician is updated instead. Always records the inspection id on
-     * tbl_lead.inspection_assigned_id so the lead links to its inspection.
+     * Create (or re-point) the lead's active inspection when a technician is
+     * assigned. One ACTIVE inspection per lead: if one already exists the
+     * technician is updated instead of adding a second row.
+     *
+     * Cancelled inspections are never touched — they are kept as history so the
+     * cancellation reason and date stay on record. Assigning a lead whose last
+     * inspection was cancelled therefore creates a brand-new inspection.
      *
      * @param  int  $leadId        tbl_lead.lead_id
      * @param  int  $technicianId  users.id of the assigned technician
@@ -284,20 +344,70 @@ class Inspection extends Model
         // Resolve the chosen inspection template; fall back to the first active one.
         $typeId = static::resolveInspectionTypeId($inspectionTypeId);
 
-        $inspection = static::where('lead_id', $leadId)->latest('id')->first();
+        // The lead's active inspection. Cancelled rows are skipped so they survive
+        // untouched as history — when the last one was cancelled this comes back
+        // null and a fresh inspection is created below.
+        $inspection = static::where('lead_id', $leadId)
+            ->where('status', '!=', static::STATUS_CANCELLED)
+            ->latest('id')
+            ->first();
+
+        // A completed inspection is locked — never (re)assign or notify. This is the
+        // single source of truth guarding every assign entry point. "Completed" =
+        // the inspection status OR the lead's "Inspection Completed" label.
+        $leadCompleted = ($lead->lead_assigned_status ?? null) === 'Inspection Completed';
+        if (($inspection && $inspection->status === static::STATUS_COMPLETED) || $leadCompleted) {
+            return $inspection;
+        }
+
+        // Fetch the basic registration record — needed in both the new-inspection
+        // path (to snapshot customer details) and the reassign path (to fill any
+        // fields that were empty on the first assignment).
+        $basicReg = DB::table('tbl_basic_registration')->where('breg_id', $lead->lead_reg_id)->first();
+
+        $isNew = ! $inspection;
+        $technicianChanged = false;
 
         if ($inspection) {
             // Re-assign: point the existing inspection at the new technician/template.
+            $technicianChanged = (int) $inspection->technician_id !== (int) $technicianId;
+
             $inspection->technician_id = $technicianId;
             $inspection->inspection_type_id = $typeId;
             if ($scheduledAt) {
                 $inspection->scheduled_at = $scheduledAt;
             }
+            // Fill in customer/vehicle fields that may still be empty from
+            // an earlier assignment when the lead didn't have them yet.
+            if (! $inspection->customer_name_ar && ($basicReg?->breg_fname_ar ?? null)) {
+                $inspection->customer_name_ar = $basicReg?->breg_fname_ar;
+            }
+            if (! $inspection->whatsapp_number && ($basicReg?->breg_whatsapp ?? null)) {
+                $inspection->whatsapp_number = $basicReg?->breg_whatsapp;
+            }
+            if (! $inspection->car_make && ($lead->lead_make ?? null)) {
+                $inspection->car_make = static::resolveName('tbl_make', 'make_id', 'make_name', $lead->lead_make);
+            }
+            if (! $inspection->car_model && ($lead->lead_model ?? null)) {
+                $inspection->car_model = static::resolveName('tbl_model', 'model_id', 'model_name', $lead->lead_model);
+            }
+            // Model year from make_model_year (the free-text combined field).
+            if (! $inspection->car_year) {
+                $inspection->car_year = static::extractYearFromMakeModel($lead->make_model_year ?? null);
+            }
+            // Manufacturing year from the dedicated lead_year field.
+            if (! $inspection->manufacturing_year) {
+                $inspection->manufacturing_year = static::resolveLeadYear($lead->lead_year ?? null);
+            }
+            if (! $inspection->plate_no && ($lead->lead_vehicle_plate_no ?? null)) {
+                $inspection->plate_no = $lead->lead_vehicle_plate_no;
+            }
+            if (! $inspection->exterior_color && ($lead->lead_color ?? null)) {
+                $inspection->exterior_color = $lead->lead_color;
+            }
             $inspection->save();
         } else {
-            $basicReg = DB::table('tbl_basic_registration')->where('breg_id', $lead->lead_reg_id)->first();
             $branchId = $lead->lead_branch_id ?: (session('application_branch') ?: 1);
-            $year = is_numeric($lead->lead_year) ? (int) $lead->lead_year : null;
 
             // lead_make / lead_model hold lookup IDs — resolve them to names so the
             // inspection stores the make/model name, not the raw id.
@@ -310,14 +420,44 @@ class Inspection extends Model
                 'technician_id'      => $technicianId,
                 'inspection_type_id' => $typeId,
                 'customer_name'      => ($basicReg?->breg_fname) ?: ($lead->lead_seller_name ?: 'N/A'),
+                'customer_name_ar'   => $basicReg?->breg_fname_ar,
                 'customer_email'     => $basicReg?->breg_email,
                 'customer_phone'     => ($basicReg?->breg_mob) ?: ($lead->lead_seller_mobile ?? null),
+                'whatsapp_number'    => $basicReg?->breg_whatsapp,
                 'car_make'           => $carMake,
                 'car_model'          => $carModel,
-                'car_year'           => $year,
+                // Model year from make_model_year (the free-text combined field).
+                'car_year'           => static::extractYearFromMakeModel($lead->make_model_year ?? null),
+                // Manufacturing year from the dedicated lead_year field.
+                'manufacturing_year' => static::resolveLeadYear($lead->lead_year ?? null),
+                'plate_no'           => $lead->lead_vehicle_plate_no,
+                'exterior_color'     => $lead->lead_color,
                 'status'             => static::STATUS_PENDING,
                 'scheduled_at'       => $scheduledAt ?: null,
             ]);
+        }
+
+        // Push-notify the assigned technician on a new assignment, or on a
+        // reassignment that actually changed the technician. A no-op re-save
+        // (same technician) does not notify. Failures are logged to the fcm
+        // channel so assignment never breaks.
+        if ($isNew || $technicianChanged) {
+            $vehicle = trim(($inspection->car_make ?? '').' '.($inspection->car_model ?? '')) ?: 'Vehicle inspection';
+            $title = $isNew ? 'New Inspection Assigned' : 'Inspection Reassigned to You';
+            $body  = ($isNew ? 'You have a new inspection: ' : 'An inspection was reassigned to you: ') . $vehicle;
+            $type  = $isNew ? 'inspection_assigned' : 'inspection_reassigned';
+
+            // FCM push — reaches the technician's device even when the app is closed.
+            \App\Services\PushNotificationService::sendToUser($technicianId, $title, $body, [
+                'type' => $type,
+                'inspection_id' => (string) $inspection->id,
+                'lead_id' => (string) $leadId,
+            ]);
+
+            // Pusher broadcast — live in-app update while the app is open.
+            \App\Events\InspectionAssigned::dispatch(
+                $technicianId, (int) $inspection->id, (int) $leadId, $title, $body, $type
+            );
         }
 
         // The inspection links back to the lead via inspections.lead_id; no separate
@@ -345,10 +485,15 @@ class Inspection extends Model
     }
 
     /**
-     * Resolve a lookup id (e.g. a make/model id stored on the lead) to its name.
-     * Returns null when the value is empty or no matching row exists, so we never
-     * store the raw id in place of a missing name. A non-numeric value is assumed
-     * to already be a name and is passed through unchanged.
+     * Resolve a lookup id (or comma-separated ids — the model field stores
+     * multiple selections) to its name(s).
+     *
+     * - A single numeric id (e.g. "5") is looked up and the name returned.
+     * - A comma-separated list (e.g. "3,5,8") resolves each id individually
+     *   and returns the names joined by ", ".
+     * - A non-numeric value is assumed to already be a name and is passed
+     *   through unchanged.
+     * - Returns null when the value is empty or none of the ids resolve.
      */
     protected static function resolveName(string $table, string $idColumn, string $nameColumn, $value): ?string
     {
@@ -356,13 +501,71 @@ class Inspection extends Model
             return null;
         }
 
-        if (! is_numeric($value)) {
+        // Already a name (non-numeric without commas) — pass through.
+        if (! is_numeric($value) && ! str_contains($value, ',')) {
             return (string) $value;
         }
 
+        // Comma-separated ids: resolve each one and join the names.
+        if (str_contains($value, ',')) {
+            $ids = array_filter(array_map('trim', explode(',', $value)));
+            $names = [];
+            foreach ($ids as $id) {
+                if (is_numeric($id)) {
+                    $name = DB::table($table)->where($idColumn, $id)->value($nameColumn);
+                    if ($name !== null && $name !== '') {
+                        $names[] = (string) $name;
+                    }
+                }
+            }
+            return ! empty($names) ? implode(', ', $names) : null;
+        }
+
+        // Single numeric id.
         $name = DB::table($table)->where($idColumn, $value)->value($nameColumn);
 
         return $name !== null && $name !== '' ? (string) $name : null;
+    }
+
+    /**
+     * Resolve the manufacturing year from the lead's dedicated year field.
+     *
+     * @param  mixed  $leadYear  tbl_lead.lead_year
+     * @return int|null
+     */
+    protected static function resolveLeadYear(mixed $leadYear): ?int
+    {
+        if (filled($leadYear) && is_numeric($leadYear)) {
+            $y = (int) $leadYear;
+            if ($y >= 1950 && $y <= 2099) {
+                return $y;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract a 4-digit model year from the free-text make_model_year field
+     * (e.g. "2020" from "Toyota Camry 2020").
+     *
+     * @param  string|null  $makeModelYear  tbl_lead.make_model_year
+     * @return int|null
+     */
+    protected static function extractYearFromMakeModel(?string $makeModelYear): ?int
+    {
+        if (empty($makeModelYear)) {
+            return null;
+        }
+
+        if (preg_match('/\b(\d{4})\b/', $makeModelYear, $m)) {
+            $y = (int) $m[1];
+            if ($y >= 1950 && $y <= 2099) {
+                return $y;
+            }
+        }
+
+        return null;
     }
 
     public function statusColor(): string
@@ -371,6 +574,55 @@ class Inspection extends Model
             self::STATUS_PENDING => 'bg-gray-100 text-gray-700',
             self::STATUS_IN_PROGRESS => 'bg-amber-100 text-amber-700',
             self::STATUS_COMPLETED => 'bg-green-100 text-green-700',
+            self::STATUS_CANCELLED => 'bg-red-100 text-red-700',
         ][$this->status] ?? 'bg-gray-100 text-gray-700';
+    }
+
+    /**
+     * Public URL of the primary vehicle photo, or null when none is set.
+     * Built against the current request host, same as InspectionMedia::url.
+     */
+    public function vehicleImageUrl(): ?string
+    {
+        return $this->vehicle_image
+            ? url('storage/'.ltrim($this->vehicle_image, '/'))
+            : null;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === self::STATUS_CANCELLED;
+    }
+
+    /**
+     * An inspection can be cancelled while the job is still open — pending or in
+     * progress. A completed one is locked, and an already-cancelled one is a
+     * permanent record.
+     */
+    public function isCancellable(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_IN_PROGRESS], true);
+    }
+
+    /**
+     * Who may cancel: an admin (any inspection), or the technician this
+     * inspection is assigned to (their own job, from the app or the web).
+     * The single source of truth for both the web and API cancel endpoints.
+     */
+    public function canBeCancelledBy(?User $user): bool
+    {
+        if (! $user || ! $this->isCancellable()) {
+            return false;
+        }
+
+        return $user->isAdmin() || (int) $this->technician_id === (int) $user->id;
+    }
+
+    /**
+     * The admin who cancelled this inspection.
+     */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

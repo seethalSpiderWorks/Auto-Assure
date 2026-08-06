@@ -512,7 +512,7 @@
 						</div>
 						<div class="col-sm-6">
 							<div class="text-sm-end d-none d-sm-block">
-                                Powered by :  <a href="https://srvinfotech.com/" target="_blank" class="text-reset">SRV InfoTech</a> 
+                                Powered by :  <a href="https://spiderworks.in/" target="_blank" class="text-reset">SpiderWorks</a>
                             </div>
                         </div>
 						<!--div class="col-sm-6 text-sm-end">

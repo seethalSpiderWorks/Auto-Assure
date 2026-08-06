@@ -272,10 +272,10 @@
 											</div>
 										</div>
 											
-										<div class="col-md-3" id="year_div" style="margin-top:-9px">
+										<div class="col-md-3" id="year_div" style="margin-top:-9px; display:none;">
 											<div class="mb-3">
 												<label for="year">Year</label>
-												<input type="text" name="year" id="year" value="<?= !empty($data->lead_year) ? $data->lead_year : '' ?>" class="form-control form-select">
+												<input type="text" name="year" id="year" value="<?= !empty($data->lead_year) ? $data->lead_year : '' ?>" class="form-control">
 											 
 											</div>
 										</div>
@@ -448,11 +448,34 @@
 							<div class="insp-block" style="padding:6px 14px 0 14px;">
 							<div class="row"><div class="mb-3"> <h5> Inspection </h5> </div></div>
 							<input type="hidden" id="insp_lead_id" value="{{ $data->lead_id }}">
+							@php
+								// A completed inspection is locked: the inspection status is
+								// "completed" OR the lead is marked "Inspection Completed".
+								$inspLocked = (optional($leadInspection)->status === 'completed')
+									|| ((optional($data)->lead_assigned_status ?? null) === 'Inspection Completed');
+
+								// A cancelled inspection is NOT locked — saving this panel with an
+								// assigned person starts a NEW inspection, leaving the cancelled one as history.
+								$inspCancelled = optional($leadInspection)->status === 'cancelled';
+							@endphp
+
+							@if($inspCancelled)
+								<div class="alert alert-danger d-flex align-items-start" style="gap:.6rem;">
+									<i class="bx bx-x-circle font-size-18"></i>
+									<div>
+										<strong>This inspection was cancelled{{ optional($leadInspection)->cancelled_at ? ' on '.$leadInspection->cancelled_at->format('d M Y, h:i A') : '' }}.</strong>
+										@if(optional($leadInspection)->cancel_reason)
+											<div style="font-size:13px;margin-top:2px;"><b>Reason:</b> {{ $leadInspection->cancel_reason }}</div>
+										@endif
+										<div style="font-size:12px;margin-top:2px;">It stays on record with this reason. Choose an assigned person and a scheduled date below, then save to start a new inspection for this lead.</div>
+									</div>
+								</div>
+							@endif
 							<div class="row">
 								<div class="col-md-4">
 									<div class="mb-3">
 										<label class="form-label">Inspection Template</label>
-										<select id="insp_type" class="form-control form-select">
+										<select id="insp_type" class="form-control form-select" @disabled($inspLocked)>
 											<option value="">Select Template</option>
 											@foreach(($inspectionTypes ?? []) as $tid => $tname)
 												<option value="{{ $tid }}" {{ (optional($leadInspection)->inspection_type_id == $tid) ? 'selected' : '' }}>{{ $tname }}</option>
@@ -469,7 +492,7 @@
 												// lead's assigned user so the technician is still shown here.
 												$assignedTech = optional($leadInspection)->technician_id ?: (optional($data)->lead_assigned_users ?? '');
 											@endphp
-										<select id="insp_staff" class="form-control form-select">
+										<select id="insp_staff" class="form-control form-select" @disabled($inspLocked)>
 											<option value="">Select Staff</option>
 											@foreach(($users ?? []) as $uid => $uname)
 												<option value="{{ $uid }}" {{ ($assignedTech && $assignedTech == $uid) ? 'selected' : '' }}>{{ $uname }}</option>
@@ -479,13 +502,13 @@
 								</div>
 								<div class="col-md-3">
 									<div class="mb-3">
-										<label class="form-label">Scheduled Date</label>
-										<input type="date" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d') : '' }}">
+										<label class="form-label">Scheduled Date &amp; Time</label>
+										<input type="datetime-local" id="insp_scheduled" class="form-control" value="{{ ($leadInspection && $leadInspection->scheduled_at) ? $leadInspection->scheduled_at->format('Y-m-d\TH:i') : '' }}" @disabled($inspLocked) @unless($inspLocked) required @endunless>
 									</div>
 								</div>
 								<div class="col-md-1 d-flex align-items-end">
 									<div class="mb-3 w-100">
-										<button type="button" id="insp_update_btn" class="btn btn-primary w-100" title="Update Inspection"><i class="bx bx-save"></i></button>
+										<button type="button" id="insp_update_btn" class="btn {{ $inspCancelled ? 'btn-success' : 'btn-primary' }} w-100" title="{{ $inspCancelled ? 'Add back to Inspection' : 'Update Inspection' }}" @disabled($inspLocked)><i class="bx {{ $inspCancelled ? 'bx-revision' : 'bx-save' }}"></i></button>
 									</div>
 								</div>
 							</div>
@@ -594,7 +617,7 @@
 										</div>
 										<div class="col-md-2" style="padding-top:1px;">
 											<div class="mb-3">
-												<input type="date" id="assign_insp_scheduled" class="form-control" placeholder="Scheduled (optional)" title="Scheduled (optional)">
+												<input type="datetime-local" id="assign_insp_scheduled" class="form-control" placeholder="Scheduled (optional)" title="Scheduled date &amp; time (optional)">
 											</div>
 										</div>
 										<div class="col-md-2" style="padding-top:1px; padding-left:12px">
@@ -1560,26 +1583,34 @@ $("#assign_btn").click(function()
 	var insp_type = $("#assign_insp_type").val();
 	var insp_sched = $("#assign_insp_scheduled").val();
 
+	// Clear previous borders
+	$('#assign_insp_type, #assign_insp_scheduled, #assign_lead_staff').css('borderColor', '');
 	$("#error_assigns").html("");
 	$("#error_assigns_lead").html("");
 	$("#error_assigns_type").html("");
-	if(staff.length==0)
-	{
-		$("#error_assigns").html("Please Select Staff");
-		return false;
-	}
 
-	if(!insp_type)
-	{
-		$("#error_assigns_type").html("Please select an inspection template");
-		return false;
+	// Red borders plus a message naming the problem — a past date looks like a
+	// filled-in field, so a border alone doesn't explain the refusal.
+	var problems = [];
+	if (!insp_type) { $('#assign_insp_type').css('borderColor', '#e5484d'); problems.push('Select an inspection template.'); }
+	if (!insp_sched) {
+		$('#assign_insp_scheduled').css('borderColor', '#e5484d');
+		problems.push('Select a scheduled date &amp; time.');
+	} else if (new Date(insp_sched) <= new Date()) {
+		$('#assign_insp_scheduled').css('borderColor', '#e5484d');
+		problems.push('The scheduled date &amp; time must be a future date and time — an inspection cannot be scheduled in the past.');
 	}
+	if (!staff) { $('#assign_lead_staff').css('borderColor', '#e5484d'); problems.push('Select an assigned person.'); }
+
+	if (problems.length) { $("#error_assigns_lead").html(problems.join(' ')); return false; }
 
 	if(rows_selected.length==0)
 	{
 		$("#error_assigns_lead").html("Please select at least one lead");
 		return false;
 	}
+
+	$("#error_assigns_lead").html('');
 
         $.ajax({
                    type: 'POST',
@@ -1616,6 +1647,31 @@ $("#assign_btn").click(function()
                     }
                 }); 
 })
+
+// Set min on assign date & clear red borders when user fills in
+(function () {
+    var sched = document.getElementById('assign_insp_scheduled');
+    if (sched) {
+        var now = new Date();
+        sched.min = now.getFullYear() + '-' +
+            String(now.getMonth()+1).padStart(2,'0') + '-' +
+            String(now.getDate()).padStart(2,'0') + 'T' +
+            String(now.getHours()).padStart(2,'0') + ':' +
+            String(now.getMinutes()).padStart(2,'0');
+    }
+    $('#assign_insp_type, #assign_insp_scheduled, #assign_lead_staff').on('change', function () {
+        var el = this;
+        var isPastDate = el.id === 'assign_insp_scheduled' && el.value && new Date(el.value) <= new Date();
+        var ok = el.id === 'assign_insp_type' ? el.value :
+                 el.id === 'assign_insp_scheduled' ? (el.value && !isPastDate) :
+                 el.value;
+        el.style.borderColor = ok ? '' : '#e5484d';
+        // Flag a past date immediately; any other correction clears the message.
+        $("#error_assigns_lead").html(isPastDate
+            ? 'The scheduled date &amp; time must be a future date and time — an inspection cannot be scheduled in the past.'
+            : '');
+    });
+})();
 
 /*********** Delete Assign Lead **************/
 
@@ -1727,7 +1783,6 @@ function checkFormType(form) {
         $('#make_div').show();
         $('#model_div').show();
         $('#vehicle_plate_no_div').show();
-        $('#year_div').show();
         $('#color_div').show();
         $('#color_ar_div').show();
         $('#sellername_div').show();
@@ -1980,15 +2035,95 @@ $(document).ready(function() {
         });
     })();
 
+    // Set min on insp_scheduled so the picker blocks past dates/times
+    (function () {
+        var el = document.getElementById('insp_scheduled');
+        if (el && !el.disabled) {
+            var now = new Date();
+            el.min = now.getFullYear() + '-' +
+                String(now.getMonth()+1).padStart(2,'0') + '-' +
+                String(now.getDate()).padStart(2,'0') + 'T' +
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0');
+        }
+        // Clear red borders when user fills in Inspection fields
+        ['insp_type','insp_scheduled','insp_staff'].forEach(function (id) {
+            var field = document.getElementById(id);
+            if (!field) return;
+            field.addEventListener('change', function () {
+                var ok = id === 'insp_scheduled'
+                    ? (this.value && new Date(this.value) > new Date())
+                    : !!this.value;
+                this.style.borderColor = ok ? '' : '#e5484d';
+            });
+        });
+    })();
+
     // Inspection details (template / assigned person / scheduled date) save.
     // Exposed globally so the main Lead Info "Update" saves it too before the
     // page reloads — otherwise the values entered here are lost on reload.
+    // Flag a past scheduled date on the lead's Inspection panel as soon as it is
+    // picked, rather than only when the user saves.
+    (function () {
+        var dateEl = document.getElementById('insp_scheduled');
+        if (!dateEl) return;
+
+        dateEl.addEventListener('change', function () {
+            var msg = document.getElementById('insp_msg');
+            var isPast = dateEl.value && new Date(dateEl.value) <= new Date();
+
+            dateEl.style.borderColor = isPast ? '#e5484d' : '';
+            if (!msg) return;
+
+            msg.style.color = '#e5484d';
+            msg.textContent = isPast
+                ? 'The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                : '';
+        });
+    })();
+
     window.saveLeadInspection = function (onDone) {
         var leadEl = document.getElementById('insp_lead_id');
         if (!leadEl) { if (onDone) onDone(); return; }   // section not on page (add mode)
 
-        var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        // Validate all fields at once with red borders, and say what is wrong —
+        // a past date looks like a filled-in field, so a red border on its own
+        // reads as "something is wrong" without explaining what.
+        var typeEl = document.getElementById('insp_type');
+        var dateEl = document.getElementById('insp_scheduled');
+        var staffEl = document.getElementById('insp_staff');
         var msg  = document.getElementById('insp_msg');
+        var problems = [];
+
+        if (typeEl && !typeEl.disabled && !typeEl.value) {
+            typeEl.style.borderColor = '#e5484d';
+            problems.push('Select an inspection template.');
+        } else if (typeEl) typeEl.style.borderColor = '';
+
+        if (dateEl && !dateEl.disabled) {
+            var isPast = dateEl.value && new Date(dateEl.value) <= new Date();
+            if (!dateEl.value || isPast) {
+                dateEl.style.borderColor = '#e5484d';
+                problems.push(isPast
+                    ? 'The scheduled date & time must be a future date and time — an inspection cannot be scheduled in the past.'
+                    : 'Select a scheduled date & time.');
+            } else {
+                dateEl.style.borderColor = '';
+            }
+        }
+
+        if (staffEl && !staffEl.disabled && !staffEl.value) {
+            staffEl.style.borderColor = '#e5484d';
+            problems.push('Select an assigned person.');
+        } else if (staffEl) staffEl.style.borderColor = '';
+
+        if (problems.length) {
+            if (msg) { msg.style.color = '#e5484d'; msg.textContent = problems.join(' '); }
+            if (onDone) onDone();
+            return;
+        }
+
+        var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         var btn  = document.getElementById('insp_update_btn');
 
         if (msg) { msg.style.color = '#667085'; msg.textContent = 'Saving…'; }

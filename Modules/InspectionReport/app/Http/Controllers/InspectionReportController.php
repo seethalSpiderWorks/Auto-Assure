@@ -56,12 +56,10 @@ class InspectionReportController extends Controller
 				->where('gallery_type_status',0)
 				->get();
  
-		$summ_desc = DB::table('tbl_summary_description')
-				->select('sum_desc_id','sum_desc_type','sum_desc_name','sum_desc_name_ar')
-				->where('sum_desc_status',0)
-				->get();
-		
-        return view('inspectionreport::index')->with(['exte_color'=>$exte_color,'inte_color'=>$inte_color,'gear_box'=>$gear_box,'fuel_type'=>$fuel_type,'steer_side'=>$steer_side,'summ_type'=>$summ_type,'gall_type'=>$gall_type,'summ_desc'=>$summ_desc]);
+		// tbl_summary_description (12k+ rows) is NOT loaded here: the summary-description
+		// select is populated on demand by the SummaryDes endpoint, filtered by type.
+
+        return view('inspectionreport::index')->with(['exte_color'=>$exte_color,'inte_color'=>$inte_color,'gear_box'=>$gear_box,'fuel_type'=>$fuel_type,'steer_side'=>$steer_side,'summ_type'=>$summ_type,'gall_type'=>$gall_type]);
     }
 	
 	/********** Datatable **********/
@@ -113,7 +111,9 @@ class InspectionReportController extends Controller
 			$area->where('lead_added_by',Auth::user()->id);
 		}
 		
-		$data = ["iTotalDisplayRecords" => $area->count(), "iTotalRecords" => $area->count(), "TotalDisplayRecords" => $limit,'option'=> $option];
+		// Count once — this query joins users + tbl_lead, so running it twice doubled the cost.
+		$total = $area->count();
+		$data = ["iTotalDisplayRecords" => $total, "iTotalRecords" => $total, "TotalDisplayRecords" => $limit,'option'=> $option];
 		$dataMod = $area->skip($offset)->take($limit)->get();  
 		$data['data'] = $dataMod->toArray();  
 		return response()->json($data);
@@ -2108,7 +2108,9 @@ class InspectionReportController extends Controller
 			$area->where('lead_added_by',Auth::user()->id);
 		}
 		
-		$data = ["iTotalDisplayRecords" => $area->count(), "iTotalRecords" => $area->count(), "TotalDisplayRecords" => $limit,'option'=> $option];
+		// Count once — this query joins users + tbl_lead, so running it twice doubled the cost.
+		$total = $area->count();
+		$data = ["iTotalDisplayRecords" => $total, "iTotalRecords" => $total, "TotalDisplayRecords" => $limit,'option'=> $option];
 		$dataMod = $area->skip($offset)->take($limit)->get();  
 		$data['data'] = $dataMod->toArray();  
 		return response()->json($data);

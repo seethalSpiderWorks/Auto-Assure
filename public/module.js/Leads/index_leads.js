@@ -78,31 +78,49 @@ var dTable = $('#lead_table').DataTable({
 		var viewUrl = public_path + '/leads/view/' + aData.lead_id;
 		$('td:eq(4)', nRow).html('<a href="'+viewUrl+'" class="lead-name-link" title="View lead details">'+ (aData.breg_fname || '-') +'</a>');
 
-		var assign = '<select class="change_staff form-control form-select select2" data-enq_id='+ aData.lead_id +'  style="border: 1px solid #08406330;color: #101010;cursor:pointer; padding-top:2px;padding-bottom:2px;width:110px"><option value="">Select Staff</option>' ;
+		// A completed inspection is locked — show the assigned technician's name as
+		// plain read-only text instead of the assign dropdown. "Completed" means the
+		// inspection status OR the lead's "Inspection Completed" label (the badge shown).
+		var isCompleted = (aData.inspection_status === 'completed')
+			|| (aData.lead_assigned_status === 'Inspection Completed');
         $.ajax({
                type: 'POST',
                 data:{'_token':token,'branch_id':$('#branch_name_data').val()},
                 url: url_staffData,
-                success: function (data) 
+                success: function (data)
 				{
 					var name = aData.lead_assigned_users;  //alert(name);
-					 
-                    $.each(data.result,function(index, item) 
-					{			
+
+					if (isCompleted) {
+						// Just the assigned user's name, read-only.
+						var assignedName = '';
+						$.each(data.result, function(index, item) {
+							if (name == item.staff_id) { assignedName = item.name + ' ' + item.lname; }
+						});
+						var readonly = assignedName
+							? '<span title="Inspection completed — locked" style="color:#101010;font-weight:500;"><i class="bx bx-user-check" style="color:#08a05b;"></i> ' + assignedName + '</span>'
+							: '<span class="text-muted">—</span>';
+						$('td:eq(9)', nRow).html(readonly).addClass('center');
+						return;
+					}
+
+					var assign = '<select class="change_staff form-control form-select select2" data-enq_id='+ aData.lead_id +'  style="border: 1px solid #08406330;color: #101010;cursor:pointer; padding-top:2px;padding-bottom:2px;width:110px"><option value="">Select Staff</option>' ;
+                    $.each(data.result,function(index, item)
+					{
 						var staffFullname = item.name + ' '+item.lname ;
-						if(name == item.staff_id) 
-						{ 
-							 var sel_status = "selected" ; 
+						if(name == item.staff_id)
+						{
+							 var sel_status = "selected" ;
 						}
 						else
-						{ 
-							var sel_status = ''; 
+						{
+							var sel_status = '';
 						}
-						 
+
                         assign += '<option value='+item.staff_id+ '  '+sel_status+'>'+staffFullname+'</option>';
                     });
                     assign +='</select>';
-                   
+
 					$('td:eq(9)', nRow).html(assign).addClass('center');
 				}
 		});	 
@@ -122,14 +140,19 @@ var dTable = $('#lead_table').DataTable({
 		
 		$('td:eq(7)', nRow).html(lead_form).addClass('center');
 
-		// Scheduled Date (inspection scheduled_at) — shown after "Assign To".
+		// Scheduled Date + time (inspection scheduled_at) — matches the /inspections list.
 		var schedHtml = '';
 		if(aData.inspection_scheduled_at)
 		{
 			var sd = new Date(String(aData.inspection_scheduled_at).replace(' ', 'T'));
 			if(!isNaN(sd.getTime()))
 			{
-				schedHtml = sd.getDate().toString().padStart(2, '0') + '-' + (sd.getMonth()+1).toString().padStart(2, '0') + '-' + sd.getFullYear();
+				var _mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+				var _dateStr = sd.getDate().toString().padStart(2, '0') + ' ' + _mo[sd.getMonth()] + ' ' + sd.getFullYear();
+				var _h = sd.getHours(), _m = sd.getMinutes().toString().padStart(2, '0');
+				var _ampm = _h >= 12 ? 'PM' : 'AM', _h12 = (_h % 12) || 12;
+				var _timeStr = _h12.toString().padStart(2, '0') + ':' + _m + ' ' + _ampm;
+				schedHtml = _dateStr + '<br><small style="color:#98a2b3"><i class="bx bx-time"></i> ' + _timeStr + '</small>';
 			}
 		}
 		if(schedHtml === '') { schedHtml = '<span style="color:#98a2b3">—</span>'; }
@@ -182,6 +205,14 @@ var dTable = $('#lead_table').DataTable({
         {
             badges = '<span class="btn bg-primary" style="padding: 2px 6px; font-size:9.5px; line-height:1.2; min-width:50px; cursor:auto !important; color:#f5f6f8; white-space:nowrap;">Inspection Completed</span>';
         }
+		else if(aData.lead_assigned_status == 'Inspection In Progress')
+		{
+			badges = '<span class="btn bg-warning" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection In Progress </span>';
+		}
+		else if(aData.lead_assigned_status == 'Inspection Cancelled')
+		{
+			badges = '<span class="btn bg-danger" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection Cancelled </span>';
+		}
 		else if(aData.lead_assigned_status == 'Approved')
 		{
 			badges = '<span class="btn bg-success" style="padding: 1px; min-width: 50px; color:#f5f6f8;cursor: auto !important;">Approved</span>';

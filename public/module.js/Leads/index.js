@@ -147,6 +147,14 @@ var dTable = $('#lead_table').DataTable({
         {
             badges = '<span class="btn bg-primary" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection Completed </span>';
         }
+		else if(aData.lead_assigned_status == 'Inspection In Progress')
+		{
+			badges = '<span class="btn bg-warning" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection In Progress </span>';
+		}
+		else if(aData.lead_assigned_status == 'Inspection Cancelled')
+		{
+			badges = '<span class="btn bg-danger" style="padding: 1px; min-width: 50px;cursor: auto !important;color:#f5f6f8;"> Inspection Cancelled </span>';
+		}
 		else if(aData.lead_assigned_status == 'Approved')
 		{
 			badges = '<span class="btn bg-success" style="padding: 1px; min-width: 50px; color:#f5f6f8;cursor: auto !important;">Approved</span>';
@@ -214,6 +222,27 @@ var dTable = $('#lead_table').DataTable({
 			}
 			inspection = '<a href="'+public_path+'/inspections/'+aData.inspection_id+'/edit" target="_blank" title="View Inspection"><i class="far fa-clipboard" style="color:#007bff"></i> View</a>';
 			if(assignedDate){ inspection += '<br><small class="text-muted">'+assignedDate+'</small>'; }
+
+			// Cancelled inspection: flag it here with its reason/date so the lead
+			// list shows why, and so it's obvious it can be assigned again.
+			if(aData.inspection_status == 'cancelled')
+			{
+				var cancelledDate = '';
+				if(aData.inspection_cancelled_at)
+				{
+					var cdt = new Date(aData.inspection_cancelled_at.replace(' ', 'T'));
+					if(!isNaN(cdt.getTime()))
+					{
+						cancelledDate = ('0'+cdt.getDate()).slice(-2)+'-'+('0'+(cdt.getMonth()+1)).slice(-2)+'-'+cdt.getFullYear();
+					}
+				}
+				var reason = aData.inspection_cancel_reason ? String(aData.inspection_cancel_reason) : '';
+				reason = reason.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+				inspection = '<span class="badge bg-danger" title="'+reason+'">Cancelled</span>'
+					+ (cancelledDate ? '<br><small class="text-muted">'+cancelledDate+'</small>' : '')
+					+ '<br>' + inspection;
+			}
 		}
 		$('td:eq(10)', nRow).html(inspection).addClass('center');
 
@@ -324,6 +353,13 @@ function confirmEdit_new(id)
 			dataType:'JSON',
             success: function(result)
             {
+				if (!result || !result.data) {
+					if (typeof toastr !== 'undefined') {
+						toastr["error"]("Could not load lead data. Please try again.");
+					}
+					return;
+				}
+
 				//console.log(result.lead_id);
 				$('#add').hide();
 				$('#reset').hide();
@@ -381,6 +417,20 @@ function confirmEdit_new(id)
 				
  				//var arrayData = result.data.lead_software.split(',');
 				//$('#software').val(arrayData).trigger('change');
+
+				// Smooth scroll to the form so the user sees the loaded data
+				$('html, body').animate({
+					scrollTop: $('#lead_form').offset().top - 20
+				}, 500);
+			},
+			error: function(jqXHR, textStatus, errorThrown)
+			{
+				if (typeof toastr !== 'undefined') {
+					toastr["error"]("Failed to load lead data. Server error (check console).");
+				} else {
+					alert("Failed to load lead data. Please try again.");
+				}
+				console.error('confirmEdit_new error:', textStatus, errorThrown, jqXHR.responseText);
 			}
 		});
 }

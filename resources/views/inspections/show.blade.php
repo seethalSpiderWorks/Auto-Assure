@@ -5,16 +5,30 @@
     use App\Models\Inspection;
 
     $vehicleName = trim(($inspection->car_make ?? '').' '.($inspection->car_model ?? ''));
-    if ($vehicleName === '') { $vehicleName = $inspection->manufacturer_name ?: 'Vehicle'; }
+    if ($vehicleName === '') { $vehicleName = 'Vehicle'; }
 
     $statusMap = [
         'pending'     => ['Pending', 'is-pending'],
         'in_progress' => ['In Progress', 'is-progress'],
         'completed'   => ['Completed', 'is-completed'],
+        'cancelled'   => ['Cancelled', 'is-cancelled'],
     ];
     [$statusLabel, $statusClass] = $statusMap[$inspection->status] ?? [ucfirst($inspection->status), 'is-pending'];
 
-    $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
+    // An admin may cancel any inspection, a technician only their own — and only
+    // while the job is still open (pending or in progress).
+    $isCancelled = $inspection->isCancelled();
+    $canCancel = $inspection->canBeCancelledBy(auth()->user());
+
+    $overallRatingVal = (float) ($inspection->overall_rating ?? 0);
+    $condition = match (true) {
+        $overallRatingVal >= 4.5 => 'Excellent',
+        $overallRatingVal >= 3.5 => 'Very Good',
+        $overallRatingVal >= 2.5 => 'Good',
+        $overallRatingVal >= 1.5 => 'Fair',
+        $overallRatingVal > 0    => 'Poor',
+        default                  => Inspection::CONDITIONS[$inspection->overall_condition] ?? null,
+    };
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? null;
 
     // Pass / Fail / N-A for a saved answer (same rule as the report).
@@ -27,25 +41,28 @@
 
     // Vehicle specification rows (only those with a value).
     $spec = array_filter([
-        'VIN'                => $inspection->vin,
-        'Registration No'    => $inspection->registration_number,
-        'Manufacturer'       => $inspection->manufacturer_name,
-        'Variant'            => $inspection->variant,
-        'Year'               => $inspection->car_year,
-        'Colour'             => $inspection->color,
-        'Body Type'          => $inspection->body_type,
-        'Vehicle Type'       => $inspection->vehicle_type,
-        'Fuel Type'          => $inspection->fuel_type,
-        'Transmission'       => $inspection->transmission,
-        'Cylinders / CC'     => $inspection->cylinders_cc,
-        'Motor Power'        => $inspection->motor_power_kw ? $inspection->motor_power_kw.' kW' : null,
-        'Passengers'         => $inspection->passengers,
-        'No. of Keys'        => $inspection->number_of_keys,
-        'Odometer'           => $inspection->odometer ? number_format($inspection->odometer).' km' : null,
-        'Fuel Economy'       => $inspection->fuel_economy,
-        'Country of Origin'  => $inspection->country_of_origin,
-        'Country of Export'  => $inspection->country_of_export,
+        'Make'                 => $inspection->car_make,
+        'Model'                => $inspection->car_model,
+        'Model Year'           => $inspection->car_year,
+        'VIN / Chassis No'     => $inspection->vin,
+        'Plate No'             => $inspection->plate_no,
+        'Odometer'             => $inspection->odometer ? number_format($inspection->odometer).' km' : null,
+        'Region'               => $inspection->region,
+        'Exterior Color'       => $inspection->exterior_color,
+        'Gearbox'              => $inspection->gearbox,
+        'Fuel Type'            => $inspection->fuel_type,
+        'Body Type'            => $inspection->body_type,
+        'No. of Keys'          => $inspection->number_of_keys,
+        'With Service History' => $inspection->with_service_history === null ? null : ($inspection->with_service_history ? 'Yes' : 'No'),
+        'Last Service Date'    => optional($inspection->last_service_date)->format('d-m-Y'),
     ], fn ($v) => $v !== null && $v !== '');
+
+    // Per-section (category) media — step-less uploads keyed by section id. These
+    // come from the web section picker AND the app's section batch endpoint; both
+    // store the same shape (step_id NULL, section_id set).
+    $sectionMedia = $inspection->details
+        ->filter(fn ($d) => ! is_null($d->inspection_section_id))
+        ->mapWithKeys(fn ($d) => [$d->inspection_section_id => $d->media]);
 
     // Flat gallery of every media item, in checklist order, for the lightbox.
     $gallery = [];
@@ -56,18 +73,32 @@
             foreach ($gd->media as $gm) {
                 $gallery[] = [
                     'id'      => $gm->id,
-                    'type'    => $gm->type,
+                    'type'    => $gm->isVideo() ? 'video' : 'photo',
                     'url'     => $gm->url,
                     'caption' => ($gsi + 1).'. '.$gsection->section_name.' — '.$gstep->question,
                 ];
             }
         }
+        // Section-level (category) media for this section.
+        foreach (($sectionMedia[$gsection->id] ?? collect()) as $gm) {
+            $gallery[] = [
+                'id'      => $gm->id,
+                'type'    => $gm->isVideo() ? 'video' : 'photo',
+                'url'     => $gm->url,
+                'caption' => ($gsi + 1).'. '.$gsection->section_name.' — media',
+            ];
+        }
     }
-    // Additional (step-less) media bucket.
-    $extraDetail = $inspection->details->first(fn ($d) => is_null($d->inspection_step_id));
+    // Additional (step-less AND section-less) media bucket. Must exclude section
+    // buckets, which also have a null step id — otherwise a section's photos leak
+    // into "Additional media".
+    $extraDetail = $inspection->details
+        ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
     $extraMedia = $extraDetail ? $extraDetail->media : collect();
     foreach ($extraMedia as $gm) {
-        $gallery[] = ['id' => $gm->id, 'type' => $gm->type, 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
+        // Documents (PDFs) open in a new tab, never in the image/video lightbox.
+        if ($gm->isDocument()) { continue; }
+        $gallery[] = ['id' => $gm->id, 'type' => $gm->isVideo() ? 'video' : 'photo', 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
     }
 
     $mediaIndex = [];
@@ -97,6 +128,23 @@
         ? $currentTypeId
         : optional(($inspectionTypes ?? collect())->first())->id;
     $selStats  = $typeStats[$selTypeId] ?? ['answered' => 0, 'total' => 0, 'percent' => 0];
+
+    // Render fractional stars with CSS gradient clip (same technique as edit page's fillStar).
+    $renderStars = function ($rating) {
+        $html = '';
+        for ($r = 1; $r <= 5; $r++) {
+            $fill = max(0, min(1, $rating - ($r - 1)));
+            if ($fill >= 0.999) {
+                $html .= '<i class="bx bxs-star" style="color:#e2c65a;"></i>';
+            } elseif ($fill <= 0.001) {
+                $html .= '<i class="bx bx-star" style="color:#dfe3ea;"></i>';
+            } else {
+                $pct = round($fill * 100);
+                $html .= '<i class="bx bxs-star" style="background:linear-gradient(90deg,#e2c65a '.$pct.'%,#dfe3ea 0%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;"></i>';
+            }
+        }
+        return $html;
+    };
 @endphp
 
 <div class="page-content">
@@ -107,7 +155,7 @@
             <div class="idet-hero__left">
                 <div class="idet-hero__icon"><i class="bx bxs-car"></i></div>
                 <div>
-                    <div class="idet-hero__eyebrow">Inspection #{{ $inspection->id }} · {{ optional($inspection->lead)->reference ?? '—' }}</div>
+                    <div class="idet-hero__eyebrow">Inspection #{{ $inspection->id }} · {{ $inspection->reference }}</div>
                     <h3 class="idet-hero__title">{{ $inspection->car_year ? $inspection->car_year.' ' : '' }}{{ $vehicleName }}</h3>
                     <div class="idet-hero__badges">
                         <span class="idet-status {{ $statusClass }}">{{ $statusLabel }}</span>
@@ -122,9 +170,26 @@
                 @if($inspection->status === 'completed')
                     <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-primary btn-sm"><i class="bx bx-download"></i> Download Report</a>
                 @endif
+                @if($canCancel)
+                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#inspCancelModal"><i class="bx bx-x-circle"></i> Cancel Inspection</button>
+                @endif
                 <a href="{{ url('inspections') }}" class="btn btn-outline-light btn-sm">Back</a>
             </div>
         </div>
+
+        {{-- ===== Cancellation notice ===== --}}
+        @if($isCancelled)
+            <div class="idet-cancelled">
+                <div class="idet-cancelled__icon"><i class="bx bx-x-circle"></i></div>
+                <div>
+                    <strong>This inspection was cancelled{{ $inspection->cancelled_at ? ' on '.$inspection->cancelled_at->format('d M Y, h:i A') : '' }}.</strong>
+                    @if($inspection->cancel_reason)
+                        <div class="idet-cancelled__reason"><span>Reason:</span> {{ $inspection->cancel_reason }}</div>
+                    @endif
+                    <div class="idet-cancelled__hint">It is kept on record for its cancellation reason. Assigning the lead again starts a new inspection.</div>
+                </div>
+            </div>
+        @endif
 
         {{-- ===== Progress + quick facts ===== --}}
         <div class="row g-3">
@@ -146,15 +211,16 @@
                 <div class="idet-card h-100">
                     <div class="idet-card__title"><i class="bx bx-user-circle"></i> Customer &amp; Assignment</div>
                     <div class="idet-facts">
-                        <div class="idet-fact"><span class="idet-fact__k">Customer</span><span class="idet-fact__v">{{ $inspection->customer_name ?: (optional($inspection->lead)->customer_name ?: '—') }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Customer</span><span class="idet-fact__v">{{ $inspection->customer_name ?: '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Phone</span><span class="idet-fact__v">{{ $inspection->customer_phone ?: '—' }}</span></div>
+                        @if($inspection->whatsapp_number)<div class="idet-fact"><span class="idet-fact__k">WhatsApp</span><span class="idet-fact__v">{{ $inspection->whatsapp_number }}</span></div>@endif
                         <div class="idet-fact"><span class="idet-fact__k">Email</span><span class="idet-fact__v">{{ $inspection->customer_email ?: '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Technician</span><span class="idet-fact__v">{{ optional($inspection->technician)->name ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Branch</span><span class="idet-fact__v">{{ optional($inspection->branch)->branch_name ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Template</span><span class="idet-fact__v">{{ optional($inspection->type)->name ?? '—' }}</span></div>
-                        <div class="idet-fact"><span class="idet-fact__k">Scheduled</span><span class="idet-fact__v">{{ optional($inspection->scheduled_at)->format('d M Y, H:i') ?? '—' }}</span></div>
-                        <div class="idet-fact"><span class="idet-fact__k">Started</span><span class="idet-fact__v">{{ optional($inspection->started_at)->format('d M Y, H:i') ?? '—' }}</span></div>
-                        <div class="idet-fact"><span class="idet-fact__k">Completed</span><span class="idet-fact__v">{{ optional($inspection->completed_at)->format('d M Y, H:i') ?? '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Scheduled</span><span class="idet-fact__v">{{ optional($inspection->scheduled_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Started</span><span class="idet-fact__v">{{ optional($inspection->started_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
+                        <div class="idet-fact"><span class="idet-fact__k">Completed</span><span class="idet-fact__v">{{ optional($inspection->completed_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
                     </div>
                 </div>
             </div>
@@ -166,8 +232,20 @@
                 <div class="idet-card__title"><i class="bx bx-clipboard"></i> Overall Verdict</div>
                 <div class="idet-facts idet-facts--verdict">
                     <div class="idet-fact"><span class="idet-fact__k">Condition</span><span class="idet-fact__v">{{ $condition ?: '—' }}</span></div>
+                    <div class="idet-fact"><span class="idet-fact__k">Rating</span>
+                        <span class="idet-fact__v">
+                            @if($overallRatingVal > 0)
+                                <span class="idet-rating">
+                                    {!! $renderStars($overallRatingVal) !!}
+                                    <span class="idet-rating__n">{{ number_format($overallRatingVal, 1) }}/5</span>
+                                </span>
+                            @else
+                                —
+                            @endif
+                        </span>
+                    </div>
                     <div class="idet-fact"><span class="idet-fact__k">Recommendation</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
-                    <div class="idet-fact"><span class="idet-fact__k">Est. Repair Cost</span><span class="idet-fact__v">{{ $inspection->estimated_repair_cost ? number_format($inspection->estimated_repair_cost, 2) : '—' }}</span></div>
+                    <div class="idet-fact"><span class="idet-fact__k">Est. Repair Cost</span><span class="idet-fact__v">{{ $inspection->estimated_repair_cost ? ($inspection->currency ?? 'AED').' '.$inspection->estimated_repair_cost : '—' }}</span></div>
                 </div>
                 @if($inspection->summary)
                     <p class="idet-summary">{{ $inspection->summary }}</p>
@@ -176,9 +254,14 @@
         @endif
 
         {{-- ===== Vehicle specification ===== --}}
-        @if(count($spec))
+        @if(count($spec) || $inspection->vehicle_image)
             <div class="idet-card mt-3">
                 <div class="idet-card__title"><i class="bx bxs-car-garage"></i> Vehicle Specification</div>
+                @if($inspection->vehicle_image)
+                    <a href="{{ $inspection->vehicleImageUrl() }}" target="_blank" rel="noopener" class="idet-vehimg" title="Open full size">
+                        <img src="{{ $inspection->vehicleImageUrl() }}" alt="Vehicle" loading="lazy">
+                    </a>
+                @endif
                 <div class="idet-spec">
                     @foreach($spec as $k => $v)
                         <div class="idet-spec__item"><span class="idet-spec__k">{{ $k }}</span><span class="idet-spec__v">{{ $v }}</span></div>
@@ -194,14 +277,75 @@
                 <div class="idet-extra">
                     @foreach($extraMedia as $m)
                         <div class="idet-extra__item">
-                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->type === 'photo' ? '' : 'idet-media__item--video' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
-                                @if($m->type === 'photo')
-                                    <img src="{{ $m->url }}" alt="" loading="lazy">
-                                @else
-                                    <i class="bx bx-play-circle"></i>
-                                @endif
-                            </a>
-                            <span class="idet-extra__label" title="{{ $m->label }}">{{ $m->label ?: '—' }}</span>
+                            @if($m->isDocument())
+                                {{-- No data-idx: documents aren't in the lightbox gallery. --}}
+                                <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item idet-media__item--doc" title="{{ $m->original_name }}">
+                                    <i class="bx bxs-file-pdf"></i>
+                                </a>
+                            @else
+                                <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                    @if(! $m->isVideo())
+                                        <img src="{{ $m->url }}" alt="" loading="lazy">
+                                    @else
+                                        <i class="bx bx-play-circle"></i>
+                                    @endif
+                                </a>
+                            @endif
+                            <span class="idet-extra__label" title="{{ $m->label ?: $m->original_name }}">{{ $m->label ?: ($m->isDocument() ? ($m->original_name ?: 'Document') : '—') }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- ===== Summary notes (per area) ===== --}}
+        @if (!empty($summaryTypes))
+            @php
+                $areaIcons = [
+                    'exterior' => 'bxs-car',
+                    'interior' => 'bx-car',
+                    'engine' => 'bxs-cog',
+                    'brake' => 'bx-disc',
+                    'transmission' => 'bx-transfer-alt',
+                    'suspension' => 'bxs-wrench',
+                    'tire' => 'bx-loader-circle',
+                    'wheel' => 'bx-loader-circle',
+                    'undercarriage' => 'bx-wrench',
+                    'safety' => 'bxs-shield-alt-2',
+                    'road' => 'bx-map',
+                    'test drive' => 'bx-map',
+                    'drive' => 'bx-map',
+                    'electr' => 'bxs-bolt',
+                    'performance' => 'bx-run',
+                    'battery' => 'bxs-battery',
+                ];
+                $pickIcon = function ($name) use ($areaIcons) {
+                    $n = strtolower((string) $name);
+                    foreach ($areaIcons as $kw => $icon) {
+                        if (str_contains($n, $kw)) return $icon;
+                    }
+                    return 'bx-notepad';
+                };
+            @endphp
+            <div class="idet-card mt-3" style="padding:18px 20px;">
+                <div class="idet-card__title"><i class="bx bx-notepad"></i> Summary</div>
+                <div class="sum-grid">
+                    @foreach ($summaryTypes as $typeId => $typeName)
+                        @php
+                            $note = isset($summaries[$typeId]) && filled($summaries[$typeId]) ? $summaries[$typeId] : null;
+                            $icon = $pickIcon($typeName);
+                        @endphp
+                        <div class="sum-card {{ $note ? 'is-filled' : '' }}">
+                            <div class="sum-card__head">
+                                <span class="sum-card__icon"><i class="bx {{ $icon }}"></i></span>
+                                <span class="sum-card__title">{{ $typeName }}</span>
+                                <i class="bx bx-check-circle sum-card__tick"></i>
+                            </div>
+                            @if($note)
+                                <textarea readonly rows="2" class="form-control sum-card__input" style="resize:vertical;overflow-y:auto;cursor:text;color:#475467;min-height:44px;">{{ $note }}</textarea>
+                            @else
+                                <p style="font-size:.82rem;color:#b6c0cc;margin:0;font-style:italic;">Not provided</p>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -229,11 +373,21 @@
                     $tot = $section->steps->count();
                     $ans = $section->steps->filter(fn ($st) => \App\Models\Inspection::detailIsAnswered($answers->get($st->id)))->count();
                     $cntClass = $tot>0 && $ans>=$tot ? 'is-done' : ($ans>0 ? 'is-partial' : 'is-empty');
+                    $sectionSum = ($sectionSummaries ?? collect())->get($section->id);
+                    $secRatingVal = $sectionSum ? (float) ($sectionSum->rating ?? 0) : 0;
                 @endphp
                 <div class="idet-acc" data-name="{{ strtolower($section->section_name) }}">
                     <button type="button" class="idet-acc__head" aria-expanded="false">
                         <span class="idet-acc__no">{{ $si + 1 }}</span>
-                        <span class="idet-acc__title">{{ $section->section_name }}</span>
+                        <span class="idet-acc__title">
+                            {{ $section->section_name }}
+                            @if($secRatingVal > 0)
+                                <span class="idet-rating idet-acc__title-rating">
+                                    {!! $renderStars($secRatingVal) !!}
+                                    <span class="idet-rating__n">{{ rtrim(rtrim(number_format($secRatingVal, 1), '0'), '.') }}</span>
+                                </span>
+                            @endif
+                        </span>
                         <span class="idet-acc__right">
                             <span class="idet-count {{ $cntClass }}">{{ $ans }}/{{ $tot }}</span>
                             <i class="bx bx-chevron-down idet-acc__chev"></i>
@@ -262,7 +416,7 @@
                                             @endif
                                             @if($d && $d->rating)
                                                 <span class="idet-rating">
-                                                    @for($r=1;$r<=5;$r++)<i class="bx {{ $r <= $d->rating ? 'bxs-star on' : 'bx-star' }}"></i>@endfor
+                                                    {!! $renderStars((float)$d->rating) !!}
                                                     <span class="idet-rating__n">{{ $d->rating }}/5</span>
                                                 </span>
                                             @endif
@@ -281,8 +435,8 @@
                                         @if($d && $d->media->count())
                                             <div class="idet-media">
                                                 @foreach($d->media as $m)
-                                                    <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->type === 'photo' ? '' : 'idet-media__item--video' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
-                                                        @if($m->type === 'photo')
+                                                    <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                                        @if(! $m->isVideo())
                                                             <img src="{{ $m->url }}" alt="" loading="lazy">
                                                         @else
                                                             <i class="bx bx-play-circle"></i>
@@ -295,6 +449,25 @@
                                 </div>
                             @endforeach
                         </div>
+
+                        {{-- Section-level (category) media — uploaded against the section
+                             rather than a single question. --}}
+                        @if(($sectionMedia[$section->id] ?? collect())->count())
+                            <div class="idet-secmedia">
+                                <div class="idet-secmedia__label"><i class="bx bx-images"></i> {{ $section->section_name }} media</div>
+                                <div class="idet-media">
+                                    @foreach($sectionMedia[$section->id] as $m)
+                                        <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item {{ $m->isVideo() ? 'idet-media__item--video' : '' }}" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                            @if(! $m->isVideo())
+                                                <img src="{{ $m->url }}" alt="" loading="lazy">
+                                            @else
+                                                <i class="bx bx-play-circle"></i>
+                                            @endif
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @empty
@@ -325,6 +498,36 @@
     <div class="idet-lb__strip" id="idetLbStrip"></div>
 </div>
 
+{{-- ===== Cancel inspection modal (admin only) ===== --}}
+@if($canCancel)
+<div class="modal fade" id="inspCancelModal" tabindex="-1" aria-labelledby="inspCancelLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="{{ route('inspections.cancel', $inspection) }}" class="modal-content"
+              id="inspCancelForm" data-status="{{ $statusLabel }}" data-name="{{ $inspection->customer_name ?: '' }}">
+            @csrf
+            <div class="modal-header">
+                <h5 class="modal-title" id="inspCancelLabel"><i class="bx bx-x-circle text-danger"></i> Cancel Inspection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">You are cancelling the inspection for <strong>{{ $inspection->customer_name ?: '—' }}</strong> <span class="text-muted">({{ $inspection->reference }})</span>.</p>
+                <p class="mb-3">Current status: <span class="idet-status {{ $statusClass }}">{{ $statusLabel }}</span></p>
+                <label class="form-label" for="inspCancelReason">Reason for cancellation <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="inspCancelReason" name="cancel_reason" rows="3" maxlength="500"
+                          placeholder="Why is this inspection being cancelled?"></textarea>
+                <div class="invalid-feedback" id="inspCancelError"></div>
+                <div class="form-text">The reason and cancellation date are stored against the inspection and shown on the lead.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep Inspection</button>
+                <button type="submit" class="btn btn-danger"><i class="bx bx-x-circle"></i> Cancel Inspection</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+@include('partials._notify')
 @endsection
 
 @section('css')
@@ -344,6 +547,15 @@
     .idet-status.is-completed { background:#e7f8ef; color:#04B084; }
     .idet-status.is-progress  { background:#fff4e0; color:#d98a12; }
     .idet-status.is-pending   { background:#eef1f5; color:#5b6472; }
+    .idet-status.is-cancelled { background:#fdecec; color:#e5484d; }
+
+    /* Cancellation banner */
+    .idet-cancelled { display:flex; gap:12px; align-items:flex-start; background:#fdecec; border:1px solid #f6c6c8;
+        border-left:4px solid #e5484d; border-radius:12px; padding:14px 16px; margin-bottom:16px; color:#8f2f32; }
+    .idet-cancelled__icon i { font-size:22px; color:#e5484d; }
+    .idet-cancelled__reason { margin-top:4px; font-size:13.5px; }
+    .idet-cancelled__reason span { font-weight:600; }
+    .idet-cancelled__hint { margin-top:4px; font-size:12.5px; opacity:.85; }
     .idet-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; padding:5px 12px; border-radius:20px; background:rgba(255,255,255,.14); color:#fff; }
 
     /* Cards */
@@ -366,13 +578,17 @@
 
     /* Facts grid */
     .idet-facts { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 22px; }
-    .idet-facts--verdict { grid-template-columns:repeat(3, minmax(0,1fr)); }
+    .idet-facts--verdict { grid-template-columns:repeat(4, minmax(0,1fr)); }
     .idet-fact { display:flex; flex-direction:column; }
     .idet-fact__k { font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin-bottom:3px; }
     .idet-fact__v { font-size:14.5px; font-weight:600; color:#344054; }
     .idet-summary { margin:16px 0 0; padding-top:16px; border-top:1px solid #eef1f5; color:#475467; font-size:14px; line-height:1.6; }
 
     /* Spec */
+    /* Primary vehicle photo above the spec grid. */
+    .idet-vehimg { display:block; width:100%; max-width:420px; aspect-ratio:3/2; border-radius:12px; overflow:hidden;
+                   margin:0 0 14px; background:#f7f9fc; box-shadow:0 2px 10px rgba(16,40,70,.12); }
+    .idet-vehimg img { width:100%; height:100%; object-fit:cover; display:block; }
     .idet-spec { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px 20px; }
     .idet-spec__item { display:flex; justify-content:space-between; gap:10px; padding:10px 14px; background:#f7f9fc; border-radius:10px; }
     .idet-spec__k { font-size:12.5px; color:#667085; }
@@ -439,7 +655,34 @@
     .idet-media__item:hover::after { opacity:1; }
     .idet-media__item img { width:100%; height:100%; object-fit:cover; display:block; }
     .idet-media__item--video { background:#00263D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:30px; }
+    /* PDFs can't be previewed inline — a file tile that opens in a new tab. */
+    .idet-media__item--doc { background:#fdecec; color:#c0392b; display:flex; align-items:center; justify-content:center; font-size:30px; }
+    .idet-media__item--doc:hover { background:#fbdcdc; color:#96281b; }
+    /* "Open in new tab" rather than the gallery's magnifier — a PDF leaves the page. */
+    .idet-media__item--doc::after { content:'\eb3a'; }
     .idet-media__item--video::after { content:'\eb75'; }
+
+    /* Summary area cards (reusing the same design as the edit page) */
+    .sum-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .sum-card {
+        border: 1px solid #e5e9f0; border-radius: 14px; background: #fff; padding: 12px 14px 14px;
+        transition: border-color .18s, box-shadow .18s, transform .12s;
+    }
+    .sum-card:hover { box-shadow: 0 6px 18px rgba(16,40,70,.08); transform: translateY(-1px); }
+    .sum-card.is-filled { border-color: rgba(4,176,132,.55); background: linear-gradient(180deg, rgba(4,176,132,.05), #fff 40%); }
+    .sum-card__head { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .sum-card__icon {
+        flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; color: #fff; background: linear-gradient(135deg, #04b084, #0f9d69);
+        box-shadow: 0 2px 6px rgba(4,176,132,.3);
+    }
+    .sum-card__title { font-weight: 700; font-size: .86rem; color: #2c3a4b; flex: 1 1 auto; min-width: 0; }
+    .sum-card__tick { color: #04b084; font-size: 1.1rem; transition: opacity .18s; }
+
+    /* Section-level (category) media inside an accordion */
+    .idet-secmedia { padding:2px 18px 14px; border-top:1px dashed #e3e8ef; margin-top:6px; }
+    .idet-secmedia__label { font-size:12px; font-weight:700; color:#5b6b7d; text-transform:uppercase; letter-spacing:.03em; margin-top:12px; display:flex; align-items:center; gap:6px; }
+    .idet-secmedia .idet-media { margin-top:8px; }
 
     /* Lightbox */
     .idet-lb { position:fixed; inset:0; z-index:2000; background:rgba(8,20,33,.92); display:none; flex-direction:column; }
@@ -481,6 +724,80 @@
 
 @section('js')
 <script>
+// Cancel inspection: require a reason (min 5 chars), then confirm — naming the
+// current status so it's clear what is being cancelled.
+$(function () {
+    var $form = $('#inspCancelForm');
+    if (!$form.length) return;   // not cancellable / not an admin
+
+    var $modal  = $('#inspCancelModal');
+    var $reason = $('#inspCancelReason');
+    var $error  = $('#inspCancelError');
+
+    // Reason is required and must be at least 5 characters.
+    function validate() {
+        var v = $.trim($reason.val());
+
+        if (!v)           return 'Please give a reason for cancelling this inspection.';
+        if (v.length < 5) return 'The reason must be at least 5 characters.';
+
+        return '';
+    }
+
+    function showError(msg) {
+        $error.text(msg);
+        $reason.toggleClass('is-invalid', !!msg);
+    }
+
+    // Clear the message as soon as the value becomes valid.
+    $reason.on('input', function () {
+        if ($reason.hasClass('is-invalid')) showError(validate());
+    });
+
+    $modal.on('shown.bs.modal', function () { $reason.trigger('focus'); });
+    $modal.on('hidden.bs.modal', function () { $reason.val(''); showError(''); });
+
+    $form.on('submit', function (e) {
+        var msg = validate();
+        if (msg) {
+            e.preventDefault();
+            showError(msg);
+            $reason.trigger('focus');
+            return;
+        }
+
+        // Second pass, after the user confirmed — let it through.
+        if ($form.data('confirmed')) { $form.data('confirmed', false); return; }
+
+        e.preventDefault();
+
+        var name = $form.data('name');
+        var who  = name ? ' for ' + name : '';
+        var text = 'This inspection is ' + ($form.data('status') || 'open')
+                 + '. Are you sure you want to cancel it' + who
+                 + '? This will remove it from the technician\'s list.';
+
+        if (!window.Swal) {
+            if (confirm(text)) { $form.data('confirmed', true).trigger('submit'); }
+            return;
+        }
+
+        Swal.fire({
+            title: 'Cancel this inspection?',
+            text: text,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f46a6a',
+            cancelButtonColor: '#74788d',
+            confirmButtonText: 'Yes, cancel it',
+            cancelButtonText: 'No, keep it',
+            reverseButtons: true
+        }).then(function (r) {
+            if (r.isConfirmed) { $form.data('confirmed', true).trigger('submit'); }
+        });
+    });
+});
+
 (function () {
     var acc = document.getElementById('idetAccordion');
     if (!acc) return;
@@ -606,7 +923,10 @@
     }
     function step(dir) { show(cur + dir); }
 
-    document.querySelectorAll('.idet-media__item').forEach(function (el) {
+    // Only gallery tiles are intercepted. Documents (PDFs) carry no data-idx —
+    // they aren't in the gallery and must follow their href to open in a new tab,
+    // otherwise preventDefault() swallows the click and shows photo 0 instead.
+    document.querySelectorAll('.idet-media__item[data-idx]').forEach(function (el) {
         el.addEventListener('click', function (e) {
             e.preventDefault();   // open the in-page gallery instead of navigating
             show(parseInt(el.getAttribute('data-idx'), 10) || 0);

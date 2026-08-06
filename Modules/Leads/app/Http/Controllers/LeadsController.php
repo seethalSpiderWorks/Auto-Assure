@@ -215,16 +215,15 @@ class LeadsController extends Controller
 					->get();
 			/************************ Admin add lead ***********************/
 			
-			$makeArray  = $request->make;     
-			$make = $request->make;
-			/*if($makeArray)
+			$makeArray  = $request->make;
+			if(is_array($makeArray))
 			{
-				$make = implode(',', $request->make);   
+				$make = implode(',', $request->make);
 			}
 			else
 			{
-				$make = '';
-			}*/
+				$make = (string) $request->make;
+			}
 			
 			$modelArray = $request->model;
 			if($modelArray)
@@ -272,10 +271,11 @@ class LeadsController extends Controller
 							
 							'lead_year_from' => $request->yearfrom,					
 							'lead_year_to'   => $request->yearto,					
-							'lead_budget'    => $request->budget,
- 							'lead_know_more' => $request->knowmore,	
+							'lead_budget'    => $request->budget,							'lead_know_more' => $request->knowmore,	
+							'make_model_year'=> $request->make_model_year,
 							
-							/**	'lead_assigned_status' => $leadolddatass->lead_assigned_status,
+							/**
+							'lead_assigned_status' => $leadolddatass->lead_assigned_status,
 							'lead_followup_type'   => $leadolddatass->lead_followup_type,
 							'lead_followupcreated' => $leadolddatass->lead_followupcreated,                    
 							'lead_assigned_users'  => $leadolddatass->lead_assigned_users, **/
@@ -291,15 +291,15 @@ class LeadsController extends Controller
 					$mode_pay    = $request->payment;
 					$package_id  = $request->lpackage;  // package ID // lead pachage for Book inspection
 			 
-					if($package_id != null || $package_id != '' )
+					if($package_id != null && $package_id != '' )
 					{
 						$packname = DB::table('tbl_package')
 							->select('package_name','package_id','package_payable')
 							->where('package_status',0)
 							->where('package_id',$package_id)
-							->first(); 
-						$package_name = $packname->package_name; //package Name
-						$package_pay  = $packname->package_payable; //package Name
+							->first();
+						$package_name = $packname->package_name ?? ''; //package Name
+						$package_pay  = $packname->package_payable ?? ''; //package Name
 					
 						$packagedata = ['lead_pack_ip'      => $request->ip(),
 										'lead_pack_date'    => date('Y-m-d'),
@@ -359,6 +359,7 @@ class LeadsController extends Controller
 							'lead_year_to'   => $request->yearto,					
 							'lead_budget'    => $request->budget,
  							'lead_know_more' => $request->knowmore,
+							'make_model_year'=> $request->make_model_year,
 							//'lead_assigned_users'=> '',
 							//'lead_branch_id'=>session('application_branch'),
 						];
@@ -372,15 +373,15 @@ class LeadsController extends Controller
 					$mode_pay    = $request->payment;
 					$package_id  = $request->lpackage;  // package ID // lead pachage for Book inspection
 			 
-					if($package_id != null || $package_id != '' )
+					if($package_id != null && $package_id != '' )
 					{
 						$packname = DB::table('tbl_package')
 							->select('package_name','package_id','package_payable')
 							->where('package_status',0)
 							->where('package_id',$package_id)
-							->first(); 
-						$package_name = $packname->package_name; //package Name
-						$package_pay  = $packname->package_payable; //package Name
+							->first();
+						$package_name = $packname->package_name ?? ''; //package Name
+						$package_pay  = $packname->package_payable ?? ''; //package Name
 					
 						$packagedata = ['lead_pack_ip'      => $request->ip(),
 										'lead_pack_date'    => date('Y-m-d'),
@@ -471,6 +472,9 @@ class LeadsController extends Controller
 			->addSelect(DB::raw('(SELECT i.created_at FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_assigned_at'))
 			->addSelect(DB::raw('(SELECT i.scheduled_at FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_scheduled_at'))
 			->addSelect(DB::raw('(SELECT i.status FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_status'))
+			// Cancellation details, so the Inspection column can show why/when it was cancelled.
+			->addSelect(DB::raw('(SELECT i.cancelled_at FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_cancelled_at'))
+			->addSelect(DB::raw('(SELECT i.cancel_reason FROM inspections i WHERE i.lead_id = tbl_lead.lead_id ORDER BY i.id DESC LIMIT 1) as inspection_cancel_reason'))
 			->where('lead_status',0)
 			->leftjoin('tbl_basic_registration','tbl_basic_registration.breg_id','tbl_lead.lead_reg_id')
 			->leftjoin('tbl_source','tbl_source.source_id','lead_source')
@@ -668,7 +672,7 @@ class LeadsController extends Controller
                 ->orderBy('lead_id','desc')
                 ->first();   
       
-		$flag = DB::table("tbl_country")->selct('country_code')->where('id')->first();
+		$flag = DB::table("tbl_country")->select('country_code')->first();
 		if($flag)
 		{
 			$flag1 = strtolower($flag->country_code);
@@ -741,20 +745,16 @@ class LeadsController extends Controller
 				$basic_arr       = RegistrationModel::create($basic_data);
                 $registrtaion_id = $basic_arr->id;
                 $activity        = 'New Basic Reg ID '.$registrtaion_id.' Has been added By '.Auth::user()->name.' ';
-			}
-			
-			
-			/**** lead start ****/
-			/*$makeArray  = $request->make;     
-			if($makeArray)
+			}			/**** lead start ****/
+			$makeArray  = $request->make;
+			if(is_array($makeArray))
 			{
-				$make = implode(',', $request->make);   
+				$make = implode(',', $request->make);
 			}
 			else
 			{
-				$make = '';
-			}140325*/
-			$make  = $request->make; 
+				$make = (string) $request->make;
+			} 
 			
 			$modelArray = $request->model;  
 			if($modelArray)
@@ -941,10 +941,23 @@ class LeadsController extends Controller
     }
 	
 	/********************** Lead assign in table start **********************/
-	public function assignEnqueryDataAction(Request $request)  
+	public function assignEnqueryDataAction(Request $request)
     {
 		$lead_id = $request->enq_id;
 		$staffId = $request->staff_id;
+
+		// A completed inspection is locked — it can no longer be (re)assigned.
+		// "Completed" = the inspection status OR the lead's "Inspection Completed" label.
+		$latestInspStatus = \App\Models\Inspection::where('lead_id', $lead_id)
+			->orderByDesc('id')->value('status');
+		$leadStatus = LeadsModel::where('lead_id', $lead_id)->value('lead_assigned_status');
+		if ($latestInspStatus === \App\Models\Inspection::STATUS_COMPLETED || $leadStatus === 'Inspection Completed') {
+			return response()->json([
+				'heading' => 'Not allowed',
+				'text'    => 'This inspection is completed and can no longer be reassigned.',
+				'icon'    => 'error',
+			], 422);
+		}
 
 		$unq_id  = '';
 		$old_staus ='';
@@ -1033,7 +1046,10 @@ class LeadsController extends Controller
 		LeadsModel::where('lead_id',$lead_data->lead_id)
 				->update(['lead_assigned_users'=>$request->user_id]);   // update lead assign user_id
         	
-		if($old_staus == 'New')   // new lead changed to assign
+		// "Inspection Cancelled" counts as a fresh start: the cancelled inspection is
+		// kept as a record and this assignment creates a brand-new one, so the lead
+		// moves back to "Assign" rather than "Reassign".
+		if($old_staus == 'New' || $old_staus == 'Inspection Cancelled')   // new lead changed to assign
 		{
 			LeadsModel::where('lead_id',$lead_data->lead_id)
 				->update(['lead_assigned_users' => $staffId,
@@ -1050,6 +1066,13 @@ class LeadsController extends Controller
 						  'lead_followupcreated'=> Auth::user()->id]);
 		}
        
+		// Create/reassign the inspection for this lead so the per-row "Assign To"
+		// dropdown behaves like the other assign flows — this fires the technician
+		// notification (FCM push + Pusher) on a new assignment or technician change.
+		if ((int) $staffId > 0) {
+			\App\Models\Inspection::createForLead((int) $lead_data->lead_id, (int) $staffId);
+		}
+
 		$ip = $request->ip();
 		$action = '';
 		$user_name = Auth::user()->name;
@@ -1059,7 +1082,7 @@ class LeadsController extends Controller
 		$log_array = ['activity_ip'=>$ip, 'activity_action'=>$action, 'activity_user'=>$user_name, 'activity_user_id'=>$user_id, 'activity_desc'=>$activity,'activity_category'=>$category];
 		Core::userActivityAction($log_array);
 		
-		if($old_staus == 'New')
+		if($old_staus == 'New' || $old_staus == 'Inspection Cancelled')
 		{
 			return response()->json(['heading'=>'Success','text'=>'Leads Assigned Successfully','icon'=>'success']);
 		}
@@ -1198,7 +1221,8 @@ class LeadsController extends Controller
 				$typeForLead ? (int) $typeForLead : null
 			);
 
-			if($old_staus == 'New')  // if status New, Assign
+			// A previously cancelled lead starts over: new inspection, status "Assign".
+			if($old_staus == 'New' || $old_staus == 'Inspection Cancelled')  // if status New, Assign
 			{
 				LeadsModel::where('lead_id',$lead_data->lead_id)
 						->update(['lead_assigned_status' => 'Assign',
@@ -1225,7 +1249,7 @@ class LeadsController extends Controller
 			$assigned++;
 		}
 
-		$noun = ($old_staus == 'New') ? 'Assigned' : 'Ressigned';
+		$noun = ($old_staus == 'New' || $old_staus == 'Inspection Cancelled') ? 'Assigned' : 'Ressigned';
 		if ($assigned > 0)
 		{
 			$text = $assigned.' lead(s) '.$noun.' Successfully';
@@ -1617,16 +1641,39 @@ class LeadsController extends Controller
 		$typeId = $request->inspection_type_id ? (int) $request->inspection_type_id : null;
 		$sched  = $request->scheduled_at ?: null;
 
-		$inspection = \App\Models\Inspection::where('lead_id', $leadId)->latest('id')->first();
+		// The lead's ACTIVE inspection. Cancelled rows are kept as history and are
+		// never edited from here — assigning again creates a new inspection.
+		$inspection = \App\Models\Inspection::where('lead_id', $leadId)
+			->where('status', '!=', \App\Models\Inspection::STATUS_CANCELLED)
+			->latest('id')
+			->first();
+
+		// A completed inspection is locked — no template/technician/date changes.
+		$leadStatus = LeadsModel::where('lead_id', $leadId)->value('lead_assigned_status');
+		if ((optional($inspection)->status === \App\Models\Inspection::STATUS_COMPLETED) || $leadStatus === 'Inspection Completed') {
+			return response()->json(['status' => 0, 'text' => 'This inspection is completed and can no longer be changed.'], 422);
+		}
 
 		if($tech > 0)
 		{
 			// Create or re-point the inspection to the chosen technician/template/date.
+			// With no active inspection (the last one was cancelled) this makes a new one.
 			$inspection = \App\Models\Inspection::createForLead($leadId, $tech, $sched, $typeId);
 
 			// Keep the lead's assigned user in sync so the list's "Assign To"
 			// reflects the assigned person.
-			LeadsModel::where('lead_id', $leadId)->update(['lead_assigned_users' => $tech]);
+			$leadUpdate = ['lead_assigned_users' => $tech];
+
+			// The lead must not stay on "Inspection Cancelled" once a new inspection
+			// exists — the cancelled one lives on in the inspections table, but the
+			// lead now reflects the active job.
+			if($leadStatus === 'Inspection Cancelled')
+			{
+				$leadUpdate['lead_assigned_status'] = 'Assign';
+				$leadUpdate['lead_followup_type']   = 1;
+			}
+
+			LeadsModel::where('lead_id', $leadId)->update($leadUpdate);
 		}
 		elseif($inspection)
 		{
