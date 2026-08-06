@@ -129,7 +129,7 @@
             $reportPhotos[] = ['caption' => $caption, 'media' => $m];
         }
     }
-    $heroPhoto = $reportPhotos[0]['media']->url ?? null;
+    $heroPhoto = isset($reportPhotos[0]) ? $reportPhotos[0]['media']->thumbUrl(800) : null;
 
     // Vehicle specification list (bilingual) for the summary card.
     $specs = [
@@ -730,7 +730,7 @@
                             @if ($photos->isNotEmpty())
                                 <div class="thumbs">
                                     @foreach ($photos->take(4) as $ph)
-                                        <img class="thumb" src="{{ $ph->url }}" alt="">
+                                        <img class="thumb" src="{{ $ph->thumbUrl(220) }}" alt="" loading="lazy" decoding="async">
                                     @endforeach
                                 </div>
                             @endif
@@ -748,7 +748,7 @@
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
                         <figure>
-                            <img src="{{ $p['media']->url }}" alt="">
+                            <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
                             <figcaption>{{ $p['caption'] }}</figcaption>
                         </figure>
                     @endforeach

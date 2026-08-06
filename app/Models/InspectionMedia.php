@@ -86,6 +86,20 @@ class InspectionMedia extends Model
         return in_array(strtolower(pathinfo((string) $this->path, PATHINFO_EXTENSION)), self::VIDEO_EXTENSIONS, true);
     }
 
+    /**
+     * URL of a width-constrained thumbnail for this photo, cached on disk. Used by
+     * the report/PDF preview so it loads small images instead of full-resolution
+     * originals. Videos and documents keep their normal URL — they're never scaled.
+     */
+    public function thumbUrl(int $width): string
+    {
+        if ($this->isVideo() || $this->isDocument()) {
+            return $this->url;
+        }
+
+        return \App\Support\Thumbnailer::url($this->path, $width, $this->disk ?: 'public') ?? $this->url;
+    }
+
     public function getUrlAttribute(): string
     {
         // For the local "public" disk, build the URL against the current request
