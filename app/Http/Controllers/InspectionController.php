@@ -677,6 +677,15 @@ class InspectionController extends Controller
             return $cancelled;
         }
 
+        // PHP silently discards an upload bigger than upload_max_filesize/
+        // post_max_size — the file never reaches Laravel, so plain validation
+        // reports the useless "file is required". Say what actually happened.
+        if (! $request->hasFile('file') && $this->uploadExceededPhpLimit($request)) {
+            return response()->json([
+                'message' => 'That file is larger than the server allows ('.ini_get('upload_max_filesize').' per file, '.ini_get('post_max_size').' per request). Ask your administrator to raise upload_max_filesize and post_max_size.',
+            ], 422);
+        }
+
         $data = $request->validate([
             'type' => ['required', 'in:photo,video,document'],
             'file' => ['required', 'file', 'max:102400'],
@@ -711,7 +720,7 @@ class InspectionController extends Controller
         $this->markStarted($inspection);
         $inspection->save();
 
-        return response()->json(['id' => $media->id, 'type' => $media->type, 'url' => $media->url, 'label' => $media->label]);
+        return response()->json(['id' => $media->id, 'type' => $media->type, 'url' => $media->url, 'label' => $media->label, 'original_name' => $media->original_name]);
     }
 
     /**
@@ -756,7 +765,7 @@ class InspectionController extends Controller
         $this->markStarted($inspection);
         $inspection->save();
 
-        return response()->json(['id' => $media->id, 'type' => $media->type, 'url' => $media->url, 'label' => $media->label]);
+        return response()->json(['id' => $media->id, 'type' => $media->type, 'url' => $media->url, 'label' => $media->label, 'original_name' => $media->original_name]);
     }
 
     /**
@@ -1150,6 +1159,24 @@ class InspectionController extends Controller
             'ok' => false,
             'message' => 'This inspection is cancelled and can no longer be edited.',
         ], 422);
+    }
+
+    /**
+     * True when the request looks like an upload that PHP dropped for exceeding
+     * upload_max_filesize / post_max_size. In that case $_FILES is empty (or the
+     * entry carries UPLOAD_ERR_INI_SIZE) and, when post_max_size is exceeded,
+     * $_POST is emptied too — so a POST with a declared length but no fields at
+     * all is the tell.
+     */
+    private function uploadExceededPhpLimit(Request $request): bool
+    {
+        foreach ($_FILES as $file) {
+            if (($file['error'] ?? null) === UPLOAD_ERR_INI_SIZE) {
+                return true;
+            }
+        }
+
+        return $_FILES === [] && $_POST === [] && (int) $request->server('CONTENT_LENGTH', 0) > 0;
     }
 
     private function authorizeInspection(Inspection $inspection): void

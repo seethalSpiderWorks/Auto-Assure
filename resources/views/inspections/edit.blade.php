@@ -1234,7 +1234,18 @@
         if (body instanceof FormData) { opts.body = body; }
         else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
         const res = await fetch(url, opts);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) {
+            // Surface the server's own message ("...larger than the server allows",
+            // validation errors, ...) rather than a bare "HTTP 422" the user
+            // can't act on.
+            let msg = 'HTTP ' + res.status;
+            try {
+                const body = await res.json();
+                const first = body.errors ? Object.values(body.errors)[0] : null;
+                msg = (Array.isArray(first) ? first[0] : first) || body.message || msg;
+            } catch (_) { /* non-JSON error page — keep the status */ }
+            throw new Error(msg);
+        }
         return res.json();
     }
 
@@ -1442,11 +1453,15 @@
             const wrap = document.createElement('div');
             wrap.className = 'extra-item';
             wrap.dataset.media = m.id;
-            const media = ! isVideoMedia(m)
-                ? '<img src="' + m.url + '">'
-                : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
-                  + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
-                  + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>';
+            const name = (m.original_name || 'Document');
+            const media = isDocumentMedia(m)
+                ? '<a href="' + m.url + '" target="_blank" rel="noopener" class="doc-thumb" title="' + name.replace(/"/g, '&quot;') + '">'
+                  + '<i class="bx bxs-file-pdf"></i><span>' + (name.length > 18 ? name.slice(0, 18) + '…' : name) + '</span></a>'
+                : (! isVideoMedia(m)
+                    ? '<img src="' + m.url + '">'
+                    : '<a href="' + m.url + '" target="_blank" rel="noopener" onclick="return AA.playVideo(&quot;' + m.url + '&quot;)" class="vid-thumb" title="Play video" style="width:100%;height:100%;">'
+                      + '<video muted playsinline preload="metadata"><source src="' + m.url + '#t=0.1" type="video/mp4"></video>'
+                      + '<span class="vid-thumb__play"><i class="bx bx-play"></i></span></a>');
             wrap.innerHTML =
                 '<div class="extra-item__thumb">' + media +
                 '<button type="button" class="btn btn-danger btn-sm position-absolute p-0" style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button></div>' +
