@@ -2227,10 +2227,27 @@
                        + 'vehicle details are kept, and the inspection restarts from the first section.';
 
             const go = () => {
+                // submit() below fires no submit event, so the reschedule-date
+                // guard that normally hangs off it has to run here.
+                if (!AA.validateScheduledAt()) {
+                    document.getElementById('scheduled_at_error')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
+
                 wizForm.dataset.tplConfirmed = '1';
-                // requestSubmit re-runs the handlers above, which store the
-                // first-card resume target for a template change.
-                wizForm.requestSubmit ? wizForm.requestSubmit() : wizForm.submit();
+
+                // Restart on the first card — the current index belongs to the
+                // checklist being replaced. Set here because the native submit()
+                // below fires no submit event for the other handlers to see.
+                rememberStep(0);
+
+                // Native submit() rather than requestSubmit(): requestSubmit runs
+                // HTML5 constraint validation, and the Save button posts with
+                // formnovalidate precisely because required fields sit on hidden
+                // cards. Validating here would abort silently and leave the user
+                // pressing Save a second time.
+                HTMLFormElement.prototype.submit.call(wizForm);
             };
 
             if (!window.Swal) {
