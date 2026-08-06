@@ -621,6 +621,7 @@
                                             <label class="form-label">Reschedule Date &amp; Time</label>
                                             <input name="scheduled_at" id="scheduled_at" type="datetime-local" data-aa-datetime data-aa-min="now" class="form-control js-customer" value="{{ old('scheduled_at', optional($inspection->scheduled_at)->format('Y-m-d\TH:i')) }}">
                                             <div class="sched-error" id="scheduled_at_error"></div>
+                                            <small class="text-muted">Applied when you click Save — the technician is notified then.</small>
                                         </div>
                                     </div>
 
@@ -687,6 +688,8 @@
                                             @if($isLocked)
                                                 {{-- A disabled select posts nothing; keep the current technician on save. --}}
                                                 <input type="hidden" name="technician_id" value="{{ $inspection->technician_id }}">
+                                            @else
+                                                <small class="text-muted">Applied when you click Save — the technician is notified then.</small>
                                             @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
@@ -2046,8 +2049,14 @@
 
     // Customer/vehicle/assignment field auto-save (all fields except the
     // template selector, which is applied on full submit).
+    // Fields that must NOT auto-save. They are still posted by AA.saveCustomer()
+    // when the user clicks Save — which is also when the technician gets the
+    // reassignment / reschedule notification. Auto-saving them would fire a push
+    // for a half-picked date, or for a technician chosen by mistake.
+    const NO_AUTOSAVE = ['inspection_type_id', 'scheduled_at', 'technician_id'];
+
     root.querySelectorAll('#customer-block [name]').forEach(i => {
-        if (i.name === 'inspection_type_id') return;
+        if (NO_AUTOSAVE.includes(i.name)) return;
         const evt = (i.tagName === 'SELECT') ? 'change' : 'input';
         i.addEventListener(evt, () => AA.debounceCustomer());
     });
