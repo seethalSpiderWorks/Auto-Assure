@@ -936,7 +936,7 @@
             <div class="sec-bar"><span class="en">Terms &amp; Conditions</span></div>
             <div class="card terms">
                 <div class="col">
-                    <h4>Terms and conditions</h4>
+                    
                     <p>This report is for the vehicle provided by the customer and tested/inspected only. 
                      This report is considered void in the event of any scraping, modification, deletion, or addition. 
                     The data in this report is confidential and private and no company personnel has the right to publish or announce it except with the prior approval of the customer or according to a court ruling or a request from the competent authorities. 
