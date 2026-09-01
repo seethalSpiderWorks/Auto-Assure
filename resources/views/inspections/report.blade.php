@@ -935,12 +935,10 @@
             <div class="card terms">
                 <div class="col">
                     <h4>Terms and conditions</h4>
-                    <ul>
-                        <li>This report is for the vehicle provided by the customer and tested/inspected only.</li>
-                        <li>This report is considered void in the event of any scraping, modification, deletion, or addition.</li>
-                        <li>The data in this report is confidential and private and no company personnel has the right to publish or announce it except with the prior approval of the customer or according to a court ruling or a request from the competent authorities.</li>
-                        <li>The vehicle owner (customer) is obligated to attend again if requested.</li>
-                    </ul>
+                    <p>This report is for the vehicle provided by the customer and tested/inspected only. 
+                     This report is considered void in the event of any scraping, modification, deletion, or addition. 
+                    The data in this report is confidential and private and no company personnel has the right to publish or announce it except with the prior approval of the customer or according to a court ruling or a request from the competent authorities. 
+                     The vehicle owner (customer) is obligated to attend again if requested.</p>
                 </div>
             </div>
         </div>
