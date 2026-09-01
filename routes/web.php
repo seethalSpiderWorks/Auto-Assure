@@ -50,11 +50,10 @@ Route::group(['middleware' => 'auth'], function(){
 
 
 // Public — the customer opens and prints their own report from the link we share.
-// {token} is the inspection's random public id, the same format the legacy reports
-// use (…/report/inspection/psmErRDoz2), so the link is unguessable and resolves to
-// exactly one report (see InspectionController@report).
-Route::get('report/inspection/{token}', [InspectionController::class, 'report'])
-    ->where('token', '[A-Za-z0-9]{10}')
+// {ref} is the lead's unique id (e.g. "LD01298"), the reference already shown on the
+// report, so the link needs no extra column (see InspectionController@report).
+Route::get('report/inspection/{ref}', [InspectionController::class, 'report'])
+    ->where('ref', '[A-Za-z0-9\-]+')
     ->name('inspections.report');
 
 Route::group(['middleware' => 'auth'], function () {

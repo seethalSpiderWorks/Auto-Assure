@@ -749,49 +749,42 @@ class Inspection extends Model
     }
 
     /**
-     * Public id for the customer's report link — a random 10-character string,
-     * the same shape the legacy reports use (tbl_report.report_unique_id_random,
-     * see Modules/Leads FollowupController). Minted on first use and kept
-     * afterwards, so a link already shared keeps working.
+     * Resolve the lead reference used in the report URL (e.g. "LD01298") back to
+     * an inspection. Null for anything that matches no lead.
+     *
+     * A lead can carry more than one inspection (a re-inspection of the same
+     * car), and the reference cannot tell them apart — the newest one wins,
+     * which is the one the customer was sent.
      */
-    public function reportToken(): string
+    public static function fromReference(string $reference): ?self
     {
-        if (blank($this->report_unique_id_random)) {
-            do {
-                $token = \Illuminate\Support\Str::random(10);
-            } while (static::where('report_unique_id_random', $token)->exists());
+        $inspection = static::whereHas('lead', fn ($q) => $q->where('lead_unq_id', $reference))
+            ->orderByDesc('id')
+            ->first();
 
-            $this->forceFill(['report_unique_id_random' => $token])->save();
+        if ($inspection) {
+            return $inspection;
         }
 
-        return $this->report_unique_id_random;
+        // Inspections with no lead fall back to the generated "AAQ-029" form
+        // (see getReferenceAttribute), so accept that shape too.
+        if (preg_match('/^AAQ-(\d+)$/i', $reference, $m)) {
+            $byId = static::find((int) $m[1]);
+
+            return $byId && ! $byId->lead ? $byId : null;
+        }
+
+        return null;
     }
 
     /**
-     * Resolve a report link's random id back to its inspection. Null for a token
-     * we never issued, so one customer's link opens only their own report.
-     */
-    public static function fromReportToken(string $token): ?self
-    {
-        return static::where('report_unique_id_random', $token)->first();
-    }
-
-    /**
-     * Link to this inspection's report — the report the customer is sent, and
-     * the only one it opens. Reads ".../report/inspection/psmErRDoz2", matching
-     * the existing public report links. Opening it offers the print/save dialog.
+     * Link to this inspection's report — the one we share with the customer.
+     * Keyed by the lead's unique id, the reference already printed on the report
+     * itself, so it needs no column of its own. Opening it offers the print/save
+     * dialog; there is no query string.
      */
     public function reportUrl(): string
     {
-        return route('inspections.report', ['token' => $this->reportToken()]);
-    }
-
-    /**
-     * Invalidate a link already shared for this inspection; the next call to
-     * reportToken() mints a fresh one.
-     */
-    public function revokeReportToken(): void
-    {
-        $this->forceFill(['report_unique_id_random' => null])->save();
+        return route('inspections.report', ['ref' => $this->reference]);
     }
 }

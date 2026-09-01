@@ -205,14 +205,13 @@ class InspectionController extends Controller
      * Printable inspection report (SASO-style) for a completed inspection.
      *
      * Open to guests: the customer opens and prints this from the link we share,
-     * so there is no login. $token is the inspection's random public id — it is
-     * the credential, it is not derived from the row id, and it resolves to one
-     * inspection, so a customer cannot reach anyone else's report. Signed-in
-     * staff still get the per-role check; a cancelled inspection has no report.
+     * so there is no login. $ref is the lead's unique id ("LD01298") — the same
+     * reference that appears on the report itself. Signed-in staff still get the
+     * per-role check; a cancelled inspection has no report at all.
      */
-    public function report(string $token): View|RedirectResponse
+    public function report(string $ref): View|RedirectResponse
     {
-        $inspection = Inspection::fromReportToken($token);
+        $inspection = Inspection::fromReference($ref);
 
         abort_if(! $inspection, 404);
 
