@@ -131,6 +131,13 @@
     }
     $heroPhoto = $reportPhotos[0]['media']->url ?? null;
 
+    // Diagnostic media documents — the step-less, section-less bucket from the
+    // edit screen. A PDF can't be drawn into a printed report, so these are
+    // listed as links for the reader to open.
+    $diagnosticDocs = optional($inspection->details
+        ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id)))
+        ?->media?->filter(fn ($m) => $m->isDocument()) ?? collect();
+
     // Vehicle specification list for the summary card.
     $specs = [
         ['Make', $val($inspection->car_make)],
@@ -221,6 +228,17 @@
         .item-title .ar{ display:block; font-weight:600; font-size:12px; color:#6b7280; margin-top:20px; }
         .item-note{ margin-top:8px; font-weight:600; font-size:12px; color:#3b4453; }
         .item-note.ar{ text-align:right; }
+        /* ---- diagnostic media (PDF links) ---- */
+        .doc-row{ display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+        .doc-row:last-child{ border-bottom:0; padding-bottom:0; }
+        .doc-row:first-child{ padding-top:0; }
+        .doc-row__ico{ flex:0 0 auto; margin-top:1px; }
+        .doc-row__body{ min-width:0; }
+        .doc-row__name{ font-weight:700; font-size:13px; color:#1c2431; }
+        /* The URL is long and must stay inside the page in print, hence the break. */
+        .doc-row__link{ display:block; margin-top:3px; font-size:11px; color:#0b8a68; text-decoration:none;
+             word-break:break-all; }
+
         .thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
         .thumb{ width:96px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
 
@@ -657,6 +675,29 @@
         </div>
         @endif
 
+        {{-- ============================== DIAGNOSTIC MEDIA ============================== --}}
+        {{-- PDFs uploaded to Diagnostic Media on the edit screen. They sit ahead of
+             General Photos and are shown as links — a PDF cannot be drawn into the
+             printed page, so the reader opens it from the URL. --}}
+        @if ($diagnosticDocs->isNotEmpty())
+        <div class="page">
+            <div class="sec-bar"><span class="en">Diagnostic Media</span></div>
+            <div class="card">
+                @foreach ($diagnosticDocs as $doc)
+                    <div class="doc-row">
+                        <svg class="doc-row__ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1.5a1.5 1.5 0 0 0 0-3H9v6M14 18v-6h1.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5H14"/>
+                        </svg>
+                        <div class="doc-row__body">
+                            <div class="doc-row__name">{{ $doc->label ?: ($doc->original_name ?: 'Document') }}</div>
+                            <a class="doc-row__link" href="{{ $doc->url }}" target="_blank" rel="noopener">{{ $doc->url }}</a>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         {{-- ============================== GENERAL PHOTOS ============================== --}}
         {{-- Moved to the front (right after Summary Notes by Area) at the client's
              request, so the photo gallery leads the report rather than trailing it. --}}
@@ -861,22 +902,11 @@
              right after the cover). Its markup + $areaNotes/$areaSvg computation now
              live at the top of the body table. --}}
 
-        {{-- ============================== INSPECTOR COMMENT ============================== --}}
-        {{-- Comment, signatures and terms are all short: they follow the summary
-             notes on the same sheet rather than taking a page each. --}}
+        {{-- ============================== SIGNATURES ============================== --}}
+        {{-- Inspector Comment now lives on the cover only (client request); the
+             signatures and terms are short and share the same closing sheet. --}}
         <div class="page">
-            <div class="sec-bar"><span class="en">Inspector Comment</span></div>
-            <div class="card">
-                @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
-                @if ($summary)
-                    <div style="white-space:pre-line;font-weight:600;color:#2b3340;line-height:1.7">{{ $summary }}</div>
-                @else
-                    <div class="muted">No additional inspector comments were recorded.</div>
-                @endif
-            </div>
-
-            {{-- Signatures --}}
-            <div class="sec-bar" style="margin-top:6px"><span class="en">Signatures</span></div>
+            <div class="sec-bar"><span class="en">Signatures</span></div>
             <div class="card">
                 <div class="sign">
                     <div class="col">
@@ -924,12 +954,13 @@
         </div>
 
     </div>
-    @if(request()->boolean('download'))
-        <script>
-            window.addEventListener('load', function () {
-                setTimeout(function () { window.print(); }, 350);
-            });
-        </script>
-    @endif
+    {{-- The report is only ever opened to be printed/saved, so the dialog opens
+         on load. (This used to be gated behind ?download=1, dropped so the link
+         we share with the customer stays clean.) --}}
+    <script>
+        window.addEventListener('load', function () {
+            setTimeout(function () { window.print(); }, 350);
+        });
+    </script>
 </body>
 </html>

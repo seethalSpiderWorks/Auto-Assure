@@ -168,7 +168,8 @@
                 <a href="{{ route('inspections.summary', $inspection) }}" target="_blank" class="btn btn-light btn-sm"><i class="bx bx-list-check"></i> Summary</a>
                 <a href="{{ route('inspections.edit', $inspection) }}" class="btn btn-light btn-sm"><i class="bx bx-edit"></i> Edit</a>
                 @if($inspection->status === 'completed')
-                    <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-primary btn-sm"><i class="bx bx-download"></i> Download Report</a>
+                    <a href="{{ $inspection->reportUrl() }}" target="_blank" class="btn btn-primary btn-sm"><i class="bx bx-download"></i> Download Report</a>
+                    @include('inspections._client_report_link', ['btnClass' => 'btn btn-light btn-sm'])
                 @endif
                 @if($canCancel)
                     <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#inspCancelModal"><i class="bx bx-x-circle"></i> Cancel Inspection</button>

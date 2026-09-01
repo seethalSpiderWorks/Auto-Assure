@@ -49,11 +49,18 @@ Route::group(['middleware' => 'auth'], function(){
 
 
 
+// Public — the customer opens and prints their own report from the link we share.
+// {token} is the inspection's random public id, the same format the legacy reports
+// use (…/report/inspection/psmErRDoz2), so the link is unguessable and resolves to
+// exactly one report (see InspectionController@report).
+Route::get('report/inspection/{token}', [InspectionController::class, 'report'])
+    ->where('token', '[A-Za-z0-9]{10}')
+    ->name('inspections.report');
+
 Route::group(['middleware' => 'auth'], function () {
     Route::get('inspections', [InspectionController::class, 'index'])->name('inspections.index');
     Route::get('inspections/{inspection}/edit', [InspectionController::class, 'edit'])->name('inspections.edit');
     Route::get('inspections/{inspection}/details', [InspectionController::class, 'show'])->name('inspections.show');
-    Route::get('inspections/{inspection}/report', [InspectionController::class, 'report'])->name('inspections.report');
     Route::get('inspections/{inspection}/report-preview', [InspectionController::class, 'reportPreview'])->name('inspections.report.preview');
     Route::get('inspections/{inspection}/summary', [InspectionController::class, 'summary'])->name('inspections.summary');
     Route::post('inspections/{inspection}/start', [InspectionController::class, 'start'])->name('inspections.start');

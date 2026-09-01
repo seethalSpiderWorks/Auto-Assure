@@ -203,16 +203,38 @@ class InspectionController extends Controller
 
     /**
      * Printable inspection report (SASO-style) for a completed inspection.
+     *
+     * Open to guests: the customer opens and prints this from the link we share,
+     * so there is no login. $token is the inspection's random public id — it is
+     * the credential, it is not derived from the row id, and it resolves to one
+     * inspection, so a customer cannot reach anyone else's report. Signed-in
+     * staff still get the per-role check; a cancelled inspection has no report.
      */
-    public function report(Inspection $inspection): View|RedirectResponse
+    public function report(string $token): View|RedirectResponse
     {
-        $this->authorizeInspection($inspection);
+        $inspection = Inspection::fromReportToken($token);
 
-        // A cancelled inspection has no report — it was never finished.
+        abort_if(! $inspection, 404);
+
+        if (request()->user()) {
+            $this->authorizeInspection($inspection);
+        }
+
         if ($inspection->isCancelled()) {
+            // Guests have no CRM page to go back to, so give them a plain 404.
+            abort_unless(request()->user(), 404);
+
             return back()->with('error', 'This inspection is cancelled — no report is available for it.');
         }
 
+        return $this->renderReport($inspection);
+    }
+
+    /**
+     * Loads everything the report view needs.
+     */
+    private function renderReport(Inspection $inspection): View
+    {
         $inspection->load([
             'lead', 'technician', 'branch',
             'type.sections.steps',

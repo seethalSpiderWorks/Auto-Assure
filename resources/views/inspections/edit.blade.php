@@ -242,7 +242,7 @@
                         color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; opacity: .85; }
     .vid-modal__close:hover { opacity: 1; }
 
-    /* Additional-media items with per-file labels */
+    /* Diagnostic-media items with per-file labels */
     .extra-item { width: 116px; display: flex; flex-direction: column; gap: 5px; }
     .extra-item__thumb { position: relative; width: 100%; height: 78px; }
     .extra-item__thumb img, .extra-item__thumb video { width: 100%; height: 100%; object-fit: cover; border-radius: .5rem; border: 1px solid #e6e9ef; background: #000; }
@@ -548,7 +548,8 @@
                         </span>
                         <a href="{{ route('inspections.summary', $inspection) }}" target="_blank" class="btn btn-sm btn-info"><i class="bx bx-list-check"></i> Summary</a>
                         @unless($isCancelled)
-                            <a href="{{ route('inspections.report', ['inspection' => $inspection, 'download' => 1]) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bx bx-download"></i> Download Report</a>
+                            <a href="{{ $inspection->reportUrl() }}" target="_blank" class="btn btn-sm btn-primary"><i class="bx bx-download"></i> Download Report</a>
+                            @include('inspections._client_report_link', ['btnClass' => 'btn btn-sm btn-light'])
                         @endunless
                         <a href="{{ url('inspections') }}" class="btn btn-sm btn-light">Back</a>
                     </div>
@@ -1137,12 +1138,12 @@
                     </div>
                 @endforeach
 
-                {{-- ===== Additional media (always visible across all steps) ===== --}}
+                {{-- ===== Diagnostic media (always visible across all steps) ===== --}}
                 <div class="card detail-card" id="extra-media-block">
                     <div class="card-header" role="button" onclick="document.getElementById('extra-media-body').classList.toggle('d-none'); this.querySelector('.extra-chev').classList.toggle('bx-chevron-down'); this.querySelector('.extra-chev').classList.toggle('bx-chevron-up');">
                         <span class="detail-ico"><i class="bx bx-images"></i></span>
                         <div class="flex-grow-1">
-                            <h5 class="mb-0">Additional Media</h5>
+                            <h5 class="mb-0">Diagnostic Media</h5>
                             <small class="text-muted">Extra photos &amp; videos — uploaded instantly, available on every step</small>
                         </div>
                         <i class="bx bx-chevron-up extra-chev font-size-22 text-muted"></i>
@@ -1199,7 +1200,7 @@
                                         oninput="AA.debounceLabel({{ $m->id }}, this.value)" onblur="AA.saveLabel({{ $m->id }}, this.value)">
                                 </div>
                             @empty
-                                <span class="text-muted font-size-12" id="extra-empty">No additional media yet.</span>
+                                <span class="text-muted font-size-12" id="extra-empty">No diagnostic media yet.</span>
                             @endforelse
                         </div>
                     </div>

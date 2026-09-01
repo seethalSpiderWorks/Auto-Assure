@@ -747,4 +747,51 @@ class Inspection extends Model
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
+
+    /**
+     * Public id for the customer's report link — a random 10-character string,
+     * the same shape the legacy reports use (tbl_report.report_unique_id_random,
+     * see Modules/Leads FollowupController). Minted on first use and kept
+     * afterwards, so a link already shared keeps working.
+     */
+    public function reportToken(): string
+    {
+        if (blank($this->report_unique_id_random)) {
+            do {
+                $token = \Illuminate\Support\Str::random(10);
+            } while (static::where('report_unique_id_random', $token)->exists());
+
+            $this->forceFill(['report_unique_id_random' => $token])->save();
+        }
+
+        return $this->report_unique_id_random;
+    }
+
+    /**
+     * Resolve a report link's random id back to its inspection. Null for a token
+     * we never issued, so one customer's link opens only their own report.
+     */
+    public static function fromReportToken(string $token): ?self
+    {
+        return static::where('report_unique_id_random', $token)->first();
+    }
+
+    /**
+     * Link to this inspection's report — the report the customer is sent, and
+     * the only one it opens. Reads ".../report/inspection/psmErRDoz2", matching
+     * the existing public report links. Opening it offers the print/save dialog.
+     */
+    public function reportUrl(): string
+    {
+        return route('inspections.report', ['token' => $this->reportToken()]);
+    }
+
+    /**
+     * Invalidate a link already shared for this inspection; the next call to
+     * reportToken() mints a fresh one.
+     */
+    public function revokeReportToken(): void
+    {
+        $this->forceFill(['report_unique_id_random' => null])->save();
+    }
 }
