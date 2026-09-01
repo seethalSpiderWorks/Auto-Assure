@@ -229,15 +229,18 @@
         .item-note{ margin-top:8px; font-weight:600; font-size:12px; color:#3b4453; }
         .item-note.ar{ text-align:right; }
         /* ---- diagnostic media (PDF links) ---- */
-        .doc-row{ display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+        .doc-row{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
         .doc-row:last-child{ border-bottom:0; padding-bottom:0; }
         .doc-row:first-child{ padding-top:0; }
-        .doc-row__ico{ flex:0 0 auto; margin-top:1px; }
-        .doc-row__body{ min-width:0; }
+        .doc-row__ico{ flex:0 0 auto; }
+        .doc-row__body{ min-width:0; flex:1 1 auto; }
         .doc-row__name{ font-weight:700; font-size:13px; color:#1c2431; }
         /* The URL is long and must stay inside the page in print, hence the break. */
         .doc-row__link{ display:block; margin-top:3px; font-size:11px; color:#0b8a68; text-decoration:none;
              word-break:break-all; }
+        /* "View" button used in place of the raw URL for diagnostic media links. */
+        .doc-row__btn{ flex:0 0 auto; margin-left:auto; padding:4px 14px; font-size:11px; font-weight:700;
+             color:#fff; background:#0b8a68; border-radius:6px; text-decoration:none; white-space:nowrap; }
 
         .thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
         .thumb{ width:96px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
@@ -533,11 +536,12 @@
 
                 </div>
 
- <div class="cover_right">
-
       {{-- Vehicle image leads this section (client request) — shown only when
-                 a primary vehicle photo has been uploaded for the inspection. --}}
+                 a primary vehicle photo has been uploaded for the inspection.
+                 When there is no vehicle image, the whole right column is omitted so
+                 the gauge/verdict column (cover_left) centres on its own. --}}
             @if ($inspection->vehicleImageUrl())
+ <div class="cover_right">
                 <div class="card" style="padding:10px; text-align:center; margin-bottom:10px;">
                     <img src="{{ \App\Support\Thumbnailer::url($inspection->vehicle_image, 760) }}" alt="Vehicle image" loading="lazy" decoding="async"
                          style="width:100%; max-width:520px; max-height:260px; object-fit:contain;  ">
@@ -569,8 +573,8 @@
                         </table>
                     </div>
                         </div>
-            @endif
                 </div>
+            @endif
 
 
                 </div>
@@ -690,8 +694,10 @@
                         </svg>
                         <div class="doc-row__body">
                             <div class="doc-row__name">{{ $doc->label ?: ($doc->original_name ?: 'Document') }}</div>
-                            <a class="doc-row__link" href="{{ $doc->url }}" target="_blank" rel="noopener">{{ $doc->url }}</a>
                         </div>
+                        @if ($doc->url)
+                            <a class="doc-row__btn" href="{{ $doc->url }}" target="_blank" rel="noopener">View</a>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -942,16 +948,6 @@
                 </td></tr>
             </tbody>
         </table>
-
-        {{-- ============================== THANK YOU ============================== --}}
-        <div class="thanks pb">
-            <img class="thanks-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-            <div>
-                <h1>Thank You for Choosing<br><span class="g">Auto Assure</span></h1>
-                <div class="site">Inspection Checklist for Used Imported Vehicle</div>
-            </div>
-            <img class="thanks-art" src="{{ asset('img/pdf_design/footer.webp') }}" alt="">
-        </div>
 
     </div>
     {{-- The report is only ever opened to be printed/saved, so the dialog opens
