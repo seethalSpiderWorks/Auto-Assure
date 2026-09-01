@@ -170,6 +170,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+    {{-- Fancybox — lightbox gallery for the General Photos section (on-screen only). --}}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5/dist/fancybox/fancybox.css">
     <style>
         :root{
             --bg:#eef1f5; --card:#ffffff; --ink:#1c2430; --muted:#8b93a1;
@@ -229,18 +231,18 @@
         .item-note{ margin-top:8px; font-weight:600; font-size:12px; color:#3b4453; }
         .item-note.ar{ text-align:right; }
         /* ---- diagnostic media (PDF links) ---- */
-        .doc-row{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
-        .doc-row:last-child{ border-bottom:0; padding-bottom:0; }
-        .doc-row:first-child{ padding-top:0; }
+        /* Three buttons per row. */
+        .doc-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+        .doc-row{ display:flex; min-width:0; }
         .doc-row__ico{ flex:0 0 auto; }
-        .doc-row__body{ min-width:0; flex:1 1 auto; }
-        .doc-row__name{ font-weight:700; font-size:13px; color:#1c2431; }
+        .doc-row__name{ font-weight:700; font-size:13px; color:#fff; overflow:hidden;
+             text-overflow:ellipsis; white-space:nowrap; }
         /* The URL is long and must stay inside the page in print, hence the break. */
         .doc-row__link{ display:block; margin-top:3px; font-size:11px; color:#0b8a68; text-decoration:none;
              word-break:break-all; }
-        /* "View" button used in place of the raw URL for diagnostic media links. */
-        .doc-row__btn{ flex:0 0 auto; margin-left:auto; padding:4px 14px; font-size:11px; font-weight:700;
-             color:#fff; background:#0b8a68; border-radius:6px; text-decoration:none; white-space:nowrap; }
+        /* Button wrapping the file icon + name for each diagnostic media link. */
+        .doc-row__btn{ display:flex; align-items:center; gap:10px; width:100%; min-width:0; padding:8px 16px;
+             background:#0b8a68; border-radius:8px; text-decoration:none; }
 
         .thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
         .thumb{ width:96px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
@@ -305,6 +307,7 @@
         /* ---- gallery ---- */
         .gal{ display:flex; flex-wrap:wrap; gap:12px; }
         .gal figure{ margin:0; width:calc(33.333% - 8px); }
+        .gal a{ display:block; cursor:zoom-in; }
         .gal img{ width:100%; height:120px; object-fit:cover; border-radius:10px; border:1px solid var(--line); display:block; }
         .gal figcaption{ text-align:center; font-size:10.5px; color:var(--muted); margin-top:5px; }
 
@@ -664,7 +667,7 @@
         @if (!empty($areaNotes))
         <div class="page">
             <div class="sec-bar"><span class="en">Summary Notes by Area</span></div>
-      
+
             <div class="grid2">
                 @foreach ($areaNotes as $an)
                     <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
@@ -686,18 +689,15 @@
         @if ($diagnosticDocs->isNotEmpty())
         <div class="page">
             <div class="sec-bar"><span class="en">Diagnostic Media</span></div>
-            <div class="card">
+            <div class="card doc-grid">
                 @foreach ($diagnosticDocs as $doc)
                     <div class="doc-row">
-                        <svg class="doc-row__ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1.5a1.5 1.5 0 0 0 0-3H9v6M14 18v-6h1.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5H14"/>
-                        </svg>
-                        <div class="doc-row__body">
-                            <div class="doc-row__name">{{ $doc->label ?: ($doc->original_name ?: 'Document') }}</div>
-                        </div>
-                        @if ($doc->url)
-                            <a class="doc-row__btn" href="{{ $doc->url }}" target="_blank" rel="noopener">View</a>
-                        @endif
+                        <a class="doc-row__btn" @if ($doc->url) href="{{ $doc->url }}" target="_blank" rel="noopener" @endif>
+                            <svg class="doc-row__ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1.5a1.5 1.5 0 0 0 0-3H9v6M14 18v-6h1.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5H14"/>
+                            </svg>
+                            <span class="doc-row__name">{{ $doc->label ?: ($doc->original_name ?: 'Document') }}</span>
+                        </a>
                     </div>
                 @endforeach
             </div>
@@ -714,7 +714,9 @@
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
                         <figure>
-                            <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            <a href="{{ $p['media']->url }}" data-fancybox="general-photos" data-caption="{{ $p['caption'] }}">
+                                <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            </a>
                             <figcaption>{{ $p['caption'] }}</figcaption>
                         </figure>
                     @endforeach
@@ -951,8 +953,13 @@
     {{-- The report is only ever opened to be printed/saved, so the dialog opens
          on load. (This used to be gated behind ?download=1, dropped so the link
          we share with the customer stays clean.) --}}
+    {{-- Fancybox init for the General Photos gallery (on-screen viewing only). --}}
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
     <script>
         window.addEventListener('load', function () {
+            if (window.Fancybox) {
+                Fancybox.bind('[data-fancybox="general-photos"]', {});
+            }
             setTimeout(function () { window.print(); }, 350);
         });
     </script>
