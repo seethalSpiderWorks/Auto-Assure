@@ -222,6 +222,17 @@
                         <div class="idet-fact"><span class="idet-fact__k">Scheduled</span><span class="idet-fact__v">{{ optional($inspection->scheduled_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Started</span><span class="idet-fact__v">{{ optional($inspection->started_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
                         <div class="idet-fact"><span class="idet-fact__k">Completed</span><span class="idet-fact__v">{{ optional($inspection->completed_at)->format('d M Y, h:i A') ?? '—' }}</span></div>
+                        {{-- Report link, shown the way the legacy report view shows it
+                             (Modules/InspectionReport …/inspectionReportView.blade.php):
+                             the full URL as clickable text, ready to copy to the client. --}}
+                        @unless($isCancelled)
+                            <div class="idet-fact idet-fact--link">
+                                <span class="idet-fact__k">English Link</span>
+                                <span class="idet-fact__v">
+                                    <a href="{{ $inspection->reportUrl() }}" target="_blank" rel="noopener">{{ $inspection->reportUrl() }}</a>
+                                </span>
+                            </div>
+                        @endunless
                     </div>
                 </div>
             </div>
@@ -583,6 +594,11 @@
     .idet-fact { display:flex; flex-direction:column; }
     .idet-fact__k { font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin-bottom:3px; }
     .idet-fact__v { font-size:14.5px; font-weight:600; color:#344054; }
+    /* The report link is long: give it the full row and let it wrap. */
+    .idet-fact--link { grid-column:1 / -1; }
+    .idet-fact--link .idet-fact__v { font-size:13px; font-weight:500; word-break:break-all; }
+    .idet-fact--link a { color:#04B084; text-decoration:none; }
+    .idet-fact--link a:hover { text-decoration:underline; }
     .idet-summary { margin:16px 0 0; padding-top:16px; border-top:1px solid #eef1f5; color:#475467; font-size:14px; line-height:1.6; }
 
     /* Spec */
