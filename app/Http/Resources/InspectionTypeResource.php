@@ -14,6 +14,8 @@ class InspectionTypeResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'is_active' => (bool) $this->is_active,
+            // Whether the app should offer the step-less Diagnostic Media bucket.
+            'has_diagnostic_media' => (bool) $this->has_diagnostic_media,
             'sequence' => $this->sequence,
             'sections' => InspectionSectionResource::collection($this->whenLoaded('sections')),
         ];

@@ -6,6 +6,31 @@
     $stepCount = $type->sections->sum(fn($s) => $s->steps->count());
 @endphp
 
+<style>
+    /* Damage-diagram picker inside a section's inline editor. Bootstrap 5 has no
+       .custom-control, so these are real tiles driven by a visually hidden box. */
+    .dg-head { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
+        color: #6b7280; font-weight: 700; margin-bottom: .5rem; }
+    .dg-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .dg-tile { margin: 0; cursor: pointer; }
+    .dg-tile input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .dg-tile__inner { display: flex; align-items: center; gap: .6rem; padding: .45rem .8rem .45rem .45rem;
+        border: 1px solid #e4e8ee; border-radius: 12px; background: #fff; min-width: 190px;
+        transition: border-color .12s, box-shadow .12s, background .12s; }
+    .dg-tile:hover .dg-tile__inner { border-color: #cfd6df; }
+    .dg-tile input:focus-visible + .dg-tile__inner { box-shadow: 0 0 0 3px rgba(4,176,132,.25); }
+    .dg-tile input:checked + .dg-tile__inner { border-color: #04B084; background: #f2fbf8; box-shadow: 0 2px 10px rgba(4,176,132,.18); }
+    .dg-tile__thumb { width: 54px; height: 34px; flex: 0 0 auto; border-radius: 7px; border: 1px solid #eef1f5;
+        background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; color: #b6bdc7; }
+    .dg-tile__thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .dg-tile__text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .dg-tile__name { font-size: .84rem; font-weight: 600; color: #3b4655; }
+    .dg-tile__meta { font-size: .7rem; color: #8a94a3; }
+    .dg-tile input:checked + .dg-tile__inner .dg-tile__meta { color: #04B084; font-weight: 600; }
+    .dg-tile__tick { margin-left: auto; font-size: 17px; color: #cfd6df; }
+    .dg-tile input:checked + .dg-tile__inner .dg-tile__tick { color: #04B084; }
+</style>
+
 <div class="page-content">
     <div class="container-fluid">
 
@@ -16,6 +41,7 @@
                         <h4 class="mb-1">{{ $type->name }}</h4>
                         <p class="text-muted mb-0">
                             <span class="badge {{ $type->is_active ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $type->is_active ? 'Active' : 'Inactive' }}</span>
+                            <span class="badge {{ $type->has_diagnostic_media ? 'badge-soft-info' : 'badge-soft-secondary' }}">Diagnostic Media: {{ $type->has_diagnostic_media ? 'Yes' : 'No' }}</span>
                             · {{ $type->sections->count() }} sections · {{ $stepCount }} steps
                         </p>
                     </div>
@@ -41,6 +67,9 @@
                                     <span class="badge badge-soft-primary font-size-13">{{ $section->sequence }}</span>
                                     <h5 class="mb-0">{{ $section->section_name }}</h5>
                                     @if($section->section_name_ar)<span class="text-muted" dir="rtl">— {{ $section->section_name_ar }}</span>@endif
+                                    @foreach ($section->damageDiagrams as $dg)
+                                        <span class="badge badge-soft-info font-size-11"><i class="bx bx-palette"></i> {{ $dg->name }}</span>
+                                    @endforeach
                                 </div>
                             </div>
 
@@ -52,6 +81,56 @@
                                 <input type="text" name="group_name_ar" dir="rtl" value="{{ $section->group_name_ar }}" class="form-control form-control-sm" placeholder="العنوان الرئيسي">
                                 <input type="text" name="section_name" value="{{ $section->section_name }}" class="form-control form-control-sm" placeholder="Section name" required>
                                 <input type="text" name="section_name_ar" dir="rtl" value="{{ $section->section_name_ar }}" class="form-control form-control-sm flex-grow-1" placeholder="الاسم بالعربية">
+                                {{-- Damage diagrams drawn inside this step. A diagram belongs to one
+                                     section, so ticking it here takes it off whichever section had it.
+                                     Tiles rather than checkboxes: the thumbnail is what an admin
+                                     recognises, and it says where each one currently sits. --}}
+                                <div class="w-100 border-top pt-3 mt-2">
+                                    <div class="dg-head">Damage diagrams in this section</div>
+                                    @if ($damageDiagrams->isEmpty())
+                                        <p class="text-muted font-size-12 mb-0">
+                                            None configured yet — add one under <a href="{{ route('damage-setup.index') }}">Damage Setup</a>.
+                                        </p>
+                                    @else
+                                        <div class="dg-grid">
+                                            @foreach ($damageDiagrams as $dg)
+                                                @php($here = $dg->inspection_section_id === $section->id)
+                                                @php($elsewhere = $dg->inspection_section_id && ! $here)
+                                                <label class="dg-tile">
+                                                    <input type="checkbox" name="damage_diagrams[]" value="{{ $dg->id }}" @checked($here)>
+                                                    <span class="dg-tile__inner">
+                                                        <span class="dg-tile__thumb">
+                                                            @if ($dg->imageExists())
+                                                                <img src="{{ $dg->imageUrl() }}" alt="">
+                                                            @else
+                                                                <i class="bx bx-image-alt"></i>
+                                                            @endif
+                                                        </span>
+                                                        <span class="dg-tile__text">
+                                                            <span class="dg-tile__name">{{ $dg->name }}</span>
+                                                            <span class="dg-tile__meta">
+                                                                @if ($here)
+                                                                    In this section
+                                                                @elseif ($elsewhere)
+                                                                    Currently in {{ optional($dg->section)->section_name }}
+                                                                @else
+                                                                    Not assigned
+                                                                @endif
+                                                            </span>
+                                                        </span>
+                                                        <i class="bx bx-check dg-tile__tick"></i>
+                                                    </span>
+                                                </label>
+                                            @endforeach
+                                        </div>
+                                        <small class="text-muted font-size-11 d-block mt-1">
+                                            A diagram sits in one section — ticking it here moves it.
+                                        </small>
+                                    @endif
+                                    {{-- Present even when nothing is ticked, so unticking everything is
+                                         a real instruction rather than an absent field. --}}
+                                    <input type="hidden" name="damage_diagrams[]" value="">
+                                </div>
                                 <button class="btn btn-sm btn-success">Save</button>
                                 <button type="button" class="btn btn-sm btn-light" onclick="toggleSection({{ $section->id }})">Cancel</button>
                             </form>

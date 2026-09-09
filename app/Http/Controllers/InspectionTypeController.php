@@ -18,7 +18,7 @@ class InspectionTypeController extends Controller
 
     public function create(): View
     {
-        return view('templates.create', ['type' => new InspectionType(['is_active' => true])]);
+        return view('templates.create', ['type' => new InspectionType(['is_active' => true, 'has_diagnostic_media' => true])]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -30,9 +30,13 @@ class InspectionTypeController extends Controller
 
     public function show(InspectionType $template): View
     {
-        $template->load(['sections.steps']);
+        $template->load(['sections.steps', 'sections.damageDiagrams']);
 
-        return view('templates.show', ['type' => $template]);
+        return view('templates.show', [
+            'type' => $template,
+            // Every diagram, so a section's editor can offer the unassigned ones too.
+            'damageDiagrams' => \App\Models\DamageDiagram::ordered()->get(),
+        ]);
     }
 
     public function edit(InspectionType $template): View
@@ -61,6 +65,12 @@ class InspectionTypeController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'sequence' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
-        ]) + ['is_active' => $request->boolean('is_active')];
+            'has_diagnostic_media' => ['nullable', 'boolean'],
+        ]) + [
+            // Unchecked switches are absent from the POST body, so read them
+            // off the request rather than trusting the validated array.
+            'is_active' => $request->boolean('is_active'),
+            'has_diagnostic_media' => $request->boolean('has_diagnostic_media'),
+        ];
     }
 }

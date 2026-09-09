@@ -4873,381 +4873,54 @@ function download()
 </script>
  
 <!--------------- TAB START --------------->
+<style>
+/* Switch panes instantly - no opacity ramp between the big spec/checklist panes */
+#myTabContent > .tab-pane.fade { transition: none; }
+</style>
 <script>
-$(document).ready(function() {
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").addClass("show active");
-	
-		<?php 
-		if(Auth::user()->user_branch == 39) {    ?> 
-		
-			$("#checklist-tab").css("display", "none");
-			$("#specification-tab").css("display", "none");
-				
-			$("#specification").css("display", "none");  // To hide
-			$("#checklist").css("display", "none");  // To hide
-				
-			 
-			<?php 
-		} ?>
-	$("#warranty").css("display", "none");  // To hide
-	//$("#gallery").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "");  // To hide
-	 
-});
+/*
+ * Tab switching.
+ *
+ * Panes are shown/hidden purely with Bootstrap's own "show active" classes -
+ * the same mechanism tabToggle() uses for the Back / Save-and-next buttons.
+ * The old code toggled inline display instead, which cannot beat Bootstrap's
+ * ".tab-content > .tab-pane { display: none }" rule, so a clicked pane stayed
+ * blank until some other code happened to put "show active" back on it.
+ */
+(function() {
 
-	
-$('#home-tab').click(function()
-{   
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").addClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "");  // To hide
-	$("#vehicle").css("display", "none");  // To unhide
-});
+	function activateTab(tab)
+	{
+		var $pane = $("#" + tab);
+		if (!$pane.length) { return; }
 
-$('#vehicle-tab').click(function()
-{
-	$("#vehicle-tab").addClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "");  // To unhide
-});
+		$("#myTab .nav-link").removeClass("show active").attr("aria-selected", "false");
+		$("#myTabContent > .tab-pane").removeClass("show active");
 
+		$("#" + tab + "-tab").addClass("show active").attr("aria-selected", "true");
+		$pane.css("display", "").addClass("show active");
+	}
 
-$('#spec-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	$("#spec-tab").addClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#spec").css("display", "");  // To unhide
-});
+	// Back / Save-and-next buttons call tabToggle(); keep both paths identical
+	// so neither can leave a pane in a half-switched state.
+	window.tabToggle = function(tab) { activateTab(tab); return false; };
 
+	$("#myTab").on("click", ".nav-link", function(e) {
+		e.preventDefault();
+		activateTab(this.id.replace(/-tab$/, ""));
+	});
 
-$('#warranty-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").addClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To unhide
-	$("#warranty").css("display", "");  // To unhide
-});
- 
-$('#gallery-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").addClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "");  // To unhide
-});
+	$(document).ready(function() {
+		activateTab("home");
 
-$('#reports-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").addClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#reports").css("display", "");  // To unhide
-});
+		<?php if(Auth::user()->user_branch == 39) { ?>
+		$("#checklist-tab, #specification-tab").closest("li").hide();
+		<?php } ?>
+	});
 
-$('#specification-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").addClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To
-	$("#specification").css("display", "");  // To unhide
-});
-
-$('#checklist-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").addClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To unhide
-	$("#checklist").css("display", "");  // To unhide
-});
-
-$('#saudi-checklist-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	$("#saudi-checklist-tab").addClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	//$("#saudi-checklist").css("display", "block");  // To unhide
-	$("#saudi-checklist").addClass("show active");
-});
-
-$('#summary-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").addClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#summary").css("display", "");  // To unhide
-	$("#overview").css("display", "none");  // To unhide
-});
-
-$('#overview-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").removeClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").addClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#damages").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To unhide
-	$("#overview").css("display", "");  // To unhide
-});
-
-$('#damages-tab').click(function()
-{
-	$("#vehicle-tab").removeClass("show active");
-	$("#reports-tab").removeClass("show active");
-	$("#damages-tab").addClass("show active");
-	$("#summary-tab").removeClass("show active");
-	$("#overview-tab").removeClass("show active");
-	$("#saudi-checklist-tab").removeClass("show active");
-	$("#checklist-tab").removeClass("show active");
-	$("#specification-tab").removeClass("show active");
-	$("#warranty-tab").removeClass("show active");
-	$("#gallery-tab").removeClass("show active");
-	$("#home-tab").removeClass("show active");
-	
-	$("#reports").css("display", "none");  // To hide
-	$("#summary").css("display", "none");  // To hide
-	$("#overview").css("display", "none");  // To hide
-	$("#warranty").css("display", "none");  // To hide
-	$("#spec").css("display", "none");  // To hide
-	$("#home").css("display", "none");  // To hide
-	$("#vehicle").css("display", "none");  // To hide
-	$("#gallery").css("display", "none");  // To hide
-	$("#specification").css("display", "none");  // To hide
-	$("#saudi-checklist").css("display", "none");  // To hide
-	$("#checklist").css("display", "none");  // To hide
-	$("#damages").css("display", "");  // To unhide
-});
- 
+})();
 </script>
-<!--------------- TAB END ---------------> 
+<!--------------- TAB END --------------->
 
 <script>
 /********** VEHICLE SPECIFICATION START **********/

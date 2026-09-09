@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ResolvesCurrentBranch;
+use App\Models\DamageColour;
+use App\Models\DamageDiagram;
 use App\Models\Inspection;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
@@ -17,6 +19,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class InspectionController extends Controller
 {
@@ -582,12 +586,18 @@ class InspectionController extends Controller
             && $inspection->type->sections()->whereKey($sectionId)->exists();
         abort_unless($belongs, 422, 'Unknown section.');
 
+        $values = ['rating' => $data['rating'] ?? null];
+
+        // The edit screen no longer carries a per-section note box, so a request
+        // without a "summary" key means "rating only" — keep the stored note
+        // instead of blanking it. An explicit empty string still clears it.
+        if ($request->has('summary')) {
+            $values['summary'] = filled($data['summary'] ?? null) ? $data['summary'] : null;
+        }
+
         InspectionSectionSummary::updateOrCreate(
             ['inspection_id' => $inspection->id, 'inspection_section_id' => $sectionId],
-            [
-                'summary' => filled($data['summary'] ?? null) ? $data['summary'] : null,
-                'rating' => $data['rating'] ?? null,
-            ]
+            $values
         );
 
         $this->markStarted($inspection);
@@ -1071,15 +1081,21 @@ class InspectionController extends Controller
                     continue;
                 }
 
-                $text = $sectionSummaries[$sectionId] ?? null;
                 $rating = $sectionRatings[$sectionId] ?? null;
+                $values = ['rating' => filled($rating) ? round((float) $rating, 1) : null];
+
+                // Only sections the form actually submitted a note for get their
+                // note rewritten. The note box was removed from the edit screen,
+                // so a section that arrives with a rating alone must not lose the
+                // note recorded before that change.
+                if (array_key_exists($sectionId, $sectionSummaries)) {
+                    $text = $sectionSummaries[$sectionId];
+                    $values['summary'] = filled($text) ? $text : null;
+                }
 
                 InspectionSectionSummary::updateOrCreate(
                     ['inspection_id' => $inspection->id, 'inspection_section_id' => (int) $sectionId],
-                    [
-                        'summary' => filled($text) ? $text : null,
-                        'rating' => filled($rating) ? round((float) $rating, 1) : null,
-                    ]
+                    $values
                 );
             }
         }
@@ -1135,7 +1151,7 @@ class InspectionController extends Controller
             $verdictMissing = [];
             if (blank($inspection->estimated_repair_cost)) { $verdictMissing[] = 'Est. repair cost'; }
             if (blank($inspection->recommendation))        { $verdictMissing[] = 'Recommendation'; }
-            if (blank($inspection->summary))               { $verdictMissing[] = 'Technician note'; }
+            if (blank($inspection->summary))               { $verdictMissing[] = 'Inspector Comment'; }
 
             if ($verdictMissing !== []) {
                 $inspection->save();
@@ -1299,6 +1315,137 @@ class InspectionController extends Controller
             'url' => $inspection->vehicleImageUrl(),
             'original_name' => $file->getClientOriginalName(),
         ]);
+    }
+
+    /**
+     * Save the marked-up damage diagrams (AJAX).
+     *
+     * The screen posts one data: URL per view, exactly what canvas.toDataURL()
+     * returns — the same shape the legacy /inspectionreport DAMAGES tab sends to
+     * addDamages. A view that is absent from the payload is left alone, so
+     * saving one diagram never clears the other.
+     */
+    public function saveDamageDiagrams(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        $request->validate([
+            'images' => ['required', 'array', 'min:1'],
+            'images.*' => ['required', 'string'],
+            // The dots behind the picture, so a single one can be erased later.
+            'marks' => ['nullable', 'array'],
+            'marks.*' => ['nullable', 'array', 'max:2000'],
+            'marks.*.*.x' => ['required', 'numeric', 'min:0', 'max:20000'],
+            'marks.*.*.y' => ['required', 'numeric', 'min:0', 'max:20000'],
+            'marks.*.*.c' => ['required', 'string'],
+        ]);
+
+        $urls = [];
+        $replaced = [];
+
+        // Diagram keys are configured in Damage Setup, so the valid set is a
+        // lookup rather than a constant. Inactive diagrams still accept a save:
+        // an inspection already in progress must not lose work because an admin
+        // hid the view mid-job.
+        $validViews = DamageDiagram::pluck('key')->all();
+        $images = $inspection->damageImages();
+
+        foreach ((array) $request->input('images') as $view => $dataUrl) {
+            abort_unless(in_array($view, $validViews, true), 422, 'Unknown damage view.');
+
+            // Accept only a base64 PNG data URL — nothing else may reach the disk.
+            if (! preg_match('#^data:image/png;base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+                abort(422, 'Damage diagram must be a PNG data URL.');
+            }
+
+            $binary = base64_decode($m[1], true);
+            if ($binary === false || $binary === '') {
+                abort(422, 'Damage diagram could not be decoded.');
+            }
+
+            // ~8 MB of decoded PNG is far above a marked-up diagram; anything
+            // larger is a runaway canvas rather than a real drawing.
+            if (strlen($binary) > 8 * 1024 * 1024) {
+                abort(422, 'Damage diagram is too large.');
+            }
+
+            // Confirm the bytes really are a PNG, not base64 of something else.
+            if (substr($binary, 0, 8) !== "\x89PNG\r\n\x1a\n") {
+                abort(422, 'Damage diagram is not a valid PNG.');
+            }
+
+            $path = "inspections/{$inspection->id}/damage/{$view}-".Str::random(20).'.png';
+            Storage::disk('public')->put($path, $binary);
+
+            $replaced[$view] = $images[$view] ?? null;
+            $images[$view] = $path;
+        }
+
+        $inspection->damage_images = $images;
+
+        // The two legacy columns are kept in step so anything still reading them
+        // (an older deploy, a report cached mid-rollout) sees the current file.
+        foreach (Inspection::LEGACY_DAMAGE_VIEWS as $key => $legacy) {
+            if (array_key_exists($key, $images)) {
+                $inspection->{$legacy} = $images[$key];
+            }
+        }
+
+        // Marks are stored per view, so posting one diagram leaves the other's
+        // dots alone — same rule the images follow above.
+        if ($request->has('marks')) {
+            $marks = $inspection->damage_marks;
+            $marks = is_array($marks) ? $marks : [];
+
+            // Each diagram has its own palette, so a colour is only valid on the
+            // diagram it belongs to (plus any colour left unassigned, which
+            // applies everywhere).
+            $paletteFor = function (string $view): array {
+                $diagram = DamageDiagram::where('key', $view)->first();
+
+                return $diagram
+                    ? DamageColour::forDiagram($diagram->id)->pluck('colour')->all()
+                    : [];
+            };
+
+            foreach ((array) $request->input('marks') as $view => $list) {
+                abort_unless(in_array($view, $validViews, true), 422, 'Unknown damage view.');
+
+                $allowed = $paletteFor($view);
+
+                foreach ((array) $list as $m) {
+                    abort_unless(in_array($m['c'] ?? null, $allowed, true), 422, 'That colour is not in this diagram\'s palette.');
+                }
+
+                $marks[$view] = array_values(array_map(fn ($m) => [
+                    'x' => round((float) $m['x'], 1),
+                    'y' => round((float) $m['y'], 1),
+                    'c' => $m['c'],
+                ], (array) $list));
+            }
+
+            $inspection->damage_marks = $marks;
+        }
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        // Drop the superseded files only once the new paths are committed.
+        foreach ($replaced as $view => $previous) {
+            if ($previous && $previous !== ($images[$view] ?? null)) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
+        foreach ($validViews as $view) {
+            $urls[$view] = $inspection->damageDiagramUrl($view);
+        }
+
+        return response()->json(['saved' => true, 'urls' => $urls]);
     }
 
     /**

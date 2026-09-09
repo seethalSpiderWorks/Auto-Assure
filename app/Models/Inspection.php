@@ -37,7 +37,7 @@ class Inspection extends Model
         'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
-        'exterior_color', 'vehicle_image', 'region',
+        'exterior_color', 'vehicle_image', 'damage_full_body', 'damage_under_body', 'damage_images', 'damage_marks', 'region',
         'fuel_type', 'gearbox', 'steering_side', 'body_type',
         'number_of_keys', 'with_service_history', 'last_service_date',
     ];
@@ -53,6 +53,8 @@ class Inspection extends Model
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'overall_rating' => 'decimal:1',
+            'damage_marks' => 'array',
+            'damage_images' => 'array',
         ];
     }
 
@@ -597,6 +599,61 @@ class Inspection extends Model
         return $this->vehicle_image
             ? url('storage/'.ltrim($this->vehicle_image, '/'))
             : null;
+    }
+
+    /**
+     * The two damage diagrams, as view key => stored path. The keys double as
+     * The two diagrams that predate Damage Setup. Kept only so inspections saved
+     * against the old fixed columns still resolve; new views come from the
+     * damage_diagrams table and are keyed in damage_images.
+     */
+    public const LEGACY_DAMAGE_VIEWS = [
+        'full_body' => 'damage_full_body',
+        'under_body' => 'damage_under_body',
+    ];
+
+    /**
+     * The stored dots for one diagram, as a plain list of {x, y, c}. Empty when
+     * that view has never been marked, or was drawn before marks were kept.
+     */
+    public function damageMarks(string $view): array
+    {
+        $all = $this->damage_marks;
+
+        return is_array($all) && isset($all[$view]) && is_array($all[$view]) ? array_values($all[$view]) : [];
+    }
+
+    /**
+     * Saved mark-ups keyed by DamageDiagram::key, with the two legacy columns
+     * folded in so nothing drawn before Damage Setup is lost.
+     */
+    public function damageImages(): array
+    {
+        $images = is_array($this->damage_images) ? $this->damage_images : [];
+
+        foreach (self::LEGACY_DAMAGE_VIEWS as $key => $legacy) {
+            if (empty($images[$key]) && $this->{$legacy}) {
+                $images[$key] = $this->{$legacy};
+            }
+        }
+
+        return array_filter($images);
+    }
+
+    public function damageImagePath(string $view): ?string
+    {
+        return $this->damageImages()[$view] ?? null;
+    }
+
+    /**
+     * Public URL of a saved damage diagram, or null when that view has not been
+     * marked up yet. Same shape as vehicleImageUrl().
+     */
+    public function damageDiagramUrl(string $view): ?string
+    {
+        $path = $this->damageImagePath($view);
+
+        return $path ? url('storage/'.ltrim($path, '/')) : null;
     }
 
     public function isCancelled(): bool

@@ -6,6 +6,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Core;
 
 use App\Http\Controllers\InspectionController;
+use App\Http\Controllers\DamageSetupController;
 use App\Http\Controllers\InspectionTypeController;
 use App\Http\Controllers\InspectionSectionController;
 use App\Http\Controllers\InspectionStepController;
@@ -77,9 +78,24 @@ Route::group(['middleware' => 'auth'], function () {
     // Primary vehicle photo on the "Customer & Vehicle" step.
     Route::post('inspections/{inspection}/vehicle-image', [InspectionController::class, 'uploadVehicleImage'])->name('inspections.vehicle-image.upload');
     Route::delete('inspections/{inspection}/vehicle-image', [InspectionController::class, 'deleteVehicleImage'])->name('inspections.vehicle-image.destroy');
+    // Marked-up damage diagrams (full body / under body) drawn on the inspection screen.
+    Route::post('inspections/{inspection}/damage-diagrams', [InspectionController::class, 'saveDamageDiagrams'])->name('inspections.damage-diagrams.save');
     Route::post('inspections/{inspection}/sections/{section}/media', [InspectionController::class, 'uploadSectionMedia'])->name('inspections.section-media.upload');
     Route::delete('inspection-media/{media}', [InspectionController::class, 'destroyMedia'])->name('inspection-media.destroy');
     Route::post('inspection-media/{media}/label', [InspectionController::class, 'updateMediaLabel'])->name('inspection-media.label');
+});
+
+// Damage setup — the body diagrams and colour palette the damage section uses.
+Route::group(['middleware' => 'auth', 'prefix' => 'damage-setup'], function () {
+    Route::get('/', [DamageSetupController::class, 'index'])->name('damage-setup.index');
+
+    Route::post('diagrams', [DamageSetupController::class, 'storeDiagram'])->name('damage-setup.diagrams.store');
+    Route::put('diagrams/{diagram}', [DamageSetupController::class, 'updateDiagram'])->name('damage-setup.diagrams.update');
+    Route::delete('diagrams/{diagram}', [DamageSetupController::class, 'destroyDiagram'])->name('damage-setup.diagrams.destroy');
+
+    Route::post('colours', [DamageSetupController::class, 'storeColour'])->name('damage-setup.colours.store');
+    Route::put('colours/{colour}', [DamageSetupController::class, 'updateColour'])->name('damage-setup.colours.update');
+    Route::delete('colours/{colour}', [DamageSetupController::class, 'destroyColour'])->name('damage-setup.colours.destroy');
 });
 
 Route::group(['middleware' => 'auth', 'prefix' => 'inspection-templates'], function () {

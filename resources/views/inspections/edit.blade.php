@@ -242,6 +242,43 @@
                         color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; opacity: .85; }
     .vid-modal__close:hover { opacity: 1; }
 
+    /* Damage colour key — the paint legend carried over from /inspectionreport.
+       Same six labels and hex values, so a diagram marked on either screen reads
+       against one key. Reference only: nothing here is saved. */
+    .paint-key { display: flex; flex-wrap: wrap; gap: .5rem .4rem; margin-bottom: .8rem; }
+    .paint-key__item { display: flex; align-items: center; gap: .45rem; padding: .3rem .7rem .3rem .35rem;
+        border: 1px solid #e4e8ee; border-radius: 999px; background: #fff; font-size: .82rem; color: #5b6472; }
+    .paint-key__dot { width: 20px; height: 20px; border-radius: 50%; flex: 0 0 auto;
+        border: 2px solid #aaa; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+    /* The two body diagrams the key is read against. White line art, so each one
+       gets its own light panel rather than sitting straight on the card. */
+    .paint-diagram { border: 1px solid #e4e8ee; border-radius: 12px; background: #fff; padding: .5rem; margin-bottom: .8rem; }
+    .paint-diagram__title { display: block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
+        color: var(--brand-dark); font-weight: 700; margin: 0 0 .35rem .15rem; }
+    /* One diagram at a time at full card width, inside a frame that scrolls
+       once zoomed — marking a door edge needs far more than a half-width image. */
+    /* Capped rather than full-bleed: at full card width the diagram ran ~590px
+       tall and pushed the Save button off screen. Zoom covers close work. */
+    .paint-diagram { max-width: 780px; margin-left: auto; margin-right: auto; }
+    .paint-stage { overflow: auto; max-height: 62vh; border-radius: 8px; background: #fff; -webkit-overflow-scrolling: touch; }
+    .paint-stage canvas { display: block; width: 100%; height: auto; border-radius: 8px; cursor: crosshair; touch-action: manipulation; }
+    .paint-stage.is-erasing canvas { cursor: cell; }
+    .paint-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
+    .paint-bar .spacer { flex: 1 1 auto; }
+    .paint-zoom { display: inline-flex; align-items: center; gap: .15rem; border: 1px solid #e4e8ee; border-radius: 999px; padding: .1rem; background: #fff; }
+    .paint-zoom button { border: 0; background: transparent; width: 26px; height: 26px; border-radius: 50%; line-height: 1;
+        color: #5b6472; font-size: 15px; cursor: pointer; }
+    .paint-zoom button:hover:not(:disabled) { background: #eef3f8; color: var(--brand-dark); }
+    .paint-zoom button:disabled { opacity: .35; cursor: default; }
+    .paint-zoom__val { min-width: 3.2em; text-align: center; font-size: .76rem; color: #5b6472; font-variant-numeric: tabular-nums; }
+    .paint-switch .btn { font-size: .8rem; }
+    /* Selected swatch: the whole pill lifts so the active colour is obvious at a glance. */
+    .paint-key__item { cursor: pointer; user-select: none; transition: border-color .12s, box-shadow .12s, background .12s; }
+    .paint-key__item:hover { border-color: #cfd6df; }
+    .paint-key__item.is-active { border-color: var(--brand); background: #f2fbf8; color: var(--brand-dark);
+        font-weight: 600; box-shadow: 0 2px 10px rgba(4,176,132,.22); }
+    .paint-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin: .1rem 0 .9rem; }
+
     /* Diagnostic-media items with per-file labels */
     .extra-item { width: 116px; display: flex; flex-direction: column; gap: 5px; }
     .extra-item__thumb { position: relative; width: 100%; height: 78px; }
@@ -524,6 +561,7 @@
              data-media-url="{{ route('inspections.media.upload', $inspection) }}"
              data-extra-media-url="{{ route('inspections.extra-media.upload', $inspection) }}"
              data-vehicle-image-url="{{ route('inspections.vehicle-image.upload', $inspection) }}"
+             data-damage-diagrams-url="{{ route('inspections.damage-diagrams.save', $inspection) }}"
              data-section-media-base="{{ url("inspections/".$inspection->id."/sections") }}"
 
              data-media-delete-base="{{ url('inspection-media') }}">
@@ -995,20 +1033,86 @@
                                         </div>
                                     </div>
 
-                                    {{-- Section-level summary + optional rating (shown on the report's Inspection Summary) --}}
+                                    {{-- ===== Damage diagrams for this section =====
+                                         Which diagrams appear here is set per section in the
+                                         template editor. Ids are scoped to the section so several
+                                         of these blocks can live on one page without colliding. --}}
+                                    @php($secDiagrams = $section->damageDiagrams->filter(fn ($d) => $d->is_active && $d->imageExists())->values())
+                                    @php($secPalettes = $secDiagrams->mapWithKeys(fn ($d) => [$d->key => $d->palette()]))
+                                    @php($secDiagrams = $secDiagrams->filter(fn ($d) => $secPalettes[$d->key]->isNotEmpty())->values())
+                                    @if ($secDiagrams->isNotEmpty())
+                                    <div class="damage-block border-top pt-3 mt-2" data-damage-block="{{ $section->id }}">
+                                        <div class="detail-group-title">Damage Diagram</div>
+
+                                        @foreach ($secDiagrams as $vi => $dg)
+                                            <div class="paint-key" data-damage-palette="{{ $dg->key }}" @if($vi !== 0) hidden @endif>
+                                                @foreach ($secPalettes[$dg->key] as $i => $pc)
+                                                    <button type="button" class="paint-key__item {{ $i === 0 ? 'is-active' : '' }}"
+                                                            data-paint-colour="{{ $pc->colour }}" data-paint-view="{{ $dg->key }}"
+                                                            aria-pressed="{{ $i === 0 ? 'true' : 'false' }}"
+                                                            @if($pc->description) title="{{ $pc->description }}" @endif>
+                                                        <span class="paint-key__dot" style="background-color: {{ $pc->colour }};"></span>
+                                                        {{ $pc->label }}
+                                                    </button>
+                                                @endforeach
+                                            </div>
+                                        @endforeach
+
+                                        <div class="paint-bar">
+                                            @if ($secDiagrams->count() > 1)
+                                                <div class="btn-group btn-group-sm paint-switch" role="tablist">
+                                                    @foreach ($secDiagrams as $i => $dg)
+                                                        <button type="button" data-damage-tab="{{ $dg->key }}"
+                                                                class="btn {{ $i === 0 ? 'btn-success' : 'btn-outline-secondary' }}"
+                                                                aria-selected="{{ $i === 0 ? 'true' : 'false' }}">{{ $dg->name }}</button>
+                                                    @endforeach
+                                                </div>
+                                            @else
+                                                <span class="paint-diagram__title mb-0">{{ $secDiagrams[0]->name }}</span>
+                                                <button type="button" data-damage-tab="{{ $secDiagrams[0]->key }}" class="d-none"></button>
+                                            @endif
+                                            <span class="spacer"></span>
+                                            <span class="paint-zoom">
+                                                <button type="button" data-damage-zoom="out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+                                                <span class="paint-zoom__val" data-damage-zoomval>100%</span>
+                                                <button type="button" data-damage-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-light" data-damage-zoom="fit">Fit</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-damage-erase
+                                                    aria-pressed="false" title="Click a dot to remove it">
+                                                <i class="bx bx-eraser"></i> Erase dot
+                                            </button>
+                                            <button type="button" class="btn btn-link btn-sm p-0 text-muted font-size-12" data-damage-clear>Clear all</button>
+                                        </div>
+
+                                        @foreach ($secDiagrams as $i => $dg)
+                                            <div class="paint-diagram" data-damage-slide="{{ $dg->key }}" @if($i !== 0) hidden @endif>
+                                                <div class="paint-stage">
+                                                    <canvas data-damage-view="{{ $dg->key }}"
+                                                            data-base="{{ $dg->imageUrl() }}"
+                                                            data-src="{{ $inspection->damageDiagramUrl($dg->key) }}"
+                                                            data-marks="{{ json_encode($inspection->damageMarks($dg->key)) }}"
+                                                            aria-label="{{ $dg->name }} damage diagram"></canvas>
+                                                </div>
+                                            </div>
+                                        @endforeach
+
+                                        <div class="paint-tools">
+                                            <button type="button" class="btn btn-sm btn-success" data-damage-save>
+                                                <i class="bx bx-save"></i> Save damage diagrams
+                                            </button>
+                                            <span class="text-muted font-size-12" data-damage-status></span>
+                                        </div>
+                                    </div>
+                                    @endif
+
+                                    {{-- Section-level rating (shown on the report's Inspection Summary).
+                                         The per-section summary note was removed from this screen; notes
+                                         already saved are left untouched by both save paths. --}}
                                     @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
                                     @php($secRating = (float) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
                                     <div class="border-top pt-3 mt-2" data-section-summary="{{ $section->id }}">
-                                        <label class="form-label font-size-13 font-weight-bold mb-1">
-                                            {{ $section->section_name }} summary
-                                            <small class="text-muted font-weight-normal">— shown on the report</small>
-                                        </label>
-                                        <textarea name="section_summaries[{{ $section->id }}]" rows="2"
-                                            placeholder="e.g. {{ $section->section_name }} is in good condition"
-                                            oninput="AA.debounceSectionSummary({{ $section->id }})"
-                                            class="form-control">{{ old('section_summaries.'.$section->id, $sectionSummary->summary ?? '') }}</textarea>
-
-                                        <div class="sec-rating mt-2" data-section-rating="{{ $section->id }}">
+                                        <div class="sec-rating" data-section-rating="{{ $section->id }}">
                                             <span class="font-size-12 text-muted">Section rating <span class="text-muted">(optional)</span>:</span>
                                             {{-- Stars set whole values; the box beside them takes any
                                                  0.1 step (0.5, 4.6). Both write to the same input. --}}
@@ -1084,7 +1188,7 @@
                                                 @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-12"><label class="form-label">Technician note <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter technician's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
+                                        <div class="col-md-12"><label class="form-label">Inspector Comment <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter the inspector's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
                                     </div>
 
                                     {{-- Per-type summaries. Types come from tbl_summary_type, the same
@@ -1138,7 +1242,10 @@
                     </div>
                 @endforeach
 
-                {{-- ===== Diagnostic media (always visible across all steps) ===== --}}
+                {{-- ===== Diagnostic media (step-less bucket, shown on every step) =====
+                     Only rendered when the inspection's template opts in via
+                     "Do you want to add Diagnostic Media?". --}}
+                @if ($inspection->type?->has_diagnostic_media)
                 <div class="card detail-card" id="extra-media-block">
                     <div class="card-header" role="button" onclick="document.getElementById('extra-media-body').classList.toggle('d-none'); this.querySelector('.extra-chev').classList.toggle('bx-chevron-down'); this.querySelector('.extra-chev').classList.toggle('bx-chevron-up');">
                         <span class="detail-ico"><i class="bx bx-images"></i></span>
@@ -1205,6 +1312,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 {{-- ===== Fixed bottom navigation ===== --}}
                 <div class="wiz-nav">
@@ -1274,6 +1382,7 @@
         media: root.dataset.mediaUrl,
         extraMedia: root.dataset.extraMediaUrl,
         vehicleImage: root.dataset.vehicleImageUrl,
+        damageDiagrams: root.dataset.damageDiagramsUrl,
         sectionMediaBase: root.dataset.sectionMediaBase,
         mediaDelete: root.dataset.mediaDeleteBase,
     };
@@ -1470,12 +1579,16 @@
             saving();
             const el = root.querySelector('textarea[name="section_summaries[' + sectionId + ']"]');
             const rt = root.querySelector('input[name="section_ratings[' + sectionId + ']"]');
+            const body = {
+                section_id: sectionId,
+                rating: rt && rt.value ? parseFloat(rt.value) : null,   // decimal, e.g. 4.6
+            };
+            // The note box is not on this screen any more. Leaving the key out
+            // tells the server to keep whatever note is already stored, rather
+            // than clearing it every time a star is clicked.
+            if (el) { body.summary = el.value; }
             try {
-                await post(urls.sectionSummary, {
-                    section_id: sectionId,
-                    summary: el ? el.value : null,
-                    rating: rt && rt.value ? parseFloat(rt.value) : null,   // decimal, e.g. 4.6
-                });
+                await post(urls.sectionSummary, body);
                 saved();
             } catch (e) { failed(); }
         },
@@ -1805,7 +1918,7 @@
     const VERDICT_FIELDS = {
         estimated_repair_cost: 'Est. repair cost',
         recommendation: 'Recommendation',
-        summary: 'Technician note',
+        summary: 'Inspector Comment',
     };
 
     function verdictFields() {
@@ -1977,6 +2090,262 @@
         box.addEventListener('blur', () => setSecRating(sectionId, box.value));
         // Initial paint — partial fills cannot be rendered from Blade.
         paintSecStars(sectionId, parseFloat(box.value) || 0);
+    });
+
+    // ---- Damage diagrams -------------------------------------------------
+    // One block per checklist section, so everything is scoped to its own
+    // container rather than looked up by a page-wide id. Click a diagram to drop
+    // a dot in the selected colour — the same gesture as the legacy
+    // /inspectionreport DAMAGES canvas. Dots are kept as data, not painted into
+    // the bitmap, which is what makes removing a single dot possible.
+    root.querySelectorAll('.damage-block').forEach(function (block) {
+        const canvases = Array.from(block.querySelectorAll('canvas[data-damage-view]'));
+        if (! canvases.length) { return; }
+
+        const q = function (sel) { return block.querySelector(sel); };
+        const marks = {};        // view -> [{x, y, c}] in the diagram's own pixels
+        const bases = {};        // view -> loaded base <img>
+        const chosen = {};       // view -> selected colour (palettes differ per diagram)
+        let erasing = false;
+
+        canvases.forEach(function (cv) {
+            try { marks[cv.dataset.damageView] = JSON.parse(cv.dataset.marks || '[]') || []; }
+            catch (_) { marks[cv.dataset.damageView] = []; }
+        });
+
+        // Each diagram has its own palette, so the armed colour is per view —
+        // switching to the chassis must not leave "Dent" selected.
+        const swatches = Array.from(block.querySelectorAll('.paint-key__item'));
+        swatches.forEach(function (btn) {
+            const v = btn.dataset.paintView;
+            if (! (v in chosen)) { chosen[v] = btn.dataset.paintColour; }   // first = default
+            btn.addEventListener('click', function () {
+                chosen[v] = btn.dataset.paintColour;
+                swatches.filter(function (b) { return b.dataset.paintView === v; })
+                    .forEach(function (b) {
+                        b.classList.toggle('is-active', b === btn);
+                        b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+                    });
+                setErasing(false);
+            });
+        });
+
+        const statusEl = q('[data-damage-status]');
+        function say(text, cls) {
+            if (statusEl) { statusEl.textContent = text; statusEl.className = 'font-size-12 ' + (cls || 'text-muted'); }
+        }
+
+        function load(src) {
+            return new Promise(function (resolve) {
+                const img = new Image();
+                // Same-origin today, but crossOrigin keeps toDataURL() from
+                // tainting the canvas if these ever move to a CDN.
+                img.crossOrigin = 'anonymous';
+                img.onload = function () { resolve(img); };
+                img.onerror = function () { resolve(null); };
+                img.src = src;
+            });
+        }
+
+        // Legacy draws r=5 on a 512px canvas; keep that visual weight on these
+        // wider diagrams instead of a dot too small to see.
+        function dotRadius(cv) { return Math.max(4, Math.round(cv.width * 0.01)); }
+
+        function render(cv) {
+            const img = bases[cv.dataset.damageView];
+            if (! img) { return; }
+            const ctx = cv.getContext('2d');
+            ctx.clearRect(0, 0, cv.width, cv.height);
+            ctx.drawImage(img, 0, 0);
+            const r = dotRadius(cv);
+            (marks[cv.dataset.damageView] || []).forEach(function (m) {
+                ctx.beginPath();
+                ctx.fillStyle = m.c;
+                ctx.arc(m.x, m.y, r, 0, Math.PI * 2);
+                ctx.fill();
+                // A ring, because a palette can include white (N/V on the chassis)
+                // which would otherwise vanish into the diagram.
+                ctx.lineWidth = Math.max(2, r * 0.3);
+                ctx.strokeStyle = 'rgba(28,36,48,.8)';
+                ctx.stroke();
+            });
+        }
+
+        // ---- one diagram at a time ----
+        const tabs = Array.from(block.querySelectorAll('[data-damage-tab]'));
+        let active = (tabs[0] && tabs[0].dataset.damageTab) || canvases[0].dataset.damageView;
+
+        function show(view) {
+            active = view;
+            tabs.forEach(function (t) {
+                const on = t.dataset.damageTab === view;
+                t.classList.toggle('btn-success', on);
+                t.classList.toggle('btn-outline-secondary', ! on);
+                t.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            block.querySelectorAll('[data-damage-slide]').forEach(function (sl) {
+                sl.hidden = sl.dataset.damageSlide !== view;
+            });
+            block.querySelectorAll('[data-damage-palette]').forEach(function (pk) {
+                pk.hidden = pk.dataset.damagePalette !== view;
+            });
+            applyZoom();
+        }
+        tabs.forEach(function (t) {
+            if (t.classList.contains('d-none')) { return; }
+            t.addEventListener('click', function () { show(t.dataset.damageTab); });
+        });
+
+        // ---- zoom ----
+        // Width is a percentage of the scroll frame, so 100% always fits the card
+        // and anything above it scrolls. Dot placement needs no adjustment: clicks
+        // are mapped through getBoundingClientRect, which already reflects zoom.
+        const ZOOM = [1, 1.5, 2, 3, 4];
+        let zoomIx = 0;
+        const zIn = q('[data-damage-zoom="in"]');
+        const zOut = q('[data-damage-zoom="out"]');
+        const zVal = q('[data-damage-zoomval]');
+
+        function applyZoom() {
+            const z = ZOOM[zoomIx];
+            canvases.forEach(function (cv) { cv.style.width = (z * 100) + '%'; });
+            if (zVal) { zVal.textContent = Math.round(z * 100) + '%'; }
+            if (zIn) { zIn.disabled = zoomIx >= ZOOM.length - 1; }
+            if (zOut) { zOut.disabled = zoomIx <= 0; }
+        }
+        function setZoom(next) {
+            const prev = ZOOM[zoomIx];
+            zoomIx = Math.max(0, Math.min(ZOOM.length - 1, next));
+            const stage = block.querySelector('[data-damage-slide="' + active + '"] .paint-stage');
+            // Keep whatever is in the middle of the frame in the middle after zooming,
+            // so zooming in doesn't jump the technician back to the top-left corner.
+            const midX = stage ? (stage.scrollLeft + stage.clientWidth / 2) / prev : 0;
+            const midY = stage ? (stage.scrollTop + stage.clientHeight / 2) / prev : 0;
+            applyZoom();
+            if (stage) {
+                const z = ZOOM[zoomIx];
+                stage.scrollLeft = midX * z - stage.clientWidth / 2;
+                stage.scrollTop = midY * z - stage.clientHeight / 2;
+            }
+        }
+        if (zIn) { zIn.addEventListener('click', function () { setZoom(zoomIx + 1); }); }
+        if (zOut) { zOut.addEventListener('click', function () { setZoom(zoomIx - 1); }); }
+        const zFit = q('[data-damage-zoom="fit"]');
+        if (zFit) { zFit.addEventListener('click', function () { setZoom(0); }); }
+        applyZoom();
+
+        // ---- canvases ----
+        canvases.forEach(function (cv) {
+            const view = cv.dataset.damageView;
+
+            load(cv.dataset.base).then(function (img) {
+                if (! img) { return; }
+                bases[view] = img;
+                cv.width = img.naturalWidth;
+                cv.height = img.naturalHeight;
+
+                // Diagrams saved before marks were kept have a PNG but no dot
+                // list. Show that flattened image so nothing is lost — its dots
+                // just cannot be erased individually until it is redrawn.
+                if (! marks[view].length && cv.dataset.src) {
+                    return load(cv.dataset.src).then(function (old) {
+                        cv.getContext('2d').drawImage(old || img, 0, 0, cv.width, cv.height);
+                        applyZoom();
+                    });
+                }
+                render(cv);
+                applyZoom();
+            });
+
+            cv.addEventListener('click', function (e) {
+                const rect = cv.getBoundingClientRect();
+                if (! rect.width || ! bases[view]) { return; }
+                // The canvas is laid out by CSS, so screen coordinates must be
+                // scaled back into canvas pixels — this also absorbs the zoom.
+                const scale = cv.width / rect.width;
+                const x = (e.clientX - rect.left) * scale;
+                const y = (e.clientY - rect.top) * scale;
+                const r = dotRadius(cv);
+
+                if (erasing) {
+                    const list = marks[view];
+                    // Search newest first so the dot drawn on top is the one that
+                    // goes, matching what the eye sees.
+                    let hit = -1;
+                    for (let i = list.length - 1; i >= 0; i--) {
+                        if (Math.hypot(list[i].x - x, list[i].y - y) <= r * 1.6) { hit = i; break; }
+                    }
+                    if (hit === -1) { say('No dot there — click one to remove it', 'text-muted'); return; }
+                    list.splice(hit, 1);
+                    render(cv);
+                    say('Dot removed — press Save', 'text-warning');
+                    return;
+                }
+
+                marks[view].push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, c: chosen[view] });
+                render(cv);
+                say('Unsaved marks — press Save', 'text-warning');
+            });
+        });
+
+        const eraseBtn = q('[data-damage-erase]');
+        function setErasing(on) {
+            erasing = on;
+            if (eraseBtn) {
+                eraseBtn.classList.toggle('btn-danger', on);
+                eraseBtn.classList.toggle('btn-outline-danger', ! on);
+                eraseBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            block.querySelectorAll('.paint-stage').forEach(function (st) { st.classList.toggle('is-erasing', on); });
+        }
+        if (eraseBtn) { eraseBtn.addEventListener('click', function () { setErasing(! erasing); }); }
+
+        const clearBtn = q('[data-damage-clear]');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                const cv = block.querySelector('canvas[data-damage-view="' + active + '"]');
+                if (cv) {
+                    marks[active] = [];
+                    cv.dataset.src = '';     // don't fall back to the old flattened PNG
+                    render(cv);
+                    applyZoom();
+                    say('All marks cleared on this diagram — press Save to store it', 'text-warning');
+                }
+            });
+        }
+
+        const saveBtn = q('[data-damage-save]');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async function () {
+                saveBtn.disabled = true;
+                say('Saving…', 'text-warning');
+                saving();
+                try {
+                    // Only this section's diagrams: the endpoint leaves views it was
+                    // not sent alone, so other sections keep their mark-ups.
+                    const images = {};
+                    const payloadMarks = {};
+                    canvases.forEach(function (cv) {
+                        images[cv.dataset.damageView] = cv.toDataURL('image/png');
+                        payloadMarks[cv.dataset.damageView] = marks[cv.dataset.damageView] || [];
+                    });
+                    const res = await post(urls.damageDiagrams, { images: images, marks: payloadMarks });
+                    // Point each canvas at what the server now holds, so a later
+                    // "Clear all" then Save cannot resurrect a stale drawing.
+                    canvases.forEach(function (cv) {
+                        const u = res.urls && res.urls[cv.dataset.damageView];
+                        if (u) { cv.dataset.src = u; }
+                    });
+                    say('✓ Damage diagrams saved', 'text-success');
+                    saved();
+                } catch (e) {
+                    say('⚠ ' + e.message, 'text-danger');
+                    failed();
+                } finally {
+                    saveBtn.disabled = false;
+                }
+            });
+        }
     });
 
     // ---- Overall Rating (stars + badges + %, supports partial fills) -----

@@ -23,7 +23,10 @@
         <div class="row">
             <div class="col-12 d-flex justify-content-between align-items-center mb-3">
                 <p class="text-muted mb-0">Each inspection <strong>type</strong> defines its own sequence of sections and steps (questions). Templates are shared across all branches.</p>
-                <a href="{{ route('templates.create') }}" class="btn btn-primary"><i class="bx bx-plus"></i> New Type</a>
+                <div>
+                    <a href="{{ route('damage-setup.index') }}" class="btn btn-light"><i class="bx bx-palette"></i> Damage Setup</a>
+                    <a href="{{ route('templates.create') }}" class="btn btn-primary"><i class="bx bx-plus"></i> New Type</a>
+                </div>
             </div>
         </div>
 

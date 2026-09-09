@@ -24,6 +24,20 @@
                 </div>
             </div>
         </div>
+
+        {{-- Diagnostic Media is a step-less bucket of extra photos / videos / PDFs.
+             Templates that don't need it hide the whole block on the inspection. --}}
+        <div class="form-group mb-0 border-top pt-3">
+            <label class="form-label d-block mb-2">Do you want to add Diagnostic Media?</label>
+            <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="has_diagnostic_media" name="has_diagnostic_media" value="1"
+                       @checked(old('has_diagnostic_media', $type->has_diagnostic_media ?? true))>
+                <label class="custom-control-label" for="has_diagnostic_media">Yes — show the Diagnostic Media section in the inspection</label>
+            </div>
+            <small class="text-muted d-block mt-1">
+                Lets the technician attach extra photos, videos and PDF documents that aren't tied to any step.
+            </small>
+        </div>
     </div>
 </div>
 

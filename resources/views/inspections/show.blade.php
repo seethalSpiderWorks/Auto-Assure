@@ -92,8 +92,12 @@
     // Additional (step-less AND section-less) media bucket. Must exclude section
     // buckets, which also have a null step id — otherwise a section's photos leak
     // into "Additional media".
-    $extraDetail = $inspection->details
-        ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
+    // Templates that opted out of Diagnostic Media hide the bucket entirely, so
+    // anything captured before the switch was turned off stays out of the view.
+    $extraDetail = $inspection->type?->has_diagnostic_media
+        ? $inspection->details
+            ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id))
+        : null;
     $extraMedia = $extraDetail ? $extraDetail->media : collect();
     foreach ($extraMedia as $gm) {
         // Documents (PDFs) open in a new tab, never in the image/video lightbox.

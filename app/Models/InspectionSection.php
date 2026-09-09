@@ -19,4 +19,14 @@ class InspectionSection extends Model
     {
         return $this->hasMany(InspectionStep::class)->orderBy('sequence');
     }
+
+    /**
+     * Damage diagrams marked up inside this section's step. Ordered the same way
+     * they are listed in Damage Setup.
+     */
+    public function damageDiagrams(): HasMany
+    {
+        return $this->hasMany(DamageDiagram::class, 'inspection_section_id')
+            ->orderBy('sequence')->orderBy('id');
+    }
 }
