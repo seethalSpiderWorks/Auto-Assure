@@ -819,15 +819,6 @@
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-3 mb-3">
-                                            <label class="form-label">Steering Side</label>
-                                            <select name="steering_side" class="form-control form-select">
-                                                <option value="">Select</option>
-                                                @foreach ($lookups['steering_side'] as $opt)
-                                                    <option value="{{ $opt }}" @selected(old('steering_side', $inspection->steering_side) === $opt)>{{ $opt }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
                                     </div>
 
                                     <p class="detail-group-title mt-2">Warranty / Services</p>
@@ -1179,8 +1170,7 @@
                                             </div>
                                         </div>
 
-                                        {{-- Est. repair cost + Recommendation side by side --}}
-                                        <div class="col-md-6 mb-3"><label class="form-label">Est. repair cost <span class="text-danger">*</span></label><div class="input-group"><select name="currency" class="form-control form-select" style="flex:0 0 auto;width:auto;border-radius:10px 0 0 10px;border:1px solid #e4e8ee;border-right:0;background:#f7f9fc;color:#475467;font-weight:600;font-size:.92rem;padding:.58rem .5rem;min-width:72px;">@foreach(['AED','SAR','USD','EUR','GBP','OMR','BHD','QAR','KWD'] as $c)<option value="{{ $c }}" @selected(old('currency', $inspection->currency ?? 'AED') === $c)>{{ $c }}</option>@endforeach</select><input name="estimated_repair_cost" type="text" inputmode="decimal" required class="form-control" style="border-radius:0 10px 10px 0;" value="{{ old('estimated_repair_cost', $inspection->estimated_repair_cost) }}"></div></div>
+                                        {{-- Recommendation --}}
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">Recommendation <span class="text-danger">*</span></label>
                                             <select name="recommendation" data-wreq required class="form-control form-select">
@@ -1913,10 +1903,8 @@
 
     // Every field of the Overall Verdict block. Declared once so the Complete
     // gate, the bead colour and the save warning can never disagree about what
-    // counts as filled in. A cost of 0 is a real answer — only an empty box is
-    // treated as missing.
+    // counts as filled in.
     const VERDICT_FIELDS = {
-        estimated_repair_cost: 'Est. repair cost',
         recommendation: 'Recommendation',
         summary: 'Inspector Comment',
     };

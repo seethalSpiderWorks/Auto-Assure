@@ -183,7 +183,6 @@ class InspectionSummaryResource extends JsonResource
                 'fuel_type'            => $this->fuel_type,
                 'gearbox'              => $this->gearbox,
                 'cylinders'            => $this->cylinders,
-                'steering_side'        => $this->steering_side,
                 'number_of_keys'       => $this->number_of_keys,
                 'odometer'             => $this->odometer,
                 'with_service_history' => $this->with_service_history,

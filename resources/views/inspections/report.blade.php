@@ -166,6 +166,14 @@
         ['Last Service Date', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
     ];
 
+    // Quick / Fleet templates print the basic report the client specified:
+    // cover + Vehicle Summary, Inspection Summary, Vehicle Photos and Paint
+    // Inspection Images. The checklist, diagnostic media, EV & PHEV, technical
+    // measurements and signature pages are left out. Every other template is
+    // unaffected.
+    $basicReport = (bool) $inspection->type?->isBasicReport();
+    $reportKind  = $inspection->type?->reportKind() ?: 'Comprehensive';
+
     $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
 @endphp
@@ -439,7 +447,7 @@
         <div class="cover">
             <div class="top">
                 <span class="logo-chip"><img src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure"></span>
-                <h1><span class="g">Comprehensive</span><br>Inspection Report</h1>
+                <h1><span class="g">{{ $reportKind }}</span><br>Inspection Report</h1>
                 <div class="site">Inspection Checklist for Used Imported Vehicle</div>
 
 
@@ -631,7 +639,7 @@
                 <tr><td>
                     <div class="page-header">
                         <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                        <span class="doc-tag">Comprehensive Inspection Report</span>
+                        <span class="doc-tag">{{ $reportKind }} Inspection Report</span>
                     </div>
                 </td></tr>
             </thead>
@@ -675,7 +683,7 @@
         @endphp
         @if (!empty($areaNotes))
         <div class="page">
-            <div class="sec-bar"><span class="en">Summary Notes by Area</span></div>
+            <div class="sec-bar"><span class="en">{{ $basicReport ? 'Inspection Summary' : 'Summary Notes by Area' }}</span></div>
 
             <div class="grid2">
                 @foreach ($areaNotes as $an)
@@ -691,7 +699,8 @@
         </div>
         @endif
 
-        {{-- ============================== DIAGNOSTIC MEDIA ============================== --}}
+        @unless ($basicReport)   {{-- left out of the basic (Quick / Fleet) report --}}
+{{-- ============================== DIAGNOSTIC MEDIA ============================== --}}
         {{-- PDFs uploaded to Diagnostic Media on the edit screen. They sit ahead of
              General Photos and are shown as links — a PDF cannot be drawn into the
              printed page, so the reader opens it from the URL. --}}
@@ -712,13 +721,14 @@
             </div>
         </div>
         @endif
+@endunless
 
-        {{-- ============================== GENERAL PHOTOS ============================== --}}
+{{-- ============================== GENERAL PHOTOS ============================== --}}
         {{-- Moved to the front (right after Summary Notes by Area) at the client's
              request, so the photo gallery leads the report rather than trailing it. --}}
         @if (! empty($reportPhotos))
         <div class="page">
-            <div class="sec-bar"><span class="en">General Photos</span></div>
+            <div class="sec-bar"><span class="en">{{ $basicReport ? 'Vehicle Photos' : 'General Photos' }}</span></div>
             <div class="card photos">
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
@@ -757,7 +767,8 @@
 
         </div>
 
-        {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
+        @unless ($basicReport)   {{-- EV & PHEV, technical measurements — left out of the basic report --}}
+{{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
         @if ($hasEv)
         <div class="page">
             <div class="sec-bar"><span class="en">EV &amp; PHEV</span></div>
@@ -834,8 +845,10 @@
             </div>
         </div>
         @endif
+@endunless
 
-        {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
+@unless ($basicReport)   {{-- the checklist pages — left out of the basic report --}}
+{{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
         <div class="page">
             @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
@@ -863,6 +876,7 @@
                 @endif
 
                 @php
+                    // Read only for the rating — the section's summary text is not printed.
                     $secMeta = ($sectionSummaries ?? collect())->get($section->id);
                     // Only the rating the technician actually recorded on the edit
                     // screen. Deliberately NOT Inspection::sectionRating(), which
@@ -878,9 +892,10 @@
                         <span style="white-space:nowrap;">@for($i = 1; $i <= 5; $i++)@php $fill = max(0, min(1, $secRating - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span class="star" style="{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:rgba(255,255,255,.3);' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,rgba(255,255,255,.3) '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor <span style="color:#cfd4dc;">{{ $secRatingLbl }}/5</span></span>
                     @endif
                 </div>
-                @if (optional($secMeta)->summary)
-                    <div style="background:var(--card);border-radius:10px;padding:12px 18px;box-shadow:0 6px 18px rgba(24,33,54,.06);margin:-8px 0 16px 0;white-space:pre-line;color:#3b4655;line-height:1.6;font-size:12.5px;">{{ $secMeta->summary }}</div>
-                @endif
+                {{-- The per-section summary note is deliberately not printed: the
+                     report already carries the per-area notes, and repeating a
+                     line under every section heading added nothing. The recorded
+                     rating above still comes from the same row. --}}
                 @php $secBanner = $bannerUrl($section->section_name); @endphp
                 @if ($secBanner)<img class="sec-banner" src="{{ $secBanner }}" alt="">@endif
 
@@ -911,8 +926,9 @@
                 </div>
             @endforeach
         </div>
+@endunless
 
-        {{-- ============================== DAMAGE POINTS ============================== --}}
+{{-- ============================== DAMAGE POINTS ============================== --}}
         {{-- The marked-up body diagrams from the inspection screen, printed after the
              detailed checklist. The colour key travels with them — the dots mean
              nothing to a reader without it. Nothing renders unless a diagram has
@@ -949,7 +965,7 @@
         @endphp
         @if (! empty($damageDiagrams))
         <div class="page">
-            <div class="sec-bar"><span class="en">Damage Points</span></div>
+            <div class="sec-bar"><span class="en">{{ $basicReport ? 'Paint Inspection Images' : 'Damage Points' }}</span></div>
             <div class="card">
                 @foreach ($damageDiagrams as $d)
                     <div style="margin-bottom:{{ $loop->last ? '0' : '18px' }};break-inside:avoid;">
@@ -980,7 +996,8 @@
              right after the cover). Its markup + $areaNotes/$areaSvg computation now
              live at the top of the body table. --}}
 
-        {{-- ============================== SIGNATURES ============================== --}}
+        @unless ($basicReport)   {{-- left out of the basic report --}}
+{{-- ============================== SIGNATURES ============================== --}}
         {{-- Inspector Comment now lives on the cover only (client request); the
              signatures and terms are short and share the same closing sheet. --}}
         <div class="page">
@@ -1000,8 +1017,9 @@
                 </div>
             </div>
         </div>
+@endunless
 
-        {{-- ============================== TERMS & CONDITIONS ============================== --}}
+{{-- ============================== TERMS & CONDITIONS ============================== --}}
         <div class="page">
             <div class="sec-bar"><span class="en">Terms &amp; Conditions</span></div>
             <div class="card terms">

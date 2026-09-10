@@ -977,8 +977,8 @@ class InspectionController extends Controller
             'overall_condition' => $validated['overall_condition'] ?? null,
             'overall_rating' => $validated['overall_rating'] ?? null,
             'recommendation' => $validated['recommendation'] ?? null,
-            'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? null,
-            'currency' => $validated['currency'] ?? null,
+            'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? $inspection->estimated_repair_cost,
+            'currency' => $validated['currency'] ?? $inspection->currency,
             'summary' => $validated['summary'] ?? null,
             'date_of_inspection' => $validated['date_of_inspection'] ?? null,
             'scheduled_at' => $validated['scheduled_at'] ?? $inspection->scheduled_at,
@@ -1146,10 +1146,7 @@ class InspectionController extends Controller
 
             // The Overall Verdict block drives the report headline and cannot be
             // derived from the answers, so it has to be filled in by hand.
-            // A cost of 0 is a real answer (nothing to repair); only a null/empty
-            // box counts as missing, which is exactly what blank() tests.
             $verdictMissing = [];
-            if (blank($inspection->estimated_repair_cost)) { $verdictMissing[] = 'Est. repair cost'; }
             if (blank($inspection->recommendation))        { $verdictMissing[] = 'Recommendation'; }
             if (blank($inspection->summary))               { $verdictMissing[] = 'Inspector Comment'; }
 

@@ -243,7 +243,7 @@
         </div>
 
         {{-- ===== Verdict ===== --}}
-        @if($condition || $recommend || $inspection->estimated_repair_cost || $inspection->summary)
+        @if($condition || $recommend || $inspection->summary)
             <div class="idet-card mt-3">
                 <div class="idet-card__title"><i class="bx bx-clipboard"></i> Overall Verdict</div>
                 <div class="idet-facts idet-facts--verdict">
@@ -261,7 +261,6 @@
                         </span>
                     </div>
                     <div class="idet-fact"><span class="idet-fact__k">Recommendation</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
-                    <div class="idet-fact"><span class="idet-fact__k">Est. Repair Cost</span><span class="idet-fact__v">{{ $inspection->estimated_repair_cost ? ($inspection->currency ?? 'AED').' '.$inspection->estimated_repair_cost : '—' }}</span></div>
                 </div>
                 @if($inspection->summary)
                     <p class="idet-summary">{{ $inspection->summary }}</p>

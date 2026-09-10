@@ -59,7 +59,6 @@ class InspectionHistoryResource extends JsonResource
             'fuel_type'            => $this->fuel_type,
             'gearbox'              => $this->gearbox,
             'cylinders'            => $this->cylinders,
-            'steering_side'        => $this->steering_side,
             'body_type'            => $this->body_type,
             'number_of_keys'       => $this->number_of_keys,
             'with_service_history' => $this->with_service_history,
