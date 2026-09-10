@@ -103,6 +103,61 @@ class InspectionResource extends JsonResource
                 }
             ),
 
+            // Damage diagrams for this inspection's template — the blank body view,
+            // the marked-up PNG saved for it, the dots behind that PNG and the
+            // palette they were drawn from. Only present when the section's
+            // diagrams are loaded, so the endpoints that do not load them keep
+            // the payload they had. Mirrors the web edit screen: active diagrams
+            // whose image is on disk and whose palette is not empty.
+            'damage_diagrams' => $this->when(
+                $this->relationLoaded('type') && $this->type
+                    && $this->type->relationLoaded('sections')
+                    && $this->type->sections->every(fn ($s) => $s->relationLoaded('damageDiagrams')),
+                function () {
+                    return $this->type->sections
+                        ->flatMap(fn ($section) => $section->damageDiagrams
+                            ->filter(fn ($d) => $d->is_active && $d->imageExists())
+                            ->map(function ($d) use ($section) {
+                                $palette = $d->palette();
+
+                                if ($palette->isEmpty()) {
+                                    return null;
+                                }
+
+                                return [
+                                    'id'           => $d->id,
+                                    'key'          => $d->key,
+                                    'name'         => $d->name,
+                                    'sequence'     => $d->sequence,
+                                    'section_id'   => $section->id,
+                                    'section_name' => $section->section_name,
+
+                                    // The blank diagram to draw on.
+                                    'image_url' => $d->imageUrl(),
+                                    // The flattened mark-up saved for this inspection,
+                                    // null when this view has never been marked.
+                                    'marked_image_url' => $this->damageDiagramUrl($d->key),
+
+                                    // The dots themselves, in the diagram's own pixel
+                                    // space — {x, y, c} where c is one of the palette
+                                    // colours below. Redraw from image_url + marks to
+                                    // keep single dots erasable.
+                                    'marks' => $this->damageMarks($d->key),
+
+                                    'colours' => $palette->map(fn ($c) => [
+                                        'id'          => $c->id,
+                                        'label'       => $c->label,
+                                        'colour'      => $c->colour,
+                                        'description' => $c->description,
+                                        'sequence'    => $c->sequence,
+                                    ])->values(),
+                                ];
+                            }))
+                        ->filter()
+                        ->values();
+                }
+            ),
+
             // Per-area summary notes (Exterior, Engine, Brakes, …) from tbl_summary_type.
             'summaries' => $this->whenLoaded('summaries', function () {
                 $types = \App\Models\InspectionSummary::types();

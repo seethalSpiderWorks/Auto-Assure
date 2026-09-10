@@ -114,7 +114,10 @@ class InspectionController extends Controller
     public function show(Request $request, Inspection $inspection): InspectionResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries', 'cancelledBy']);
+        // type.sections.damageDiagrams feeds the damage_diagrams block — the body
+        // views this template marks damage on, with their palette and this
+        // inspection's saved dots.
+        $inspection->load(['lead', 'type.sections.steps', 'type.sections.damageDiagrams', 'details.media', 'sectionSummaries', 'summaries', 'cancelledBy']);
 
         return new InspectionResource($inspection);
     }
