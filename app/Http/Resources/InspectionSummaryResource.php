@@ -106,12 +106,18 @@ class InspectionSummaryResource extends JsonResource
         $savedSummaries = $this->relationLoaded('summaries')
             ? $this->summaries->pluck('summary', 'summary_type_id')
             : collect();
+        $savedSummariesAr = $this->relationLoaded('summaries')
+            ? $this->summaries->pluck('summary_ar', 'summary_type_id')
+            : collect();
+        $typesAr = InspectionSummary::typesAr();
 
         // All active summary types with their saved notes, in lookup order.
         $summaryAreas = collect(InspectionSummary::types())->map(fn ($name, $id) => [
-            'id'      => $id,
-            'name'    => $name,
-            'summary' => $savedSummaries->get($id),
+            'id'         => $id,
+            'name'       => $name,
+            'name_ar'    => $typesAr[$id] ?? null,
+            'summary'    => $savedSummaries->get($id),
+            'summary_ar' => $savedSummariesAr->get($id),
         ])->values();
 
         // The OTHER summary: the note + star the technician records against each
@@ -134,6 +140,47 @@ class InspectionSummaryResource extends JsonResource
                 'summary'      => $meta?->summary,
             ];
         })->values();
+
+        // Damage diagrams — the same block GET /inspections/{inspection} returns,
+        // so the app parses one shape either way: the blank body view, the
+        // mark-up saved for this inspection, the dots behind it and the palette
+        // they were drawn from. Empty when the template carries no diagram.
+        $damageDiagrams = collect($this->type?->sections ?? [])
+            ->filter(fn ($section) => $section->relationLoaded('damageDiagrams'))
+            ->flatMap(fn ($section) => $section->damageDiagrams
+                ->filter(fn ($d) => $d->is_active && $d->imageExists())
+                ->map(function ($d) use ($section) {
+                    $palette = $d->palette();
+
+                    if ($palette->isEmpty()) {
+                        return null;
+                    }
+
+                    return [
+                        'id'               => $d->id,
+                        'key'              => $d->key,
+                        'name'             => $d->name,
+                        'sequence'         => $d->sequence,
+                        'section_id'       => $section->id,
+                        'section_name'     => $section->section_name,
+                        'image_url'        => $d->imageUrl(),
+                        // This section is not finished until the canvas is saved:
+                        // `is_saved` false means the technician has not marked it yet.
+                        'is_required' => true,
+                        'is_saved' => filled($this->damageImagePath($d->key)),
+                        'marked_image_url' => $this->damageDiagramUrl($d->key),
+                        'marks'            => $this->damageMarks($d->key),
+                        'colours'          => $palette->map(fn ($c) => [
+                            'id'          => $c->id,
+                            'label'       => $c->label,
+                            'colour'      => $c->colour,
+                            'description' => $c->description,
+                            'sequence'    => $c->sequence,
+                        ])->values(),
+                    ];
+                }))
+            ->filter()
+            ->values();
 
         $progressTotal    = (int) $sections->sum('total');
         $progressAnswered = (int) $sections->sum('answered');
@@ -208,6 +255,7 @@ class InspectionSummaryResource extends JsonResource
                 'estimated_repair_cost'   => $this->estimated_repair_cost,
                 'currency'                => $this->currency ?? 'AED',
                 'summary'                 => $this->summary,
+                'summary_ar'              => $this->summary_ar,
             ],
 
             'progress' => [
@@ -224,6 +272,9 @@ class InspectionSummaryResource extends JsonResource
             // Per-section note + recorded star from inspection_section_summaries —
             // the section-wise summary the report prints under each section header.
             'section_summaries' => $sectionSummaries,
+
+            // The marked-up damage canvases for this inspection.
+            'damage_diagrams' => $damageDiagrams,
 
             // Additional media not tied to any step or section (the "extra"
             // bucket — a detail row with both ids null).

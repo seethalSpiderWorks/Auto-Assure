@@ -6,6 +6,7 @@ use App\Models\InspectionSection;
 use App\Models\InspectionStep;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use App\Support\BilingualText;
 use Illuminate\Http\Request;
 
 class InspectionStepController extends Controller
@@ -77,6 +78,10 @@ class InspectionStepController extends Controller
             'photos' => ['nullable', 'in:not_required,optional,mandatory'],
             'videos' => ['nullable', 'in:not_required,optional,mandatory'],
         ]);
+
+        // "Good quality[ar]نوعية جيدة" in the English box fills the Arabic one —
+        // the shorthand the legacy report form documents for its comments.
+        $validated = BilingualText::applyAll($validated, ['question', 'description']);
 
         // Multiple choice is the only answer input a question offers, so it is
         // always on and rating / text answer are always off. The builder no

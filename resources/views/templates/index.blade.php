@@ -43,6 +43,9 @@
                                     {{ $type->is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </div>
+                            @if ($type->name_ar)
+                                <div class="text-muted font-size-13 mb-1" dir="rtl">{{ $type->name_ar }}</div>
+                            @endif
                             @if ($type->description)
                                 <p class="text-muted mb-3">{{ \Illuminate\Support\Str::limit($type->description, 90) }}</p>
                             @endif

@@ -58,6 +58,12 @@ Route::get('report/inspection/{token}', [InspectionController::class, 'report'])
     ->where('token', '[A-Za-z0-9]{10}')
     ->name('inspections.report');
 
+// The Arabic edition of the same report, on the same token — the second link the
+// legacy view-report screen prints beside the English one.
+Route::get('report/inspection-ar/{token}', [InspectionController::class, 'reportArabic'])
+    ->where('token', '[A-Za-z0-9]{10}')
+    ->name('inspections.report.ar');
+
 Route::group(['middleware' => 'auth'], function () {
     Route::get('inspections', [InspectionController::class, 'index'])->name('inspections.index');
     Route::get('inspections/{inspection}/edit', [InspectionController::class, 'edit'])->name('inspections.edit');

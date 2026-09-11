@@ -166,13 +166,64 @@
         ['Last Service Date', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
     ];
 
+    // Arabic edition (…/report/inspection-ar/{token}) — the second link the legacy
+    // view-report screen prints beside the English one. Same record, same layout,
+    // read right-to-left with the _ar text a template carries; anything not
+    // translated falls back to English rather than printing a blank.
+    $lang = ($lang ?? 'en') === 'ar' ? 'ar' : 'en';
+    $isAr = $lang === 'ar';
+    $pick = fn ($en, $ar) => $isAr && filled($ar) ? $ar : $en;
+
+    // Fixed headings. Arabic taken from the bilingual preview this report grew
+    // out of and from tbl_summary_type, so the wording matches what Auto Assure
+    // already publishes.
+    $L = function (string $key) use ($isAr) {
+        $ar = [
+            'Inspection Report' => 'تقرير الفحص',
+            'Inspection Checklist for Used Imported Vehicle' => 'قائمة فحص المركبات المستعملة المستوردة',
+            'Inspector Comment' => 'ملاحظات الفاحص',
+            'Summary Notes by Area' => 'ملخص الفحص حسب القسم',
+            'Inspection Summary' => 'ملخص الفحص',
+            'Diagnostic Media' => 'تقارير الفحص بالكمبيوتر',
+            'General Photos' => 'صور عامة',
+            'Vehicle Photos' => 'صور المركبة',
+            'Vehicle Summary' => 'بيانات المركبة',
+            'Damage Points' => 'مواضع الأضرار',
+            'Paint Inspection Images' => 'صور فحص الطلاء',
+            'Signatures' => 'التواقيع',
+            'Terms & Conditions' => 'الشروط والأحكام',
+            'Overall Verdict' => 'الحكم العام',
+            'Overall Rating' => 'التقييم العام',
+            'Recommendation' => 'التوصية',
+            // Condition bands — the rating badge, the gauge fallback and the legend.
+            'Excellent' => 'ممتاز',
+            'Very Good' => 'جيد جداً',
+            'Good' => 'جيد',
+            'Fair' => 'مقبول',
+            'Poor' => 'ضعيف',
+        ][$key] ?? null;
+
+        return $isAr && $ar ? $ar : $key;
+    };
+
+    // Verdict values follow the stored codes, so the Arabic report prints the
+    // technician's actual choice rather than a fixed phrase.
+    if ($isAr) {
+        $recommend   = Inspection::RECOMMENDATIONS_AR[$inspection->recommendation] ?? $recommend;
+        $overallCond = Inspection::CONDITIONS_AR[$inspection->overall_condition] ?? $overallCond;
+    }
+
     // Quick / Fleet templates print the basic report the client specified:
     // cover + Vehicle Summary, Inspection Summary, Vehicle Photos and Paint
     // Inspection Images. The checklist, diagnostic media, EV & PHEV, technical
     // measurements and signature pages are left out. Every other template is
     // unaffected.
     $basicReport = (bool) $inspection->type?->isBasicReport();
-    $reportKind  = $inspection->type?->reportKind() ?: 'Comprehensive';
+    // On the Arabic edition the cover carries the template's own Arabic name
+    // (الفحص المتميز), falling back to the English kind when none is set.
+    $reportKind  = $isAr
+        ? ($inspection->type?->name_ar ?: ($inspection->type?->reportKind() ?: 'Comprehensive'))
+        : ($inspection->type?->reportKind() ?: 'Comprehensive');
 
     $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
@@ -439,7 +490,7 @@
         }
     </style>
 </head>
-<body>
+<body @if($isAr) dir="rtl" lang="ar" @endif>
     <div class="toolbar"><button class="btn" onclick="window.print()">🖨 Print / Save PDF</button></div>
     <div class="sheet">
 
@@ -447,8 +498,8 @@
         <div class="cover">
             <div class="top">
                 <span class="logo-chip"><img src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure"></span>
-                <h1><span class="g">{{ $reportKind }}</span><br>Inspection Report</h1>
-                <div class="site">Inspection Checklist for Used Imported Vehicle</div>
+                <h1><span class="g">{{ $reportKind }}</span><br>{{ $L('Inspection Report') }}</h1>
+                <div class="site">{{ $L('Inspection Checklist for Used Imported Vehicle') }}</div>
 
 
 
@@ -517,18 +568,18 @@
                         {{ $scoreLbl }}<span style="font-size:18px; font-weight:700; color:#8ea3b5;"> / 100</span>
                     </div>
                     <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $condColor }}; background:{{ $condColor }}22; border:1px solid {{ $condColor }};">
-                        {{ $condition }}
+                        {{ $L($condition) }}
                     </div>
                 </div>
 
                 <div class="cover-cond-legend">
-                    <span><i style="background:#e0483d"></i>Poor</span>
-                    <span><i style="background:#efb008"></i>Fair</span>
-                    <span><i style="background:#f2903f"></i>Good</span>
-                    <span><i style="background:#5ab84d"></i>Very Good</span>
-                    <span><i style="background:#2fa84f"></i>Excellent</span>
+                    <span><i style="background:#e0483d"></i>{{ $L('Poor') }}</span>
+                    <span><i style="background:#efb008"></i>{{ $L('Fair') }}</span>
+                    <span><i style="background:#f2903f"></i>{{ $L('Good') }}</span>
+                    <span><i style="background:#5ab84d"></i>{{ $L('Very Good') }}</span>
+                    <span><i style="background:#2fa84f"></i>{{ $L('Excellent') }}</span>
                 </div>
-                <div class="cover-rating-title">Overall Verdict</div>
+                <div class="cover-rating-title">{{ $L('Overall Verdict') }}</div>
 
                
 
@@ -537,7 +588,7 @@
                 <div class="card tight" style=" width :350px;">
                     <div class="facts">
                         <div class="fact" style="display:flex;flex-direction:column;align-items:center;">
-                            <div class="fl">Overall Rating</div>
+                            <div class="fl">{{ $L('Overall Rating') }}</div>
                             <div class="fv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
                                 @if($overallRatingVal > 0)
                                     @for($i = 1; $i <= 5; $i++)
@@ -546,11 +597,11 @@
                                     @endfor
                                     <span style="font-size:12px;font-weight:700;color:#1c2430;">{{ number_format($overallRatingVal, 1) }}/5</span>
                                 @else
-                                    {{ $overallCond ?? $condition }}
+                                    {{ $overallCond ?? $L($condition) }}
                                 @endif
                             </div>
                         </div>
-                        <div class="fact"><div class="fl">Recommendation</div><div class="fv">{{ $recommend }}</div></div>
+                        <div class="fact"><div class="fl">{{ $L('Recommendation') }}</div><div class="fv">{{ $recommend }}</div></div>
                     </div>
                 </div>
 
@@ -607,8 +658,8 @@
             <div style="width:100%; text-align:left;">
                 
                 <div class="card" style="text-align:left;">
-                    <div class="sec-bar"><span class="en">Inspector Comment</span></div>
-                    @php $summary = $val($inspection->summary) === 'N/A' ? null : $inspection->summary; @endphp
+                    <div class="sec-bar"><span class="en">{{ $L('Inspector Comment') }}</span></div>
+                    @php $summary = $val($inspection->summary) === 'N/A' ? null : $pick($inspection->summary, $inspection->summary_ar); @endphp
                     @if ($summary)
                         <div style="white-space:pre-line;font-weight:600;color:#2b3340;line-height:1.7">{{ $summary }}</div>
                     @else
@@ -639,7 +690,7 @@
                 <tr><td>
                     <div class="page-header">
                         <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                        <span class="doc-tag">{{ $reportKind }} Inspection Report</span>
+                        <span class="doc-tag">{{ $reportKind }} {{ $L('Inspection Report') }}</span>
                     </div>
                 </td></tr>
             </thead>
@@ -683,7 +734,7 @@
         @endphp
         @if (!empty($areaNotes))
         <div class="page">
-            <div class="sec-bar"><span class="en">{{ $basicReport ? 'Inspection Summary' : 'Summary Notes by Area' }}</span></div>
+            <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Inspection Summary' : 'Summary Notes by Area') }}</span></div>
 
             <div class="grid2">
                 @foreach ($areaNotes as $an)
@@ -706,7 +757,7 @@
              printed page, so the reader opens it from the URL. --}}
         @if ($diagnosticDocs->isNotEmpty())
         <div class="page">
-            <div class="sec-bar"><span class="en">Diagnostic Media</span></div>
+            <div class="sec-bar"><span class="en">{{ $L('Diagnostic Media') }}</span></div>
             <div class="card doc-grid">
                 @foreach ($diagnosticDocs as $doc)
                     <div class="doc-row">
@@ -728,7 +779,7 @@
              request, so the photo gallery leads the report rather than trailing it. --}}
         @if (! empty($reportPhotos))
         <div class="page">
-            <div class="sec-bar"><span class="en">{{ $basicReport ? 'Vehicle Photos' : 'General Photos' }}</span></div>
+            <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Vehicle Photos' : 'General Photos') }}</span></div>
             <div class="card photos">
                 <div class="gal">
                     @foreach ($reportPhotos as $p)
@@ -747,7 +798,7 @@
         {{-- ============================== VEHICLE SUMMARY ============================== --}}
         <div class="page">
             {{-- Vehicle summary --}}
-            <div class="sec-bar"><span class="en">Vehicle Summary</span></div>
+            <div class="sec-bar"><span class="en">{{ $L('Vehicle Summary') }}</span></div>
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
             @php $specCols = array_chunk($specs, (int) ceil(count($specs) / 2)); @endphp
             <div class="grid2">
@@ -854,13 +905,13 @@
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
                 @php
-                    [$sNum, $sTitle] = $splitNum($section->section_name);
+                    [$sNum, $sTitle] = $splitNum($pick($section->section_name, $section->section_name_ar));
                     $steps = $section->steps;
                 @endphp
 
                 @if ($section->group_name && $section->group_name !== $lastGroup)
                     @php
-                        [$gNum, $gTitle] = $splitNum($section->group_name); $lastGroup = $section->group_name;
+                        [$gNum, $gTitle] = $splitNum($pick($section->group_name, $section->group_name_ar)); $lastGroup = $section->group_name;
                         $gBanner = in_array($section->group_name, $shownGroupBanners, true) ? null : $bannerUrl($section->group_name);
                     @endphp
                     @if ($gBanner)
@@ -916,7 +967,7 @@
                         <div class="item-card">
                             <div class="item-head">
                                 {!! $badge($state) !!}
-                                <span class="item-title">{{ $step->question }}</span>
+                                <span class="item-title">{{ $pick($step->question, $step->question_ar) }}</span>
                             </div>
                             @if ($note)
                                 <div class="item-note">{{ $note }}</div>
@@ -965,7 +1016,7 @@
         @endphp
         @if (! empty($damageDiagrams))
         <div class="page">
-            <div class="sec-bar"><span class="en">{{ $basicReport ? 'Paint Inspection Images' : 'Damage Points' }}</span></div>
+            <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Paint Inspection Images' : 'Damage Points') }}</span></div>
             <div class="card">
                 @foreach ($damageDiagrams as $d)
                     <div style="margin-bottom:{{ $loop->last ? '0' : '18px' }};break-inside:avoid;">
@@ -1001,7 +1052,7 @@
         {{-- Inspector Comment now lives on the cover only (client request); the
              signatures and terms are short and share the same closing sheet. --}}
         <div class="page">
-            <div class="sec-bar"><span class="en">Signatures</span></div>
+            <div class="sec-bar"><span class="en">{{ $L('Signatures') }}</span></div>
             <div class="card">
                 <div class="sign">
                     <div class="col">
@@ -1021,14 +1072,22 @@
 
 {{-- ============================== TERMS & CONDITIONS ============================== --}}
         <div class="page">
-            <div class="sec-bar"><span class="en">Terms &amp; Conditions</span></div>
+            <div class="sec-bar"><span class="en">{{ $L('Terms & Conditions') }}</span></div>
             <div class="card terms">
                 <div class="col">
                     
-                    <p>This report is for the vehicle provided by the customer and tested/inspected only. 
-                     This report is considered void in the event of any scraping, modification, deletion, or addition. 
-                    The data in this report is confidential and private and no company personnel has the right to publish or announce it except with the prior approval of the customer or according to a court ruling or a request from the competent authorities. 
+                    @if($isAr)
+                    {{-- Wording from the bilingual preview (report_preview.blade.php). --}}
+                    <p>هذا التقرير يخص المركبة التي قدمها العميل وتم اختبارها/فحصها فقط.
+                     يعتبر هذا التقرير لاغياً في حالة حدوث أي كشط أو تعديل أو حذف أو إضافة.
+                    بيانات هذا التقرير سرية وخاصة ولا يحق لأي من أفراد الشركة نشرها أو الإعلان عنها إلا بموافقة مسبقة من العميل وبموجب حكم قضائي أو طلب من الجهات المختصة.
+                     يلتزم صاحب المركبة (العميل) بالحضور مرة أخرى إذا طُلب منه.</p>
+                    @else
+                    <p>This report is for the vehicle provided by the customer and tested/inspected only.
+                     This report is considered void in the event of any scraping, modification, deletion, or addition.
+                    The data in this report is confidential and private and no company personnel has the right to publish or announce it except with the prior approval of the customer or according to a court ruling or a request from the competent authorities.
                      The vehicle owner (customer) is obligated to attend again if requested.</p>
+                    @endif
                 </div>
             </div>
         </div>

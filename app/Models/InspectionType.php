@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class InspectionType extends Model
 {
-    protected $fillable = ['name', 'description', 'is_active', 'sequence', 'has_diagnostic_media'];
+    protected $fillable = ['name', 'name_ar', 'description', 'description_ar', 'is_active', 'sequence', 'has_diagnostic_media'];
 
     /**
      * Templates whose report prints the basic format the client asked for —

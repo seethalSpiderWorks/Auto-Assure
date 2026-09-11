@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\InspectionResource;
 use App\Models\Inspection;
+use App\Support\DamageDiagramWriter;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
 use App\Models\InspectionSection;
@@ -125,7 +126,9 @@ class InspectionController extends Controller
      public function summary(Request $request, Inspection $inspection): InspectionSummaryResource
     {
         $this->authorizeTechnician($request, $inspection);
-        $inspection->load(['lead', 'type.sections.steps', 'details.media', 'sectionSummaries', 'summaries', 'cancelledBy']);
+        // type.sections.damageDiagrams feeds the damage_diagrams block, the same
+        // one the detail endpoint returns.
+        $inspection->load(['lead', 'type.sections.steps', 'type.sections.damageDiagrams', 'details.media', 'sectionSummaries', 'summaries', 'cancelledBy']);
 
         return new InspectionSummaryResource($inspection);
     }
@@ -305,7 +308,34 @@ class InspectionController extends Controller
             // Section ratings take one decimal place (0.5, 4.6); per-step
             // ratings above stay whole 1–5 stars.
             'sections.*.rating' => ['nullable', 'numeric', 'min:0', 'max:5'],
+            // Optional damage diagrams — the marked-up canvas for one or more
+            // views, saved exactly as the inspection screen saves them. Absent
+            // views keep whatever they already had, so sending one diagram never
+            // clears another.
+            'damage' => ['nullable', 'array'],
+            // Deliberately no min:1 — the app posts an empty images object on a
+            // save with no diagram, and that is a normal save, not a failure.
+            // Rejecting it produced a "damage.images" error the app had no
+            // field to attach to, so it surfaced against every question.
+            'damage.images' => ['nullable', 'array'],
+            'damage.images.*' => ['required', 'string'],
+            'damage.marks' => ['nullable', 'array'],
+            'damage.marks.*' => ['nullable', 'array', 'max:2000'],
+            'damage.marks.*.*.x' => ['required', 'numeric', 'min:0', 'max:20000'],
+            'damage.marks.*.*.y' => ['required', 'numeric', 'min:0', 'max:20000'],
+            'damage.marks.*.*.c' => ['required', 'string'],
         ]);
+
+        // "damage.images.under_body" reads as "under_body damage image" in the
+        // message, so a client can route it to the diagram it belongs to.
+        $validator->addCustomAttributes(
+            collect((array) $request->input('damage.images', []))
+                ->keys()
+                ->flatMap(fn ($view) => [
+                    "damage.images.{$view}" => "{$view} damage image",
+                    "damage.marks.{$view}" => "{$view} damage marks",
+                ])->all()
+        );
 
         if ($validator->fails()) {
             return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
@@ -313,6 +343,22 @@ class InspectionController extends Controller
 
         $validated = $validator->validated();
         $validSteps = $inspection->type->steps()->pluck('inspection_steps.id')->all();
+
+        // A section that carries a damage canvas cannot be saved without it: if
+        // this request touches such a section, the diagram must either arrive in
+        // the same payload or already be stored. Only the sections in THIS
+        // request are checked — answering a section with no canvas is unaffected.
+        if ($missingDamage = $this->missingSectionDamage($inspection, $validated)) {
+            return response()->json([
+                'message' => 'Damage diagram required.',
+                'errors' => collect($missingDamage)
+                    ->mapWithKeys(fn ($m) => ["damage.images.{$m['key']}" => [$m['message']]])
+                    ->all(),
+                // The same thing structured, so the app can jump straight to the
+                // section and canvas that needs drawing.
+                'missing' => $missingDamage,
+            ], 422);
+        }
 
         foreach ($validated['answers'] as $a) {
             $stepId = (int) $a['step_id'];
@@ -351,13 +397,38 @@ class InspectionController extends Controller
             }
         }
 
+        // Damage diagrams, when the app sent any. Same rules as the inspection
+        // screen: a PNG data URL per view, dots validated against that diagram's
+        // palette, the superseded file dropped once the new path is committed.
+        $damage = $validated['damage'] ?? [];
+        $damageResult = null;
+
+        if (! empty($damage['images'])) {
+            $writer = new DamageDiagramWriter();
+            $damageResult = $writer->apply($inspection, $damage['images'], $damage['marks'] ?? null);
+        }
+
         $this->markStarted($inspection);
         $inspection->save();
 
-        return response()->json([
+        if ($damageResult) {
+            $writer->pruneReplaced($inspection, $damageResult['replaced']);
+        }
+
+        // Canvases still owed, as information rather than an error: the app can
+        // mark the section as incomplete while the technician works through it,
+        // without a validation message on every question. The 422 above fires
+        // only on the save that completes such a section.
+        $damagePending = $inspection->fresh()->missingDamageDiagrams();
+
+        return response()->json(array_filter([
             'message' => 'Answers saved.',
             'progress' => $inspection->progress(),
-        ]);
+            // Only present when diagrams were sent, so a client that posts
+            // answers alone gets exactly the response it always got.
+            'damage_urls' => $damageResult ? $writer->urls($inspection, $damageResult['views']) : null,
+            'damage_pending' => $damagePending ?: null,
+        ], fn ($v) => $v !== null));
     }
 
     /**
@@ -957,6 +1028,9 @@ class InspectionController extends Controller
             'currency' => ['nullable', 'string', 'max:10'],
             'estimated_repair_cost' => ['nullable', 'string', 'max:50'],
             'summary' => ['nullable', 'string', 'max:5000'],
+            // The Arabic edition of the report prints this in place of `summary`;
+            // optional, and it falls back to the English comment when absent.
+            'summary_ar' => ['nullable', 'string', 'max:5000'],
         ]);
 
         if ($validator->fails()) {
@@ -969,6 +1043,16 @@ class InspectionController extends Controller
             return response()->json([
                 'message' => 'Mandatory media missing.',
                 'missing' => $missing,
+            ], 422);
+        }
+
+        // A section that carries a damage canvas needs it saved before the
+        // inspection can be submitted. `sections` names the section and diagram
+        // so the app can send the technician back to the right screen.
+        if ($missingDamage = $inspection->missingDamageDiagrams()) {
+            return response()->json([
+                'message' => 'Damage diagram missing.',
+                'missing' => $missingDamage,
             ], 422);
         }
 
@@ -1070,6 +1154,7 @@ class InspectionController extends Controller
 
         // Saved notes for this inspection, keyed by summary_type_id.
         $saved = $inspection->summaries()->pluck('summary', 'summary_type_id');
+        $savedAr = $inspection->summaries()->pluck('summary_ar', 'summary_type_id');
 
         $areas = \Illuminate\Support\Facades\DB::table('tbl_summary_type')
             ->where('summary_type_status', 0)
@@ -1078,7 +1163,11 @@ class InspectionController extends Controller
             ->map(fn ($t) => [
                 'id' => (int) $t->summary_type_id,
                 'summary_type_name' => $t->summary_type_name,
+                // The area's own Arabic name, from the same lookup the legacy
+                // report reads.
+                'summary_type_name_ar' => $t->summary_type_name_ar,
                 'summary' => $saved->get($t->summary_type_id),
+                'summary_ar' => $savedAr->get($t->summary_type_id),
             ])
             ->values();
 
@@ -1103,11 +1192,15 @@ class InspectionController extends Controller
 
         // Build "required for every area" rules so a missing/blank note fails
         // with a clear, per-area validation error.
-        $rules = ['summaries' => ['required', 'array']];
+        $rules = ['summaries' => ['required', 'array'], 'summaries_ar' => ['nullable', 'array']];
         $attributes = [];
         foreach ($types as $id => $name) {
             $rules["summaries.{$id}"] = ['required', 'string', 'max:5000'];
             $attributes["summaries.{$id}"] = $name;
+            // Arabic is optional: the Arabic report falls back to the English
+            // note wherever it was left empty.
+            $rules["summaries_ar.{$id}"] = ['nullable', 'string', 'max:5000'];
+            $attributes["summaries_ar.{$id}"] = $name.' (Arabic)';
         }
 
         $validator = Validator::make($request->all(), $rules, [], $attributes);
@@ -1116,26 +1209,109 @@ class InspectionController extends Controller
             return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        foreach ($validator->validated()['summaries'] as $typeId => $text) {
+        $validated = $validator->validated();
+        $arabic = $validated['summaries_ar'] ?? [];
+
+        foreach ($validated['summaries'] as $typeId => $text) {
+            $note = $arabic[$typeId] ?? null;
+
             InspectionSummary::updateOrCreate(
                 ['inspection_id' => $inspection->id, 'summary_type_id' => (int) $typeId],
-                ['summary' => $text]
+                ['summary' => $text, 'summary_ar' => filled($note) ? $note : null]
             );
         }
 
         $this->markStarted($inspection);
         $inspection->save();
 
+        $typesAr = InspectionSummary::typesAr();
+
         $areas = $inspection->summaries()->get()->map(fn ($s) => [
             'summary_type_id' => $s->summary_type_id,
             'name' => $types[$s->summary_type_id] ?? null,
+            'name_ar' => $typesAr[$s->summary_type_id] ?? null,
             'summary' => $s->summary,
+            'summary_ar' => $s->summary_ar,
         ])->values();
 
         return response()->json([
             'message' => 'Summaries saved.',
             'summaries' => $areas,
         ]);
+    }
+
+    /**
+     * Damage canvases owed by the sections this request finishes.
+     *
+     * The app saves one answer per "next" tap, so checking every touched section
+     * put the same error on every question in it. The canvas is asked for once
+     * instead: at the save that completes the section — every step in it now has
+     * an answer — and only for the section that carries the diagram.
+     *
+     * Completeness is worked out BEFORE anything is written, from the answers
+     * already stored plus the ones in this request, so a rejected save never
+     * leaves half the payload behind.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<int, array{key: string, name: string, section_id: int, section_name: string, message: string}>
+     */
+    private function missingSectionDamage(Inspection $inspection, array $validated): array
+    {
+        $inspection->loadMissing(['type.sections.steps', 'type.sections.damageDiagrams', 'details']);
+
+        $sections = $inspection->type?->sections ?? collect();
+
+        // Steps this request answers, plus the ones already answered.
+        $stepIds = collect($validated['answers'] ?? [])->pluck('step_id')->map('intval');
+        $answered = $inspection->details
+            ->filter(fn ($d) => Inspection::detailIsAnswered($d))
+            ->pluck('inspection_step_id')
+            ->filter()
+            ->map('intval')
+            ->merge($stepIds)
+            ->unique();
+
+        // Only sections this request touches, and only those it also completes.
+        $touched = $sections
+            ->filter(fn ($section) => $section->steps->whereIn('id', $stepIds->all())->isNotEmpty())
+            ->pluck('id')
+            ->merge(collect($validated['sections'] ?? [])->pluck('section_id')->map('intval'))
+            ->unique();
+
+        $completed = $sections
+            ->whereIn('id', $touched)
+            ->filter(fn ($section) => $section->steps->isNotEmpty()
+                && $section->steps->pluck('id')->every(fn ($id) => $answered->contains((int) $id)))
+            ->pluck('id');
+
+        $sent = array_keys((array) ($validated['damage']['images'] ?? []));
+        $missing = [];
+
+        foreach ($sections->whereIn('id', $completed) as $section) {
+            if (! $section->relationLoaded('damageDiagrams')) {
+                continue;
+            }
+
+            foreach ($section->damageDiagrams as $diagram) {
+                if (! $diagram->is_active || ! $diagram->imageExists() || $diagram->palette()->isEmpty()) {
+                    continue;
+                }
+
+                if (in_array($diagram->key, $sent, true) || filled($inspection->damageImagePath($diagram->key))) {
+                    continue;
+                }
+
+                $missing[] = [
+                    'key' => $diagram->key,
+                    'name' => $diagram->name,
+                    'section_id' => $section->id,
+                    'section_name' => $section->section_name,
+                    'message' => "The {$diagram->name} damage diagram is required for the {$section->section_name} section.",
+                ];
+            }
+        }
+
+        return $missing;
     }
 
     private function markStarted(Inspection $inspection): void

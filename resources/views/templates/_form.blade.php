@@ -5,11 +5,28 @@
             <input id="name" name="name" class="form-control @error('name') is-invalid @enderror"
                    value="{{ old('name', $type->name) }}" placeholder="Pre-Purchase Inspection" required>
             @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <small class="text-muted d-block mt-1">English &amp; Arabic in one box: <code>Good quality[ar]نوعية جيدة</code> — or fill the Arabic field below.</small>
+        </div>
+
+        {{-- Arabic sits beside its English twin, the same pairing the report screen
+             uses for "Client Name in Arabic" / "Overview in Arabic", and the same
+             pairing this module already has on sections and questions. --}}
+        <div class="form-group mb-3">
+            <label for="name_ar" class="form-label">Type name in Arabic — اسم النوع بالعربية</label>
+            <input id="name_ar" name="name_ar" dir="rtl" class="form-control @error('name_ar') is-invalid @enderror"
+                   value="{{ old('name_ar', $type->name_ar) }}" placeholder="فحص ما قبل الشراء">
+            @error('name_ar')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 
         <div class="form-group mb-3">
             <label for="description" class="form-label">Description</label>
             <textarea id="description" name="description" rows="3" class="form-control">{{ old('description', $type->description) }}</textarea>
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="description_ar" class="form-label">Description in Arabic — الوصف بالعربية</label>
+            <textarea id="description_ar" name="description_ar" dir="rtl" rows="3" class="form-control @error('description_ar') is-invalid @enderror">{{ old('description_ar', $type->description_ar) }}</textarea>
+            @error('description_ar')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 
         <div class="row">

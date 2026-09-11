@@ -1,14 +1,23 @@
 {{--
-    "Copy Client Link" — the shareable report URL for this inspection.
-    The link carries the encrypted inspection id, so the customer can open only
-    their own report. Expects $inspection and, optionally, $btnClass.
+    The shareable report URLs for this inspection — English and Arabic, the pair
+    the legacy view-report screen prints ("English Link" / "Arabic Link"). Both
+    carry the same unguessable token and open the same record; only the language
+    differs. Expects $inspection and, optionally, $btnClass.
 --}}
-@php $clientReportUrl = $inspection->reportUrl(); @endphp
+@php
+    $clientReportUrl = $inspection->reportUrl();
+    $clientReportUrlAr = $inspection->reportUrlAr();
+@endphp
 <button type="button"
         class="{{ $btnClass ?? 'btn btn-light btn-sm' }}"
         title="{{ $clientReportUrl }}"
         data-client-report-url="{{ $clientReportUrl }}"
-        onclick="copyClientReportLink(this)"><i class="bx bx-link"></i> Copy Client Link</button>
+        onclick="copyClientReportLink(this)"><i class="bx bx-link"></i> Copy Client Link (EN)</button>
+<button type="button"
+        class="{{ $btnClass ?? 'btn btn-light btn-sm' }}"
+        title="{{ $clientReportUrlAr }}"
+        data-client-report-url="{{ $clientReportUrlAr }}"
+        onclick="copyClientReportLink(this)"><i class="bx bx-link"></i> نسخ الرابط (AR)</button>
 
 @once
     <script>

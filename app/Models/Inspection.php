@@ -28,13 +28,27 @@ class Inspection extends Model
         'avoid' => 'Advise Against',
     ];
 
+    // Arabic twins of the two lists above, keyed the same way, for the Arabic report.
+    public const CONDITIONS_AR = [
+        'excellent' => 'ممتاز',
+        'good' => 'جيد',
+        'fair' => 'مقبول',
+        'poor' => 'ضعيف',
+    ];
+
+    public const RECOMMENDATIONS_AR = [
+        'buy' => 'يُنصح بالشراء',
+        'buy_with_repairs' => 'الشراء (مع إجراء الإصلاحات)',
+        'avoid' => 'لا يُنصح بالشراء',
+    ];
+
     protected $fillable = [
         'lead_id', 'branch_id', 'technician_id', 'inspection_type_id',
         'customer_name', 'customer_name_ar', 'customer_email', 'customer_phone', 'whatsapp_number',
         'date_of_inspection', 'car_make', 'car_model', 'car_year',
         'status', 'scheduled_at', 'started_at', 'completed_at',
         'cancelled_at', 'cancel_reason', 'cancelled_by',
-        'odometer', 'overall_condition', 'overall_rating', 'summary', 'recommendation', 'estimated_repair_cost', 'currency',
+        'odometer', 'overall_condition', 'overall_rating', 'summary', 'summary_ar', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
         'exterior_color', 'vehicle_image', 'damage_full_body', 'damage_under_body', 'damage_images', 'damage_marks', 'region',
@@ -312,6 +326,45 @@ class Inspection extends Model
                 }
                 if ($step->videos === InspectionStep::MEDIA_MANDATORY && $videos === 0) {
                     $missing[] = $step->question.' (video)';
+                }
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Sections whose damage diagram has not been saved yet.
+     *
+     * A section that carries a canvas (Exterior → Full Body, Underbody → Under
+     * Body) is only finished once that canvas has been saved for this
+     * inspection — a mark-up is part of the section's work, not an optional
+     * extra. A diagram with no palette or no image on disk is skipped, since
+     * the screen does not offer it either.
+     *
+     * Returns one line per missing diagram, e.g. "Exterior — Full Body".
+     *
+     * @return array<int, string>
+     */
+    public function missingDamageDiagrams(): array
+    {
+        $this->loadMissing(['type.sections.damageDiagrams']);
+
+        $saved = $this->damageImages();
+        $missing = [];
+
+        foreach ($this->type?->sections ?? [] as $section) {
+            if (! $section->relationLoaded('damageDiagrams')) {
+                continue;
+            }
+
+            foreach ($section->damageDiagrams as $diagram) {
+                if (! $diagram->is_active || ! $diagram->imageExists() || $diagram->palette()->isEmpty()) {
+                    continue;
+                }
+
+                if (blank($saved[$diagram->key] ?? null)) {
+                    $missing[] = $section->section_name.' — '.$diagram->name;
                 }
             }
         }
@@ -842,6 +895,15 @@ class Inspection extends Model
     public function reportUrl(): string
     {
         return route('inspections.report', ['token' => $this->reportToken()]);
+    }
+
+    /**
+     * The Arabic edition of the same report, on the same token — the second link
+     * the legacy view-report screen prints beside the English one.
+     */
+    public function reportUrlAr(): string
+    {
+        return route('inspections.report.ar', ['token' => $this->reportToken()]);
     }
 
     /**

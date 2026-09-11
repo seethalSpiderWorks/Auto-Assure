@@ -6,6 +6,7 @@ use App\Models\DamageDiagram;
 use App\Models\InspectionSection;
 use App\Models\InspectionType;
 use Illuminate\Http\RedirectResponse;
+use App\Support\BilingualText;
 use Illuminate\Http\Request;
 
 class InspectionSectionController extends Controller
@@ -68,7 +69,7 @@ class InspectionSectionController extends Controller
 
     private function validateSection(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'group_name' => ['nullable', 'string', 'max:255'],
             'group_name_ar' => ['nullable', 'string', 'max:255'],
             'section_name' => ['required', 'string', 'max:255'],
@@ -76,5 +77,8 @@ class InspectionSectionController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'sequence' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        // "Engine[ar]المحرك" in the English box fills the Arabic one.
+        return BilingualText::applyAll($validated, ['group_name', 'section_name']);
     }
 }

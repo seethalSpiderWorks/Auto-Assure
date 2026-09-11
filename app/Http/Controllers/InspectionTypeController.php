@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InspectionType;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use App\Support\BilingualText;
 use Illuminate\Http\Request;
 
 class InspectionTypeController extends Controller
@@ -60,9 +61,11 @@ class InspectionTypeController extends Controller
 
     private function validateType(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'name_ar' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'description_ar' => ['nullable', 'string', 'max:2000'],
             'sequence' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
             'has_diagnostic_media' => ['nullable', 'boolean'],
@@ -72,5 +75,9 @@ class InspectionTypeController extends Controller
             'is_active' => $request->boolean('is_active'),
             'has_diagnostic_media' => $request->boolean('has_diagnostic_media'),
         ];
+
+        // "Name[ar]الاسم" typed into the English box fills the Arabic one, the
+        // same shorthand the legacy report form accepts for its comments.
+        return BilingualText::applyAll($validated, ['name', 'description']);
     }
 }

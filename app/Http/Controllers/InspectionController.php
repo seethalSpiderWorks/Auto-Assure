@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ResolvesCurrentBranch;
-use App\Models\DamageColour;
-use App\Models\DamageDiagram;
 use App\Models\Inspection;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
@@ -13,6 +11,7 @@ use App\Models\InspectionSectionSummary;
 use App\Models\InspectionStep;
 use App\Models\InspectionSummary;
 use App\Models\Lead;
+use App\Support\DamageDiagramWriter;
 use App\Support\VehicleLookups;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -149,8 +148,12 @@ class InspectionController extends Controller
         // Summary types (Exterior, Engine, Brakes, …) and this inspection's notes.
         $summaryTypes = InspectionSummary::types();
         $summaries = $inspection->summaries()->pluck('summary', 'summary_type_id')->all();
+        // The Arabic twin of each note, plus the area names in Arabic for the
+        // placeholders — both from the lookup the legacy screen reads.
+        $summariesAr = $inspection->summaries()->pluck('summary_ar', 'summary_type_id')->all();
+        $summaryTypesAr = InspectionSummary::typesAr();
 
-        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups', 'summaryTypes', 'summaries'));
+        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups', 'summaryTypes', 'summaries', 'summariesAr', 'summaryTypesAr'));
     }
 
     /**
@@ -235,9 +238,37 @@ class InspectionController extends Controller
     }
 
     /**
+     * The Arabic edition of the same report.
+     *
+     * One record, two links — the pairing the legacy view-report screen prints
+     * (Modules/InspectionReport …/inspectionReportView.blade.php: "English Link"
+     * …/report/inspection/{token} and "Arabic Link" …/report/inspection-ar/{token}).
+     * Nothing is duplicated: the Arabic page reads the same inspection and
+     * prefers the _ar text wherever a template carries it.
+     */
+    public function reportArabic(string $token): View|RedirectResponse
+    {
+        $inspection = Inspection::fromReportToken($token);
+
+        abort_if(! $inspection, 404);
+
+        if (request()->user()) {
+            $this->authorizeInspection($inspection);
+        }
+
+        if ($inspection->isCancelled()) {
+            abort_unless(request()->user(), 404);
+
+            return back()->with('error', 'This inspection is cancelled — no report is available for it.');
+        }
+
+        return $this->renderReport($inspection, 'ar');
+    }
+
+    /**
      * Loads everything the report view needs.
      */
-    private function renderReport(Inspection $inspection): View
+    private function renderReport(Inspection $inspection, string $lang = 'en'): View
     {
         $inspection->load([
             'lead', 'technician', 'branch',
@@ -250,11 +281,19 @@ class InspectionController extends Controller
         $answers = $inspection->details->keyBy('inspection_step_id');
         $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        // Per-area summary notes (Exterior, Engine, …) shown in their own report section.
-        $summaryTypes = InspectionSummary::types();
-        $summaries = $inspection->summaries->pluck('summary', 'summary_type_id')->all();
+        // Per-area summary notes (Exterior, Engine, …) shown in their own report
+        // section. The Arabic edition takes their names from the lookup's own
+        // summary_type_name_ar column, the same one the legacy report reads.
+        $summaryTypes = $lang === 'ar' ? InspectionSummary::typesAr() : InspectionSummary::types();
+        // The Arabic edition prints the Arabic note where the technician wrote
+        // one, and the English note where they did not.
+        $summaries = $lang === 'ar'
+            ? $inspection->summaries
+                ->mapWithKeys(fn ($s) => [$s->summary_type_id => filled($s->summary_ar) ? $s->summary_ar : $s->summary])
+                ->all()
+            : $inspection->summaries->pluck('summary', 'summary_type_id')->all();
 
-        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries'));
+        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries', 'lang'));
     }
 
     /**
@@ -921,6 +960,7 @@ class InspectionController extends Controller
             'estimated_repair_cost' => ['nullable', 'string', 'max:50'],
             'currency' => ['nullable', 'string', 'max:10'],
             'summary' => ['nullable', 'string', 'max:5000'],
+            'summary_ar' => ['nullable', 'string', 'max:5000'],
             // Per-step answers
             'answers' => ['nullable', 'array'],
             'answers.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
@@ -933,6 +973,8 @@ class InspectionController extends Controller
             // Per-summary-type notes (Exterior, Engine, Brakes, …)
             'summaries' => ['nullable', 'array'],
             'summaries.*' => ['nullable', 'string', 'max:5000'],
+            'summaries_ar' => ['nullable', 'array'],
+            'summaries_ar.*' => ['nullable', 'string', 'max:5000'],
             'section_ratings' => ['nullable', 'array'],
             // Decimal to one place, e.g. 0.5 / 4.6. Stored in a decimal(2,1).
             'section_ratings.*' => ['nullable', 'numeric', 'min:0', 'max:5'],
@@ -980,6 +1022,7 @@ class InspectionController extends Controller
             'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? $inspection->estimated_repair_cost,
             'currency' => $validated['currency'] ?? $inspection->currency,
             'summary' => $validated['summary'] ?? null,
+            'summary_ar' => $validated['summary_ar'] ?? null,
             'date_of_inspection' => $validated['date_of_inspection'] ?? null,
             'scheduled_at' => $validated['scheduled_at'] ?? $inspection->scheduled_at,
             // Extended vehicle details
@@ -1105,6 +1148,7 @@ class InspectionController extends Controller
         // Skipped on a template change — these notes describe the discarded
         // checklist and were just cleared by resetChecklistData().
         $typeSummaries = $typeChanged ? [] : (array) $request->input('summaries', []);
+        $typeSummariesAr = $typeChanged ? [] : (array) $request->input('summaries_ar', []);
         if ($typeSummaries) {
             $validTypeIds = array_keys(InspectionSummary::types());
 
@@ -1114,9 +1158,11 @@ class InspectionController extends Controller
                 }
 
                 if (filled($text)) {
+                    $arabic = $typeSummariesAr[$typeId] ?? null;
+
                     InspectionSummary::updateOrCreate(
                         ['inspection_id' => $inspection->id, 'summary_type_id' => (int) $typeId],
-                        ['summary' => $text]
+                        ['summary' => $text, 'summary_ar' => filled($arabic) ? $arabic : null]
                     );
                 } else {
                     InspectionSummary::where('inspection_id', $inspection->id)
@@ -1180,6 +1226,15 @@ class InspectionController extends Controller
                 $inspection->save();
 
                 return back()->withErrors(['complete' => 'Cannot complete — mandatory media missing for: '.implode(', ', $missing).'.']);
+            }
+
+            // A section that carries a damage canvas is not finished until that
+            // canvas has been saved. Only sections that actually have one are
+            // affected — a template with no diagram is unaffected.
+            if ($missingDamage = $inspection->missingDamageDiagrams()) {
+                $inspection->save();
+
+                return back()->withErrors(['complete' => 'Cannot complete — save the damage diagram for: '.implode(', ', $missingDamage).'.']);
             }
 
             $inspection->status = Inspection::STATUS_COMPLETED;
@@ -1341,108 +1396,23 @@ class InspectionController extends Controller
             'marks.*.*.c' => ['required', 'string'],
         ]);
 
-        $urls = [];
-        $replaced = [];
-
-        // Diagram keys are configured in Damage Setup, so the valid set is a
-        // lookup rather than a constant. Inactive diagrams still accept a save:
-        // an inspection already in progress must not lose work because an admin
-        // hid the view mid-job.
-        $validViews = DamageDiagram::pluck('key')->all();
-        $images = $inspection->damageImages();
-
-        foreach ((array) $request->input('images') as $view => $dataUrl) {
-            abort_unless(in_array($view, $validViews, true), 422, 'Unknown damage view.');
-
-            // Accept only a base64 PNG data URL — nothing else may reach the disk.
-            if (! preg_match('#^data:image/png;base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
-                abort(422, 'Damage diagram must be a PNG data URL.');
-            }
-
-            $binary = base64_decode($m[1], true);
-            if ($binary === false || $binary === '') {
-                abort(422, 'Damage diagram could not be decoded.');
-            }
-
-            // ~8 MB of decoded PNG is far above a marked-up diagram; anything
-            // larger is a runaway canvas rather than a real drawing.
-            if (strlen($binary) > 8 * 1024 * 1024) {
-                abort(422, 'Damage diagram is too large.');
-            }
-
-            // Confirm the bytes really are a PNG, not base64 of something else.
-            if (substr($binary, 0, 8) !== "\x89PNG\r\n\x1a\n") {
-                abort(422, 'Damage diagram is not a valid PNG.');
-            }
-
-            $path = "inspections/{$inspection->id}/damage/{$view}-".Str::random(20).'.png';
-            Storage::disk('public')->put($path, $binary);
-
-            $replaced[$view] = $images[$view] ?? null;
-            $images[$view] = $path;
-        }
-
-        $inspection->damage_images = $images;
-
-        // The two legacy columns are kept in step so anything still reading them
-        // (an older deploy, a report cached mid-rollout) sees the current file.
-        foreach (Inspection::LEGACY_DAMAGE_VIEWS as $key => $legacy) {
-            if (array_key_exists($key, $images)) {
-                $inspection->{$legacy} = $images[$key];
-            }
-        }
-
-        // Marks are stored per view, so posting one diagram leaves the other's
-        // dots alone — same rule the images follow above.
-        if ($request->has('marks')) {
-            $marks = $inspection->damage_marks;
-            $marks = is_array($marks) ? $marks : [];
-
-            // Each diagram has its own palette, so a colour is only valid on the
-            // diagram it belongs to (plus any colour left unassigned, which
-            // applies everywhere).
-            $paletteFor = function (string $view): array {
-                $diagram = DamageDiagram::where('key', $view)->first();
-
-                return $diagram
-                    ? DamageColour::forDiagram($diagram->id)->pluck('colour')->all()
-                    : [];
-            };
-
-            foreach ((array) $request->input('marks') as $view => $list) {
-                abort_unless(in_array($view, $validViews, true), 422, 'Unknown damage view.');
-
-                $allowed = $paletteFor($view);
-
-                foreach ((array) $list as $m) {
-                    abort_unless(in_array($m['c'] ?? null, $allowed, true), 422, 'That colour is not in this diagram\'s palette.');
-                }
-
-                $marks[$view] = array_values(array_map(fn ($m) => [
-                    'x' => round((float) $m['x'], 1),
-                    'y' => round((float) $m['y'], 1),
-                    'c' => $m['c'],
-                ], (array) $list));
-            }
-
-            $inspection->damage_marks = $marks;
-        }
+        // The rules — valid views, valid PNG, the palette a diagram accepts, how a
+        // superseded file is retired — live in DamageDiagramWriter, shared with
+        // the technician API so the two save paths cannot drift apart.
+        $writer = new DamageDiagramWriter();
+        $result = $writer->apply(
+            $inspection,
+            (array) $request->input('images'),
+            $request->has('marks') ? (array) $request->input('marks') : null
+        );
 
         $this->markStarted($inspection);
         $inspection->save();
 
         // Drop the superseded files only once the new paths are committed.
-        foreach ($replaced as $view => $previous) {
-            if ($previous && $previous !== ($images[$view] ?? null)) {
-                Storage::disk('public')->delete($previous);
-            }
-        }
+        $writer->pruneReplaced($inspection, $result['replaced']);
 
-        foreach ($validViews as $view) {
-            $urls[$view] = $inspection->damageDiagramUrl($view);
-        }
-
-        return response()->json(['saved' => true, 'urls' => $urls]);
+        return response()->json(['saved' => true, 'urls' => $writer->urls($inspection, $result['views'])]);
     }
 
     /**

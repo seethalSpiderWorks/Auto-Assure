@@ -72,6 +72,7 @@ class InspectionResource extends JsonResource
             'estimated_repair_cost' => $this->estimated_repair_cost,
             'currency'              => $this->currency ?? 'AED',
             'summary'               => $this->summary,
+            'summary_ar'            => $this->summary_ar,
 
             'progress' => $this->progress(),
 
@@ -133,6 +134,10 @@ class InspectionResource extends JsonResource
 
                                     // The blank diagram to draw on.
                                     'image_url' => $d->imageUrl(),
+                                    // This section is not finished until the canvas is saved:
+                                    // `is_saved` false means the technician has not marked it yet.
+                                    'is_required' => true,
+                                    'is_saved' => filled($this->damageImagePath($d->key)),
                                     // The flattened mark-up saved for this inspection,
                                     // null when this view has never been marked.
                                     'marked_image_url' => $this->damageDiagramUrl($d->key),
@@ -161,10 +166,14 @@ class InspectionResource extends JsonResource
             'summaries' => $this->whenLoaded('summaries', function () {
                 $types = \App\Models\InspectionSummary::types();
 
+                $typesAr = \App\Models\InspectionSummary::typesAr();
+
                 return $this->summaries->map(fn ($s) => [
-                    'summary_type_id'   => (int) $s->summary_type_id,
-                    'summary_type_name' => $types[$s->summary_type_id] ?? null,
-                    'summary'           => $s->summary,
+                    'summary_type_id'      => (int) $s->summary_type_id,
+                    'summary_type_name'    => $types[$s->summary_type_id] ?? null,
+                    'summary_type_name_ar' => $typesAr[$s->summary_type_id] ?? null,
+                    'summary'              => $s->summary,
+                    'summary_ar'           => $s->summary_ar,
                 ])->values();
             }),
 

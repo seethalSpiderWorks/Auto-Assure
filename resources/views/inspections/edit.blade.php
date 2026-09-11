@@ -1178,7 +1178,11 @@
                                                 @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-12"><label class="form-label">Inspector Comment <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter the inspector's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
+                                        <div class="col-md-12 mb-3"><label class="form-label">Inspector Comment <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter the inspector's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
+                                        {{-- The Arabic twin, the pairing the legacy report form uses for
+                                             "Overview in Arabic". Optional: the Arabic report falls back to
+                                             the English comment when this is left empty. --}}
+                                        <div class="col-md-12"><label class="form-label">Inspector Comment in Arabic — ملاحظات الفاحص بالعربية</label><textarea name="summary_ar" dir="rtl" rows="4" class="form-control" placeholder="ملاحظات الفاحص العامة...">{{ old('summary_ar', $inspection->summary_ar) }}</textarea></div>
                                     </div>
 
                                     {{-- Per-type summaries. Types come from tbl_summary_type, the same
@@ -1199,6 +1203,10 @@
                                                     <textarea name="summaries[{{ $typeId }}]" rows="2" required class="form-control sum-card__input"
                                                         placeholder="e.g. {{ $typeName }} is in good condition"
                                                         oninput="this.closest('.sum-card').classList.toggle('is-filled', this.value.trim().length>0)">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
+                                                    {{-- Arabic note for the same area — optional, printed on the
+                                                         Arabic report in place of the English one. --}}
+                                                    <textarea name="summaries_ar[{{ $typeId }}]" dir="rtl" rows="2" class="form-control sum-card__input mt-2"
+                                                        placeholder="{{ $summaryTypesAr[$typeId] ?? $typeName }} — بالعربية">{{ old('summaries_ar.'.$typeId, $summariesAr[$typeId] ?? '') }}</textarea>
                                                 </div>
                                             @endforeach
                                         </div>
@@ -2092,7 +2100,9 @@
 
         const q = function (sel) { return block.querySelector(sel); };
         const marks = {};        // view -> [{x, y, c}] in the diagram's own pixels
-        const bases = {};        // view -> loaded base <img>
+        const bases = {};        // view -> the image new dots are drawn on top of
+        const pristine = {};     // view -> the blank diagram, for "Clear all"
+        const flattened = {};    // view -> its dots live only in the saved picture
         const chosen = {};       // view -> selected colour (palettes differ per diagram)
         let erasing = false;
 
@@ -2144,7 +2154,7 @@
             if (! img) { return; }
             const ctx = cv.getContext('2d');
             ctx.clearRect(0, 0, cv.width, cv.height);
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, 0, 0, cv.width, cv.height);
             const r = dotRadius(cv);
             (marks[cv.dataset.damageView] || []).forEach(function (m) {
                 ctx.beginPath();
@@ -2228,15 +2238,26 @@
 
             load(cv.dataset.base).then(function (img) {
                 if (! img) { return; }
+                pristine[view] = img;
                 bases[view] = img;
                 cv.width = img.naturalWidth;
                 cv.height = img.naturalHeight;
 
                 // Diagrams saved before marks were kept have a PNG but no dot
-                // list. Show that flattened image so nothing is lost — its dots
-                // just cannot be erased individually until it is redrawn.
+                // list. That flattened picture becomes the base every new dot is
+                // drawn on, so marking one more does not wipe the ones already
+                // there — they simply cannot be erased individually, since only
+                // the picture of them survives. "Clear all" goes back to the
+                // blank diagram held in pristine[].
                 if (! marks[view].length && cv.dataset.src) {
                     return load(cv.dataset.src).then(function (old) {
+                        if (old) {
+                            bases[view] = old;
+                            flattened[view] = true;
+                            // Say so plainly: those dots are pixels, not data, so
+                            // the eraser cannot pick them out one by one.
+                            say('Earlier marks on this diagram are part of the saved picture — dots you add now can be erased, older ones need “Clear all”.', 'text-muted');
+                        }
                         cv.getContext('2d').drawImage(old || img, 0, 0, cv.width, cv.height);
                         applyZoom();
                     });
@@ -2295,6 +2316,8 @@
                 if (cv) {
                     marks[active] = [];
                     cv.dataset.src = '';     // don't fall back to the old flattened PNG
+                    bases[active] = pristine[active] || bases[active];   // and drop its baked-in dots
+                    flattened[active] = false;
                     render(cv);
                     applyZoom();
                     say('All marks cleared on this diagram — press Save to store it', 'text-warning');
@@ -2314,15 +2337,27 @@
                     const images = {};
                     const payloadMarks = {};
                     canvases.forEach(function (cv) {
-                        images[cv.dataset.damageView] = cv.toDataURL('image/png');
-                        payloadMarks[cv.dataset.damageView] = marks[cv.dataset.damageView] || [];
+                        const v = cv.dataset.damageView;
+                        images[v] = cv.toDataURL('image/png');
+                        // A diagram drawn on a flattened picture stores no dot
+                        // list: its new dots are already in the picture, and
+                        // keeping half of them as data would make the next load
+                        // redraw from the blank diagram and lose the rest.
+                        payloadMarks[v] = flattened[v] ? [] : (marks[v] || []);
                     });
                     const res = await post(urls.damageDiagrams, { images: images, marks: payloadMarks });
                     // Point each canvas at what the server now holds, so a later
                     // "Clear all" then Save cannot resurrect a stale drawing.
                     canvases.forEach(function (cv) {
-                        const u = res.urls && res.urls[cv.dataset.damageView];
-                        if (u) { cv.dataset.src = u; }
+                        const v = cv.dataset.damageView;
+                        const u = res.urls && res.urls[v];
+                        if (! u) { return; }
+                        // A flattened diagram keeps the picture it opened with as
+                        // its base, so cv.dataset.src must NOT become the picture
+                        // just saved — that one already has this session's dots in
+                        // it and would draw them twice. Its dot list is kept too,
+                        // so the eraser still works on everything drawn today.
+                        if (! flattened[v]) { cv.dataset.src = u; }
                     });
                     say('✓ Damage diagrams saved', 'text-success');
                     saved();

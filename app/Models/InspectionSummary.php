@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  */
 class InspectionSummary extends Model
 {
-    protected $fillable = ['inspection_id', 'summary_type_id', 'summary'];
+    protected $fillable = ['inspection_id', 'summary_type_id', 'summary', 'summary_ar'];
 
     public function inspection(): BelongsTo
     {
@@ -31,6 +31,27 @@ class InspectionSummary extends Model
             ->where('summary_type_status', 0)
             ->orderBy('summary_type_id')
             ->pluck('summary_type_name', 'summary_type_id')
+            ->all();
+    }
+
+    /**
+     * The same list in Arabic, from the lookup's own summary_type_name_ar
+     * column — the names the legacy report prints. Falls back to the English
+     * name for any type left untranslated.
+     *
+     * @return array<int, string>
+     */
+    public static function typesAr(): array
+    {
+        return DB::table('tbl_summary_type')
+            ->where('summary_type_status', 0)
+            ->orderBy('summary_type_id')
+            ->get(['summary_type_id', 'summary_type_name', 'summary_type_name_ar'])
+            ->mapWithKeys(fn ($t) => [
+                (int) $t->summary_type_id => filled($t->summary_type_name_ar)
+                    ? $t->summary_type_name_ar
+                    : $t->summary_type_name,
+            ])
             ->all();
     }
 }

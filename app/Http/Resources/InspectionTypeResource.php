@@ -12,7 +12,9 @@ class InspectionTypeResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'name_ar' => $this->name_ar,
             'description' => $this->description,
+            'description_ar' => $this->description_ar,
             'is_active' => (bool) $this->is_active,
             // Whether the app should offer the step-less Diagnostic Media bucket.
             'has_diagnostic_media' => (bool) $this->has_diagnostic_media,

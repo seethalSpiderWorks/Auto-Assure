@@ -38,7 +38,7 @@
             <div class="col-12">
                 <div class="page-title-box d-flex align-items-center justify-content-between">
                     <div>
-                        <h4 class="mb-1">{{ $type->name }}</h4>
+                        <h4 class="mb-1">{{ $type->name }}@if($type->name_ar)<span class="text-muted font-size-15" dir="rtl"> — {{ $type->name_ar }}</span>@endif</h4>
                         <p class="text-muted mb-0">
                             <span class="badge {{ $type->is_active ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $type->is_active ? 'Active' : 'Inactive' }}</span>
                             <span class="badge {{ $type->has_diagnostic_media ? 'badge-soft-info' : 'badge-soft-secondary' }}">Diagnostic Media: {{ $type->has_diagnostic_media ? 'Yes' : 'No' }}</span>
@@ -203,7 +203,7 @@
                             </div>
                             <div class="col-md-5 form-group mb-0">
                                 <label class="form-label font-size-12 text-muted">Section name</label>
-                                <input type="text" name="section_name" class="form-control" placeholder="e.g. Engine &amp; Mechanical" required>
+                                <input type="text" name="section_name" class="form-control" placeholder="e.g. Engine &amp; Mechanical  —  or  Engine[ar]المحرك" required>
                             </div>
                             <div class="col-md-4 form-group mb-0">
                                 <label class="form-label font-size-12 text-muted">Section name (Arabic) — بالعربية</label>

@@ -13,6 +13,7 @@
             <input id="question" name="question" class="form-control @error('question') is-invalid @enderror"
                    value="{{ old('question', $step->question) }}" placeholder="Overall body condition" required>
             @error('question')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <small class="text-muted d-block mt-1">English &amp; Arabic in one box: <code>Good quality[ar]نوعية جيدة</code> — or fill the Arabic field below.</small>
         </div>
 
         <div class="form-group mb-3">
