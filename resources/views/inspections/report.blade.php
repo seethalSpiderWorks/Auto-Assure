@@ -1020,8 +1020,8 @@
             <div class="card">
                 @foreach ($damageDiagrams as $d)
                     <div style="margin-bottom:{{ $loop->last ? '0' : '18px' }};break-inside:avoid;">
-                        <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#3b4655;font-weight:700;margin-bottom:6px;">
-                            {{ $d['label'] }}@if($d['section'])<span style="color:#6b7280;font-weight:600;"> — {{ $d['section'] }}</span>@endif
+                        <div style="font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#3b4655;font-weight:700;margin-bottom:6px;">
+                            {{ $d['label'] }}@if($d['section'])<span > — {{ $d['section'] }}</span>@endif
                         </div>
                         @if ($d['key']->isNotEmpty())
                             <div style="display:flex;flex-wrap:wrap;gap:5px 14px;margin-bottom:8px;">
@@ -1033,7 +1033,7 @@
                                 @endforeach
                             </div>
                         @endif
-                        <img src="{{ $d['url'] }}" alt="{{ $d['label'] }} damage diagram" style="display:block;width:100%;height:auto;">
+                        <img src="{{ $d['url'] }}" alt="{{ $d['label'] }} damage diagram " style="display:block;width:80%;height:auto;margin:0 auto;">
                     </div>
                 @endforeach
             </div>
