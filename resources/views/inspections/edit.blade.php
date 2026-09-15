@@ -762,8 +762,34 @@
                                             <label class="form-label">Exterior Color</label>
                                             <input name="exterior_color" class="form-control" maxlength="50" value="{{ old('exterior_color', $inspection->exterior_color) }}">
                                         </div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Region</label><input name="region" class="form-control" maxlength="100" value="{{ old('region', $inspection->region) }}"></div>
-                                        <div class="col-md-3 mb-3"><label class="form-label">Body Type</label><input name="body_type" class="form-control" maxlength="50" value="{{ old('body_type', $inspection->body_type) }}"></div>
+                                        {{-- Older inspections may hold a free-text region that isn't in the
+                                             list; keep it as an extra option so saving doesn't wipe it. --}}
+                                        @php($regionValue = old('region', $inspection->region))
+                                        @php($regionOpts = ($regionValue && ! in_array($regionValue, $lookups['region'], true)) ? [...$lookups['region'], $regionValue] : $lookups['region'])
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Region</label>
+                                            <select name="region" class="form-control form-select">
+                                                <option value="">Select</option>
+                                                @foreach ($regionOpts as $opt)
+                                                    <option value="{{ $opt }}" @selected($regionValue === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        {{-- Older inspections may hold a free-text body type that isn't in the
+                                             list; keep it as an extra option so saving doesn't wipe it. --}}
+                                        {{-- Keep these as one-line php directives: this file mixes both forms, and
+                                             a block form here pairs with an earlier one-liner, breaking the view. --}}
+                                        @php($bodyTypeValue = old('body_type', $inspection->body_type))
+                                        @php($bodyTypeOpts = ($bodyTypeValue && ! in_array($bodyTypeValue, $lookups['body_type'], true)) ? [...$lookups['body_type'], $bodyTypeValue] : $lookups['body_type'])
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Body Type</label>
+                                            <select name="body_type" class="form-control form-select">
+                                                <option value="">Select</option>
+                                                @foreach ($bodyTypeOpts as $opt)
+                                                    <option value="{{ $opt }}" @selected($bodyTypeValue === $opt)>{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                         <div class="col-md-3 mb-3"><label class="form-label">No. of Keys</label><input name="number_of_keys" type="number" min="0" max="20" class="form-control" value="{{ old('number_of_keys', $inspection->number_of_keys) }}"></div>
                                     </div>
 

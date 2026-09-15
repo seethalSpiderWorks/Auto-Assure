@@ -101,7 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
 
-    // Vehicle lookup dropdowns (exterior colours, fuel types, gearboxes, steering sides).
+    // Vehicle lookup dropdowns (exterior colours, fuel types, gearboxes, steering sides, body types, regions).
     Route::get('/vehicle-lookups', [VehicleLookupController::class, 'index']);
     Route::get('/vehicle-lookups/{field}', [VehicleLookupController::class, 'show']);
 

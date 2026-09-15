@@ -203,6 +203,8 @@ class InspectionController extends Controller
             'gearbox' => VehicleLookups::names('gearbox'),
             'fuel_type' => VehicleLookups::names('fuel_type'),
             'steering_side' => VehicleLookups::names('steering_side'),
+            'body_type' => VehicleLookups::names('body_type'),
+            'region' => VehicleLookups::names('region'),
             'years' => $years,
             'vehicle_condition' => ['Used', 'New'],
         ];

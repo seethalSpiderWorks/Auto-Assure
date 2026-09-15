@@ -69,18 +69,46 @@ class VehicleLookups
     ];
 
     /**
+     * Fixed option lists with no lookup table behind them. Same {id, name}
+     * shape as the table-backed fields; the name is what gets stored.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const STATIC_SOURCES = [
+        'body_type' => [
+            1 => 'Sedan',
+            2 => 'SUV',
+            3 => 'Hatchback',
+            4 => 'Coupe',
+            5 => 'Pickup',
+            6 => 'Van/MPV',
+            7 => 'Truck',
+            8 => 'Others',
+        ],
+        'region' => [
+            1 => 'GCC',
+            2 => 'American',
+            3 => 'European',
+            4 => 'Japanese',
+            5 => 'Korean',
+            6 => 'Chinese',
+            7 => 'Other',
+        ],
+    ];
+
+    /**
      * The field names this class can resolve.
      *
      * @return array<int, string>
      */
     public static function fields(): array
     {
-        return array_keys(self::SOURCES);
+        return array_merge(array_keys(self::SOURCES), array_keys(self::STATIC_SOURCES));
     }
 
     public static function supports(string $field): bool
     {
-        return isset(self::SOURCES[$field]);
+        return isset(self::SOURCES[$field]) || isset(self::STATIC_SOURCES[$field]);
     }
 
     /**
@@ -94,6 +122,15 @@ class VehicleLookups
      */
     public static function options(string $field, array $extraWhere = []): array
     {
+        if (isset(self::STATIC_SOURCES[$field])) {
+            $out = [];
+            foreach (self::STATIC_SOURCES[$field] as $id => $name) {
+                $out[] = ['id' => $id, 'name' => $name];
+            }
+
+            return $out;
+        }
+
         $source = self::SOURCES[$field] ?? null;
         if (! $source) {
             return [];
