@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\DamageColour;
 use App\Models\DamageDiagram;
 use App\Models\Inspection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -28,7 +29,7 @@ class DamageDiagramWriter
      * A view absent from $images keeps whatever it already had; the same is true
      * of $marks, so saving one diagram never clears another.
      *
-     * @param  array<string, string>  $images  view key => PNG data URL
+     * @param  array<string, string|UploadedFile>  $images  view key => PNG data URL or uploaded PNG
      * @param  array<string, array<int, array{x: mixed, y: mixed, c: mixed}>>|null  $marks
      * @return array{replaced: array<string, string|null>, views: array<int, string>}
      */
@@ -45,7 +46,10 @@ class DamageDiagramWriter
         foreach ($images as $view => $dataUrl) {
             abort_unless(in_array($view, $validViews, true), 422, "Unknown damage view: {$view}.");
 
-            $binary = $this->decodePng($dataUrl, $view);
+            // The edit screen uploads a PNG file; the technician app sends a data URL.
+            $binary = $dataUrl instanceof UploadedFile
+                ? $this->readPngUpload($dataUrl, $view)
+                : $this->decodePng((string) $dataUrl, $view);
 
             $path = "inspections/{$inspection->id}/damage/{$view}-".Str::random(20).'.png';
             Storage::disk('public')->put($path, $binary);
@@ -120,6 +124,31 @@ class DamageDiagramWriter
             abort(422, "{$view}: damage diagram could not be decoded.");
         }
 
+        return $this->assertPng($binary, $view);
+    }
+
+    /**
+     * Accept a PNG sent as a file upload — what the edit screen posts, since a
+     * multi-megabyte base64 JSON body stalls in front of the live server.
+     */
+    private function readPngUpload(UploadedFile $file, string $view): string
+    {
+        abort_unless($file->isValid(), 422, "{$view}: damage diagram upload failed.");
+
+        $binary = (string) file_get_contents($file->getRealPath());
+
+        if ($binary === '') {
+            abort(422, "{$view}: damage diagram could not be decoded.");
+        }
+
+        return $this->assertPng($binary, $view);
+    }
+
+    /**
+     * Size and signature checks shared by both ways a diagram can arrive.
+     */
+    private function assertPng(string $binary, string $view): string
+    {
         if (strlen($binary) > self::MAX_BYTES) {
             abort(422, "{$view}: damage diagram is too large.");
         }

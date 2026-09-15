@@ -1388,9 +1388,16 @@ class InspectionController extends Controller
             return $cancelled;
         }
 
+        // The edit screen uploads each diagram as a PNG file with the dots as a
+        // JSON string (a multi-megabyte JSON body stalls on the live server).
+        // PNG data URLs in a JSON body are still accepted.
+        if (is_string($request->input('marks'))) {
+            $request->merge(['marks' => json_decode($request->input('marks'), true) ?: []]);
+        }
+
         $request->validate([
             'images' => ['required', 'array', 'min:1'],
-            'images.*' => ['required', 'string'],
+            'images.*' => ['required'],
             // The dots behind the picture, so a single one can be erased later.
             'marks' => ['nullable', 'array'],
             'marks.*' => ['nullable', 'array', 'max:2000'],
@@ -1405,7 +1412,7 @@ class InspectionController extends Controller
         $writer = new DamageDiagramWriter();
         $result = $writer->apply(
             $inspection,
-            (array) $request->input('images'),
+            array_merge((array) $request->input('images', []), (array) $request->file('images', [])),
             $request->has('marks') ? (array) $request->input('marks') : null
         );
 

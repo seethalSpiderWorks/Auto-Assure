@@ -2369,18 +2369,24 @@
                 try {
                     // Only this section's diagrams: the endpoint leaves views it was
                     // not sent alone, so other sections keep their mark-ups.
-                    const images = {};
+                    // Sent as PNG file uploads, not base64 JSON: a multi-megabyte
+                    // JSON body stalls in front of the live server and the save
+                    // never returns.
+                    const form = new FormData();
                     const payloadMarks = {};
-                    canvases.forEach(function (cv) {
+                    for (const cv of Array.from(canvases)) {
                         const v = cv.dataset.damageView;
-                        images[v] = cv.toDataURL('image/png');
+                        const blob = await new Promise(function (resolve) { cv.toBlob(resolve, 'image/png'); });
+                        if (! blob) { throw new Error('Could not read the ' + v + ' diagram.'); }
+                        form.append('images[' + v + ']', blob, v + '.png');
                         // A diagram drawn on a flattened picture stores no dot
                         // list: its new dots are already in the picture, and
                         // keeping half of them as data would make the next load
                         // redraw from the blank diagram and lose the rest.
                         payloadMarks[v] = flattened[v] ? [] : (marks[v] || []);
-                    });
-                    const res = await post(urls.damageDiagrams, { images: images, marks: payloadMarks });
+                    }
+                    form.append('marks', JSON.stringify(payloadMarks));
+                    const res = await post(urls.damageDiagrams, form);
                     // Point each canvas at what the server now holds, so a later
                     // "Clear all" then Save cannot resurrect a stale drawing.
                     canvases.forEach(function (cv) {
