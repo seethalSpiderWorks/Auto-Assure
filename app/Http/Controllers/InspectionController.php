@@ -914,7 +914,8 @@ class InspectionController extends Controller
 
     private function stepBelongsToInspection(Inspection $inspection, int $stepId): bool
     {
-        return in_array($stepId, $inspection->type->steps()->pluck('inspection_steps.id')->all(), true);
+        return $inspection->type
+            && in_array($stepId, $inspection->type->steps()->pluck('inspection_steps.id')->all(), true);
     }
 
     public function update(Request $request, Inspection $inspection): RedirectResponse

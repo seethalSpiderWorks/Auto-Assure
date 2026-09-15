@@ -470,7 +470,8 @@
     ];
 
     // Build the wizard step list: Details → each checklist section → Verdict.
-    $sections = $inspection->type->sections;
+    // No type when the template was deleted — only Details/Verdict show until one is picked.
+    $sections = $inspection->type?->sections ?? collect();
     $wsteps = [['type' => 'details', 'name' => 'Customer & Vehicle']];
     foreach ($sections as $s) {
         $wsteps[] = ['type' => 'section', 'name' => $s->sequence . '. ' . $s->section_name, 'section' => $s];
@@ -740,11 +741,19 @@
                                             @if(auth()->user()->isTechnician() || $isLocked)
                                                 <input type="text" class="form-control" value="{{ optional($inspection->type)->name ?? '—' }}" readonly>
                                             @else
-                                                <select name="inspection_type_id" class="form-control form-select" data-original="{{ old('inspection_type_id', $inspection->inspection_type_id) }}">
+                                                {{-- A deleted template leaves a dangling id: offer a blank choice (and a blank
+                                                     original) so the browser doesn't silently pick the first template. --}}
+                                                <select name="inspection_type_id" class="form-control form-select" data-original="{{ $inspection->type ? old('inspection_type_id', $inspection->inspection_type_id) : '' }}">
+                                                    @unless($inspection->type)
+                                                        <option value="" selected>Select a template</option>
+                                                    @endunless
                                                     @foreach ($inspectionTypes as $tid => $tname)
                                                         <option value="{{ $tid }}" @selected(old('inspection_type_id', $inspection->inspection_type_id) == $tid)>{{ $tname }}</option>
                                                     @endforeach
                                                 </select>
+                                                @unless($inspection->type)
+                                                    <small class="text-danger d-block">This inspection's template no longer exists. Choose a template and save to load its checklist.</small>
+                                                @endunless
                                                 <small class="text-muted">Changing the template clears every recorded answer and restarts the checklist. Save to apply.</small>
                                             @endif
                                         </div>

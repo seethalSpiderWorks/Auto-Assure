@@ -315,7 +315,7 @@ class Inspection extends Model
         $byStep = $this->details->keyBy('inspection_step_id');
         $missing = [];
 
-        foreach ($this->type->sections as $section) {
+        foreach ($this->type?->sections ?? [] as $section) {
             foreach ($section->steps as $step) {
                 $detail = $byStep->get($step->id);
                 $photos = $detail ? $detail->media->where('type', 'photo')->count() : 0;
