@@ -338,6 +338,32 @@
         color: rgba(108, 117, 125, .8) !important;
     }
 
+    /* ---- Calculated Overall Verdict (section weights) ------------------- */
+    .wverdict { border: 1px solid #e4e8ee; border-radius: 14px; padding: 14px 18px; background: #fff; }
+    .wverdict__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+        font-weight: 700; font-size: .95rem; color: #00263d; margin-bottom: 12px; }
+    .wverdict__head small { font-weight: 500; color: #8a94a3; }
+    .wverdict__summary { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem 2rem; margin-bottom: 14px; }
+    .wverdict__num { font-size: 2rem; font-weight: 800; color: #00263d; line-height: 1; }
+    .wverdict__num span { font-size: 1rem; font-weight: 600; color: #8a94a3; }
+    .wverdict__lbl { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: #6b7280; font-weight: 700; margin-top: 4px; }
+    .wverdict__cond { display: inline-block; padding: 5px 16px; border-radius: 999px; font-weight: 700; font-size: .9rem; }
+    .wverdict__guide { color: #3b4655; font-size: .85rem; margin-top: 6px; }
+    .wverdict__stars { display: flex; align-items: center; gap: .35rem; margin: -4px 0 14px; }
+    .wverdict__stars .js-wverdict-star { font-size: 1.9rem; line-height: 1; color: #ccc; }
+    .wverdict__stars small { font-weight: 700; color: #3b4655; margin-left: .35rem; }
+    .wverdict__table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .wverdict__table th { background: #00263d; color: #fff; font-weight: 600; padding: 6px 10px; }
+    .wverdict__table td { border: 1px solid #e4e8ee; padding: 5px 10px; }
+    .wverdict__table td.c { text-align: center; font-weight: 600; }
+    /* The band the score falls in: tinted, bold and outlined in green. */
+    .wverdict__table tr.is-current td { background: #d5f3e8; font-weight: 700; color: #00263d;
+        border-top: 2px solid rgba(4,176,132,.35); border-bottom: 2px solid rgba(4,176,132,.35); padding-top: 8px; padding-bottom: 8px; }
+    .wverdict__table tr.is-current td:first-child { border-left: 2px solid rgba(4,176,132,.35); box-shadow: inset 5px 0 0 rgba(4,176,132,.55); }
+    .wverdict__table tr.is-current td:last-child { border-right: 2px solid rgba(4,176,132,.35); }
+    .wverdict__table tr.is-current td:last-child::after { content: '◀ Current'; float: right; font-size: .72rem;
+        font-weight: 700; color: #fff; background: #04b084; border-radius: 999px; padding: 1px 8px; margin-left: 8px; }
+
     /* ---- Highlighted Overall Rating block in the Verdict step ----------- */
     .overall-rating-wrap {
         background: linear-gradient(135deg, #f0faf7 0%, #e8f5fe 100%);
@@ -1154,6 +1180,12 @@
                                                    placeholder="0.0" aria-label="{{ $section->section_name }} rating out of 5"
                                                    value="{{ $secRating ? rtrim(rtrim(number_format($secRating, 1), '0'), '.') : '' }}">
                                             <small class="text-muted js-secrating-label" data-section="{{ $section->id }}"></small>
+                                            {{-- The rating's share of this section's weight — (rating / 5) × weight,
+                                                 e.g. Engine 20% rated 4 → 16%. Only on weighted sections. --}}
+                                            @if ($section->weight !== null)
+                                                <span class="badge badge-soft-warning font-size-12 js-secweight" data-section="{{ $section->id }}"
+                                                      data-weight="{{ (float) $section->weight }}" title="Rating ÷ 5 × section weight"></span>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>
@@ -1168,12 +1200,66 @@
                                         {{-- Odometer is captured under Customer & Vehicle; verdict reads the saved value. --}}
                                         <input type="hidden" name="overall_condition" value="{{ $inspection->overall_condition ?? '' }}">
 
-                                        {{-- Overall Rating — highlighted section, shown first --}}
+                                        {{-- Overall Verdict calculated from the section weights: each section
+                                             adds (its rating / 5) × its weight, giving a score out of 100 that
+                                             falls in one of the client's bands. Updates live as section ratings
+                                             change. Only on templates whose sections carry weights. --}}
+                                        @php($wVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect()))
+                                        @if ($wVerdict)
+                                            @php($wRated = $wVerdict['rated'] > 0)
+                                            <div class="col-12 mb-3">
+                                                <div class="wverdict" id="wverdict">
+                                                    <div class="wverdict__head">
+                                                        <span><i class="bx bx-calculator text-success"></i> Calculated Overall Verdict</span>
+                                                        <small id="wverdict-rated">{{ $wVerdict['rated'] }} of {{ $wVerdict['weighted'] }} sections rated</small>
+                                                    </div>
+                                                    <div class="wverdict__summary">
+                                                        <div>
+                                                            <div class="wverdict__num"><span id="wverdict-score">{{ rtrim(rtrim(number_format($wVerdict['score'], 1), '0'), '.') }}</span><span> / 100</span></div>
+                                                            <div class="wverdict__lbl">Score</div>
+                                                        </div>
+                                                        <div>
+                                                            <div class="wverdict__num"><span id="wverdict-rating">{{ $wRated ? number_format($wVerdict['rating'], 1) : '—' }}</span><span> / 5</span></div>
+                                                            <div class="wverdict__lbl">Rating</div>
+                                                        </div>
+                                                        <div>
+                                                            <span class="wverdict__cond" id="wverdict-cond"
+                                                                  style="background:{{ $wRated ? $wVerdict['band']['color'] : '#b0b8c4' }};color:{{ $wRated ? $wVerdict['band']['text'] : '#fff' }};">{{ $wRated ? $wVerdict['band']['condition'] : 'Not rated' }}</span>
+                                                            <div class="wverdict__guide" id="wverdict-guide">{{ $wRated ? $wVerdict['band']['guide'] : 'Rate the sections to calculate the verdict.' }}</div>
+                                                        </div>
+                                                    </div>
+                                                    {{-- The calculated /5 rating as stars; partial fills are painted by JS. --}}
+                                                    <div class="wverdict__stars" aria-label="Calculated rating out of 5">
+                                                        @for ($n = 1; $n <= 5; $n++)
+                                                            <span class="js-wverdict-star" data-val="{{ $n }}">★</span>
+                                                        @endfor
+                                                        <small id="wverdict-stars-label">{{ $wRated ? number_format($wVerdict['rating'], 1).'/5' : '' }}</small>
+                                                    </div>
+                                                    <table class="wverdict__table">
+                                                        <thead><tr><th>Score /100</th><th>Rating /5</th><th>Condition</th><th>Guide</th></tr></thead>
+                                                        <tbody>
+                                                            @foreach (\App\Models\Inspection::VERDICT_BANDS as $band)
+                                                                <tr data-wverdict-band="{{ $band['condition'] }}" class="{{ $wRated && $band['condition'] === $wVerdict['band']['condition'] ? 'is-current' : '' }}">
+                                                                    <td class="c">{{ $band['min'] }}–{{ $band['max'] }}</td>
+                                                                    <td class="c">{{ number_format($band['rating_min'], 1) }}–{{ number_format($band['rating_max'], 1) }}</td>
+                                                                    <td class="c" style="background:{{ $band['color'] }}73;color:{{ $band['ink'] }};">{{ $band['condition'] }}</td>
+                                                                    <td>{{ $band['guide'] }}</td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        {{-- Overall Rating — highlighted section, shown first. Hidden where the
+                                             Calculated Overall Verdict above replaces it; kept in the form so
+                                             the saved overall_rating is posted back unchanged. --}}
                                         @php($overallRating = (float) old('overall_rating', $inspection->overall_rating ?? 0))
                                         @php($labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'])
                                         @php($pcts = [20, 40, 60, 80, 100])
                                         @php($overallRatingBadgeClass = $overallRating == 0 ? 'is-zero' : ($overallRating >= 4.6 ? 'is-excellent' : ($overallRating >= 3.6 ? 'is-very-good' : ($overallRating >= 2.6 ? 'is-good' : ($overallRating >= 1.6 ? 'is-fair' : 'is-poor')))))
-                                        <div class="col-12 mb-3">
+                                        <div class="col-12 mb-3 {{ $wVerdict ? 'd-none' : '' }}">
                                             <div class="overall-rating-wrap">
                                                 <div class="overall-rating-wrap__header">
                                                     <span>
@@ -2084,6 +2170,56 @@
         });
         const label = root.querySelector('.js-secrating-label[data-section="' + sectionId + '"]');
         if (label) label.textContent = val ? val + '/5' : '';
+
+        const weightEl = root.querySelector('.js-secweight[data-section="' + sectionId + '"]');
+        if (weightEl) {
+            const weight = parseFloat(weightEl.dataset.weight) || 0;
+            const pct = Math.round(val / 5 * weight * 100) / 100;
+            weightEl.textContent = pct + '% of ' + weight + '%';
+        }
+        paintWeightedVerdict();
+    }
+
+    // Calculated Overall Verdict — the same sum and bands as
+    // Inspection::weightedVerdict(), redone in the browser as ratings change.
+    const VERDICT_BANDS = @json(\App\Models\Inspection::VERDICT_BANDS);
+
+    function paintWeightedVerdict() {
+        const box = document.getElementById('wverdict');
+        if (! box) return;
+
+        let score = 0, rated = 0, weighted = 0;
+        root.querySelectorAll('.js-secweight').forEach(el => {
+            weighted++;
+            const hidden = root.querySelector('input[name="section_ratings[' + el.dataset.section + ']"]');
+            const rating = Math.min(5, parseFloat(hidden && hidden.value) || 0);
+            if (rating > 0) {
+                rated++;
+                score += rating / 5 * (parseFloat(el.dataset.weight) || 0);
+            }
+        });
+        score = Math.round(Math.min(100, score) * 10) / 10;
+
+        const band = VERDICT_BANDS.find(b => score >= b.min) || VERDICT_BANDS[VERDICT_BANDS.length - 1];
+        const t = Math.max(0, Math.min(1, (score - band.min) / Math.max(1, band.max - band.min)));
+        const rating = Math.min(band.rating_max, Math.round((band.rating_min + t * (band.rating_max - band.rating_min)) * 10) / 10);
+
+        document.getElementById('wverdict-score').textContent = score;
+        document.getElementById('wverdict-rating').textContent = rated ? rating.toFixed(1) : '—';
+        document.getElementById('wverdict-rated').textContent = rated + ' of ' + weighted + ' sections rated';
+        const cond = document.getElementById('wverdict-cond');
+        cond.textContent = rated ? band.condition : 'Not rated';
+        cond.style.background = rated ? band.color : '#b0b8c4';
+        cond.style.color = rated ? band.text : '#fff';
+        document.getElementById('wverdict-guide').textContent = rated ? band.guide : 'Rate the sections to calculate the verdict.';
+        const starVal = rated ? rating : 0;
+        box.querySelectorAll('.js-wverdict-star').forEach(star => {
+            fillStar(star, starVal - (parseInt(star.dataset.val, 10) - 1));
+        });
+        document.getElementById('wverdict-stars-label').textContent = rated ? rating.toFixed(1) + '/5' : '';
+        box.querySelectorAll('[data-wverdict-band]').forEach(tr => {
+            tr.classList.toggle('is-current', rated > 0 && tr.dataset.wverdictBand === band.condition);
+        });
     }
 
     // Clamp to 0–5 at one decimal, then push the value everywhere it is shown.

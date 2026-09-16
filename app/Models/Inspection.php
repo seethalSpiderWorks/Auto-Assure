@@ -257,6 +257,79 @@ class Inspection extends Model
     }
 
     /**
+     * Overall Verdict bands for the weighted /100 score — the client's table.
+     * Each band maps its score range onto its /5 rating range; checked top down.
+     * 'ink' is a darker shade of 'color' for text on the faded table cells.
+     */
+    public const VERDICT_BANDS = [
+        ['condition' => 'Excellent', 'min' => 90, 'max' => 100, 'rating_min' => 4.5, 'rating_max' => 5.0, 'color' => '#2fa84f', 'text' => '#fff', 'ink' => '#1e7b3a', 'guide' => 'Minimal defects, no major concerns'],
+        ['condition' => 'Very Good', 'min' => 80, 'max' => 89, 'rating_min' => 4.0, 'rating_max' => 4.4, 'color' => '#92d050', 'text' => '#1c2430', 'ink' => '#4d7c1f', 'guide' => 'Minor repairs/maintenance'],
+        ['condition' => 'Good', 'min' => 65, 'max' => 79, 'rating_min' => 3.0, 'rating_max' => 3.9, 'color' => '#ffc000', 'text' => '#1c2430', 'ink' => '#8a6400', 'guide' => 'Noticeable repairs/maintenance'],
+        ['condition' => 'Poor', 'min' => 40, 'max' => 64, 'rating_min' => 2.0, 'rating_max' => 2.9, 'color' => '#ed7d31', 'text' => '#fff', 'ink' => '#b4561a', 'guide' => 'Major repairs required'],
+        ['condition' => 'Critical', 'min' => 0, 'max' => 39, 'rating_min' => 1.0, 'rating_max' => 1.9, 'color' => '#e0241b', 'text' => '#fff', 'ink' => '#b3261e', 'guide' => 'Serious mechanical/safety/structural concerns'],
+    ];
+
+    /**
+     * Overall Verdict from the section weights: each section contributes
+     * (its star rating / 5) × its weight, so the sum is a score out of 100.
+     * An unrated section contributes nothing. Null when the template has no
+     * weighted sections.
+     *
+     * @param  \Illuminate\Support\Collection  $sectionSummaries  keyed by inspection_section_id
+     * @return array{score:float,rating:float,rated:int,weighted:int,band:array}|null
+     */
+    public function weightedVerdict($sectionSummaries): ?array
+    {
+        $score = 0.0;
+        $rated = 0;
+        $weighted = 0;
+
+        foreach ($this->type?->sections ?? [] as $section) {
+            if ($section->weight === null) {
+                continue;
+            }
+            $weighted++;
+
+            $rating = (float) (optional($sectionSummaries->get($section->id))->rating ?? 0);
+            if ($rating > 0) {
+                $rated++;
+                $score += min(5, $rating) / 5 * (float) $section->weight;
+            }
+        }
+
+        if ($weighted === 0) {
+            return null;
+        }
+
+        $score = round(min(100, $score), 1);
+        $band = self::verdictBand($score);
+
+        return ['score' => $score, 'rating' => self::verdictRating($score, $band), 'rated' => $rated, 'weighted' => $weighted, 'band' => $band];
+    }
+
+    public static function verdictBand(float $score): array
+    {
+        foreach (self::VERDICT_BANDS as $band) {
+            if ($score >= $band['min']) {
+                return $band;
+            }
+        }
+
+        return self::VERDICT_BANDS[array_key_last(self::VERDICT_BANDS)];
+    }
+
+    /**
+     * Place the score within its band's rating range — 85 → 4.2, 72 → 3.5.
+     */
+    public static function verdictRating(float $score, array $band): float
+    {
+        $t = ($score - $band['min']) / max(1, $band['max'] - $band['min']);
+        $rating = $band['rating_min'] + max(0, min(1, $t)) * ($band['rating_max'] - $band['rating_min']);
+
+        return round(min($band['rating_max'], $rating), 1);
+    }
+
+    /**
      * Per-section completion breakdown for the edit screen and the
      * "all answered before complete" gate.
      *

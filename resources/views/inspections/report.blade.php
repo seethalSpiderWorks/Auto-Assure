@@ -28,6 +28,19 @@
     $condition    = $overallRatingBadge;
     $overallCond  = Inspection::CONDITIONS[$inspection->overall_condition] ?? null;
 
+    // Weighted templates (Comprehensive, Premium) score the verdict from the
+    // section weights instead — the same Calculated Overall Verdict as the edit
+    // screen: score /100, rating /5 and condition from Inspection::VERDICT_BANDS.
+    $weightedVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect());
+    if ($weightedVerdict && $weightedVerdict['rated'] > 0) {
+        $overallRatingVal   = $weightedVerdict['rating'];
+        $overallRatingPct   = $weightedVerdict['score'];
+        $overallRatingBadge = $weightedVerdict['band']['condition'];
+        $ratingColors['Critical'] = '#e0483d';
+        $ratingColor  = $ratingColors[$overallRatingBadge] ?? '#8ea3b5';
+        $condition    = $overallRatingBadge;
+    }
+
     // question -> answer (detail) lookup, for the EV & Technical special blocks
     $qa = [];
     foreach ($inspection->type->sections as $s) {
@@ -201,6 +214,7 @@
             'Good' => 'جيد',
             'Fair' => 'مقبول',
             'Poor' => 'ضعيف',
+            'Critical' => 'حرج',
         ][$key] ?? null;
 
         return $isAr && $ar ? $ar : $key;

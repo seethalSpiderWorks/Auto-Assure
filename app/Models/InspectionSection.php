@@ -8,7 +8,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InspectionSection extends Model
 {
-    protected $fillable = ['inspection_type_id', 'group_name', 'group_name_ar', 'section_name', 'section_name_ar', 'description', 'sequence'];
+    protected $fillable = ['inspection_type_id', 'group_name', 'group_name_ar', 'section_name', 'section_name_ar', 'description', 'sequence', 'weight'];
+
+    protected function casts(): array
+    {
+        // Float, not decimal:2 — decimal casts to a string, which breaks the
+        // weighted-score arithmetic.
+        return ['weight' => 'float'];
+    }
 
     public function type(): BelongsTo
     {

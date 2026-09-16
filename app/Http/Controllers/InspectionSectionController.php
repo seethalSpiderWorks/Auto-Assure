@@ -76,6 +76,8 @@ class InspectionSectionController extends Controller
             'section_name_ar' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'sequence' => ['nullable', 'integer', 'min:0'],
+            // Share (%) of the Overall Verdict score this section carries.
+            'weight' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         // "Engine[ar]المحرك" in the English box fills the Arabic one.
