@@ -26,6 +26,10 @@
     // is finished.
     $inProgressCount = collect($sections)->where('status','In Progress')->count();
     $tileCol = $inProgressCount ? 'col-md-3' : 'col-md-4';
+    // The condition gauge, stars and recommendation only mean something when the
+    // template's "Calculated Overall Verdict" switch is on; otherwise this card
+    // shows the Inspector Comment instead.
+    $usesCalculated = $inspection->usesCalculatedVerdict();
 @endphp
 
 <div class="page-content">
@@ -76,6 +80,16 @@
 
                 {{-- Condition --}}
                 <div class="col-xl-7 col-lg-6">
+                    @if(! $usesCalculated)
+                        <div class="insp-card insp-comment h-100">
+                            <div class="insp-comment__title"><i class="bx bx-message-square-detail"></i> Inspector Comment</div>
+                            @if(filled($inspection->summary))
+                                <p class="insp-comment__text">{{ $inspection->summary }}</p>
+                            @else
+                                <p class="insp-comment__text insp-comment__text--empty">No inspector comment has been recorded yet.</p>
+                            @endif
+                        </div>
+                    @else
                     <div class="insp-card insp-condition h-100">
                         <div class="insp-condition__gauge">
                             <div class="insp-gauge" style="--pct: {{ $overview['ratingPercent'] }}; --gc: {{ $gaugeColor }};">
@@ -110,6 +124,7 @@
                             @endif
                         </div>
                     </div>
+                    @endif
                 </div>
             </div>
 
@@ -269,6 +284,11 @@
     }
     .insp-star-fill .bxs-star { color: inherit; }
     .insp-condition__note { font-size: 13.5px; opacity: .85; margin: 12px 0 0; }
+    .insp-comment { background: #00263D; color: #fff; display: flex; flex-direction: column; }
+    .insp-comment__title { font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #17BC8D; margin-bottom: 12px; }
+    .insp-comment__title i { font-size: 17px; vertical-align: -3px; margin-right: 4px; }
+    .insp-comment__text { font-size: 14px; line-height: 1.7; color: #e6edf3; margin: 0; white-space: pre-line; }
+    .insp-comment__text--empty { color: #94a3b8; font-style: italic; }
     .insp-condition__rec { font-size: 13.5px; margin: 8px 0 0; color: #17BC8D; }
 
     /* Stat tiles */

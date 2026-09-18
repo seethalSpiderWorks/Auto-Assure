@@ -182,8 +182,8 @@
                     <h3 class="idet-hero__title">{{ $inspection->car_year ? $inspection->car_year.' ' : '' }}{{ $vehicleName }}</h3>
                     <div class="idet-hero__badges">
                         <span class="idet-status {{ $statusClass }}">{{ $statusLabel }}</span>
-                        @if($condition)<span class="idet-chip"><i class="bx bx-check-shield"></i> {{ $condition }}</span>@endif
-                        @if($recommend)<span class="idet-chip"><i class="bx bx-bulb"></i> {{ $recommend }}</span>@endif
+                        @if($usesCalculated && $condition)<span class="idet-chip"><i class="bx bx-check-shield"></i> {{ $condition }}</span>@endif
+                        @if($usesCalculated && $recommend)<span class="idet-chip"><i class="bx bx-bulb"></i> {{ $recommend }}</span>@endif
                     </div>
                 </div>
             </div>
@@ -262,9 +262,11 @@
         </div>
 
         {{-- ===== Verdict ===== --}}
-        @if($usesCalculated || $condition || $recommend || $inspection->summary)
+        {{-- Condition / Rating / Recommendations only when the template's
+             "Calculated Overall Verdict" switch is on; otherwise just the comment. --}}
+        @if($usesCalculated || $inspection->summary)
             <div class="idet-card mt-3">
-                <div class="idet-card__title"><i class="bx bx-clipboard"></i> Overall Verdict</div>
+                <div class="idet-card__title"><i class="bx bx-clipboard"></i> {{ $usesCalculated ? 'Overall Verdict' : 'Inspector Comment' }}</div>
                 @if($usesCalculated)
                     {{-- Calculated Overall Verdict from the section weights — same as the edit screen. --}}
                     <div class="idet-wverdict">
@@ -278,7 +280,6 @@
                             <span class="idet-wverdict__cond" style="background:{{ $weightedRated ? $weightedVerdict['band']['color'] : '#b0b8c4' }};color:{{ $weightedRated ? $weightedVerdict['band']['text'] : '#fff' }};">{{ $weightedRated ? $weightedVerdict['band']['condition'] : 'Not rated' }}</span>
                         </div>
                     </div>
-                @endif
                 <div class="idet-facts idet-facts--verdict">
                     <div class="idet-fact"><span class="idet-fact__k">Condition</span><span class="idet-fact__v">{{ $condition ?: '—' }}</span></div>
                     <div class="idet-fact"><span class="idet-fact__k">Rating</span>
@@ -293,8 +294,9 @@
                             @endif
                         </span>
                     </div>
-                    <div class="idet-fact"><span class="idet-fact__k">{{ $usesCalculated ? 'Recommendations' : 'Recommendation' }}</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
+                    <div class="idet-fact"><span class="idet-fact__k">Recommendations</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
                 </div>
+                @endif
                 @if($inspection->summary)
                     <p class="idet-summary">{{ $inspection->summary }}</p>
                 @endif
