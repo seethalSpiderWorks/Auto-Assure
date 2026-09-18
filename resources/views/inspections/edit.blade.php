@@ -707,7 +707,7 @@
                                             <select name="car_make" id="car_make" class="select2 form-control form-select js-customer">
                                                 <option value="">Select Make</option>
                                                 @foreach ($lookups['car_make'] as $opt)
-                                                    <option value="{{ $opt }}" @selected(old('car_make', $inspection->car_make) === $opt)>{{ $opt }}</option>
+                                                    <option value="{{ $opt }}" @selected(trim((string) old('car_make', $inspection->car_make)) === $opt)>{{ $opt }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
@@ -1341,6 +1341,8 @@
                                         </div>
                                     @endif
 
+                                    {{-- No checklist on summary-only templates (Quick, Fleet) — nothing to track. --}}
+                                    <div @if (empty($sectionProgress)) style="display:none;" @endif>
                                     <hr class="detail-sep">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <h6 class="mb-0"><i class="bx bx-list-check text-success"></i> Completion Status</h6>
@@ -1360,6 +1362,7 @@
                                                 <span class="badge section-status-badge secstat__badge text-nowrap">{{ $sp['answered'] }}/{{ $sp['total'] }}</span>
                                             </button>
                                         @endforeach
+                                    </div>
                                     </div>
                                     @if ($isCompleted)<div class="mt-2 text-success"><i class="bx bx-check-circle"></i> Completed {{ optional($inspection->completed_at)->format('d M Y, H:i') }}</div>@endif
                                 </div>
@@ -2952,7 +2955,7 @@ $(document).ready(function () {
     var $make  = $('#car_make');
     var $model = $('#car_model');
     var modelsByMake = @json($lookups['modelsByMake']);
-    var selectedModel = ($model.data('selected-model') || '').toString();
+    var selectedModel = ($model.data('selected-model') || '').toString().trim();
 
     // Select2 sizes itself from the field's rendered width. When the wizard
     // resumes on a later card (completed inspections land on Verdict), the

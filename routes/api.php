@@ -76,8 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/inspections/{inspection}/extra-media/{media}', [InspectionController::class, 'deleteExtraMedia']);
     Route::delete('/inspections/{inspection}/extra-media', [InspectionController::class, 'deleteExtraMediaBulk']);
 
-    // Summary areas (Exterior, Engine, Brakes, …) from tbl_summary_type for a
-    // given inspection, with the inspection details and any saved note per area.
+    // Summary areas for a given inspection — the template's own Summary options
+    // (or tbl_summary_type when it has none) — with any saved note per area.
     Route::get('/inspections/{inspection}/summary/list', [InspectionController::class, 'summaryTypeList']);
 
     // Save per-area summary notes for an inspection (a note is required for every area).

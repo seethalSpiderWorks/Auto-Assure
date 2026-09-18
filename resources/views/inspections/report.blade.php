@@ -132,7 +132,10 @@
     // bucket contributes nothing to the report, not even to General Photos.
     $wantsDiagnostic = (bool) $inspection->type?->has_diagnostic_media;
 
+    // Checklist photos go to General Photos; photos from the Diagnostic Media
+    // bucket (no step, no section) get their own Diagnostic Media section.
     $reportPhotos = [];
+    $diagnosticPhotos = [];
     foreach ($inspection->details as $d) {
         $isGlobal = is_null($d->inspection_step_id) && is_null($d->inspection_section_id);
         if ($isGlobal && ! $wantsDiagnostic) { continue; }
@@ -148,13 +151,19 @@
             } catch (\Throwable $e) { continue; }
             // Photos uploaded against a category are captioned with the section
             // name; per-question photos keep their own label when one was typed.
+            if ($isGlobal) {
+                $diagnosticPhotos[] = ['caption' => $m->label ?: '', 'media' => $m];
+                continue;
+            }
             $caption = $isCategory
                 ? ($sec?->section_name ?? 'Photo')
                 : ($m->label ?: ($sec?->section_name ?? 'Photo'));
             $reportPhotos[] = ['caption' => $caption, 'media' => $m];
         }
     }
-    $heroPhoto = $reportPhotos[0]['media']->url ?? null;
+    // Summary-only templates have no checklist photos — fall back to a
+    // diagnostic photo for the cover.
+    $heroPhoto = ($reportPhotos[0] ?? $diagnosticPhotos[0] ?? null)['media']->url ?? null;
 
     // Diagnostic media documents — the step-less, section-less bucket from the
     // edit screen. A PDF can't be drawn into a printed report, so these are
@@ -849,14 +858,30 @@
         </div>
         @endif
 
-        @unless ($basicReport)   {{-- left out of the basic (Quick / Fleet) report --}}
 {{-- ============================== DIAGNOSTIC MEDIA ============================== --}}
-        {{-- PDFs uploaded to Diagnostic Media on the edit screen. They sit ahead of
-             General Photos and are shown as links — a PDF cannot be drawn into the
-             printed page, so the reader opens it from the URL. --}}
-        @if ($diagnosticDocs->isNotEmpty())
+        {{-- Everything uploaded to Diagnostic Media on the edit screen, printed on
+             every report (basic included) whenever the template has "Do you want
+             to add Diagnostic Media?" switched on. Photos are drawn as a gallery;
+             PDFs are shown as links — a PDF cannot be drawn into the printed page,
+             so the reader opens it from the URL. Sits ahead of General Photos. --}}
+        @if ($wantsDiagnostic && (! empty($diagnosticPhotos) || $diagnosticDocs->isNotEmpty()))
         <div class="page">
             <div class="sec-bar"><span class="en">{{ $L('Diagnostic Media') }}</span></div>
+            @if (! empty($diagnosticPhotos))
+            <div class="card photos">
+                <div class="gal">
+                    @foreach ($diagnosticPhotos as $p)
+                        <figure>
+                            <a href="{{ $p['media']->url }}" data-fancybox="diagnostic-photos" data-caption="{{ $p['caption'] }}">
+                                <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            </a>
+                            @if ($p['caption'] !== '')<figcaption>{{ $p['caption'] }}</figcaption>@endif
+                        </figure>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+            @if ($diagnosticDocs->isNotEmpty())
             <div class="card doc-grid">
                 @foreach ($diagnosticDocs as $doc)
                     <div class="doc-row">
@@ -869,9 +894,9 @@
                     </div>
                 @endforeach
             </div>
+            @endif
         </div>
         @endif
-@endunless
 
 {{-- ============================== GENERAL PHOTOS ============================== --}}
         {{-- Moved to the front (right after Summary Notes by Area) at the client's
@@ -1205,6 +1230,7 @@
         window.addEventListener('load', function () {
             if (window.Fancybox) {
                 Fancybox.bind('[data-fancybox="general-photos"]', {});
+                Fancybox.bind('[data-fancybox="diagnostic-photos"]', {});
             }
             setTimeout(function () { window.print(); }, 350);
         });

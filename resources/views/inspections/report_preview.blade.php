@@ -110,8 +110,22 @@
     // Category media has no step, so it must be resolved by its own section id.
     $sectionById = $inspection->type->sections->keyBy('id');
 
+    // Checklist photos go to General Photos; the Diagnostic Media bucket (no
+    // step, no section) gets its own section, and only when the template has
+    // Diagnostic Media switched on.
+    $wantsDiagnostic = (bool) $inspection->type?->has_diagnostic_media;
     $reportPhotos = [];
+    $diagnosticPhotos = [];
+    $diagnosticDocs = collect();
     foreach ($inspection->details as $d) {
+        $isGlobal = is_null($d->inspection_step_id) && is_null($d->inspection_section_id);
+        if ($isGlobal) {
+            if ($wantsDiagnostic) {
+                $diagnosticDocs = $diagnosticDocs->merge($d->media->filter(fn ($m) => $m->isDocument()));
+            } else {
+                continue;
+            }
+        }
         $isCategory = is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id);
         $sec = $isCategory
             ? ($sectionById[$d->inspection_section_id] ?? null)
@@ -123,13 +137,18 @@
             } catch (\Throwable $e) { continue; }
             // Photos uploaded against a category are captioned with the section
             // name; per-question photos keep their own label when one was typed.
+            if ($isGlobal) {
+                $diagnosticPhotos[] = ['caption' => $m->label ?: '', 'media' => $m];
+                continue;
+            }
             $caption = $isCategory
                 ? ($sec?->section_name ?? 'Photo')
                 : ($m->label ?: ($sec?->section_name ?? 'Photo'));
             $reportPhotos[] = ['caption' => $caption, 'media' => $m];
         }
     }
-    $heroPhoto = isset($reportPhotos[0]) ? $reportPhotos[0]['media']->thumbUrl(800) : null;
+    $heroMedia = ($reportPhotos[0] ?? $diagnosticPhotos[0] ?? null)['media'] ?? null;
+    $heroPhoto = $heroMedia ? $heroMedia->thumbUrl(800) : null;
 
     // Vehicle specification list (bilingual) for the summary card.
     $specs = [
@@ -747,6 +766,32 @@
             @endforeach
         </div>
 
+        {{-- ============================== DIAGNOSTIC MEDIA ============================== --}}
+        @if ($wantsDiagnostic && (! empty($diagnosticPhotos) || $diagnosticDocs->isNotEmpty()))
+        <div class="page">
+            <div class="sec-bar"><span class="en">Diagnostic Media</span><span class="ar">تقارير الفحص بالكمبيوتر</span></div>
+            @if (! empty($diagnosticPhotos))
+            <div class="card photos">
+                <div class="gal">
+                    @foreach ($diagnosticPhotos as $p)
+                        <figure>
+                            <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            @if ($p['caption'] !== '')<figcaption>{{ $p['caption'] }}</figcaption>@endif
+                        </figure>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+            @if ($diagnosticDocs->isNotEmpty())
+            <div class="card">
+                @foreach ($diagnosticDocs as $doc)
+                    <div style="padding:4px 0;"><a href="{{ $doc->url }}" target="_blank" rel="noopener">{{ $doc->label ?: ($doc->original_name ?: 'Document') }}</a></div>
+                @endforeach
+            </div>
+            @endif
+        </div>
+        @endif
+
         {{-- ============================== GENERAL PHOTOS ============================== --}}
         @if (! empty($reportPhotos))
         <div class="page">
@@ -760,6 +805,31 @@
                         </figure>
                     @endforeach
                 </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- ============================== SUMMARY NOTES BY AREA ==============================
+             One card per summary area the template defines (or the standard areas
+             when it defines none), in the template's order. --}}
+        @php
+            $areaNotes = collect($summaryTypes ?? [])
+                ->map(fn ($name, $id) => ['name' => $name, 'name_ar' => $summaryTypesAr[$id] ?? null, 'note' => $summaries[$id] ?? null])
+                ->filter(fn ($a) => filled($a['note']));
+        @endphp
+        @if ($areaNotes->isNotEmpty())
+        <div class="page">
+            <div class="sec-bar"><span class="en">Summary Notes by Area</span><span class="ar">ملخص الفحص حسب القسم</span></div>
+            <div class="grid2">
+                @foreach ($areaNotes as $an)
+                    <div class="item-card" style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;justify-content:space-between;gap:10px;font-weight:700;color:#1c2431;font-size:13px;">
+                            <span>{{ $an['name'] }}</span>
+                            @if (filled($an['name_ar']) && $an['name_ar'] !== $an['name'])<span class="ar" dir="rtl">{{ $an['name_ar'] }}</span>@endif
+                        </div>
+                        <div style="white-space:pre-line;color:#475467;line-height:1.6;font-size:12px;">{{ $an['note'] }}</div>
+                    </div>
+                @endforeach
             </div>
         </div>
         @endif

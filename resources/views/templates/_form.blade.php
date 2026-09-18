@@ -67,6 +67,55 @@
                 <label class="custom-control-label" for="has_calculated_verdict">Yes — calculate the verdict and Recommendations from the section weights</label>
             </div>
         </div>
+
+        {{-- Summary options: the titles the inspection's "Summary — a note per
+             area" block asks for, in this order. None set means the inspection
+             falls back to the standard areas (Exterior, Interior, Engine, …). --}}
+        @php
+            $summaryRows = old('summary_options', $type->exists
+                ? $type->summaryOptions->map(fn ($o) => ['id' => $o->id, 'name' => $o->name, 'name_ar' => $o->name_ar])->all()
+                : []);
+        @endphp
+        <div class="form-group mb-0 border-top pt-3 mt-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label mb-0">Summary options</label>
+                <button type="button" class="btn btn-sm btn-soft-primary" id="sumopt-add"><i class="bx bx-plus"></i> Add summary</button>
+            </div>
+            <small class="text-muted d-block mb-2">
+                The titles shown under <strong>Summary</strong> on the inspection — the technician writes a note for each, and every one is printed on the report.
+                Leave empty to use the standard areas.
+            </small>
+            @error('summary_options.*.name')<div class="text-danger font-size-12 mb-2">{{ $message }}</div>@enderror
+
+            <div id="sumopt-list">
+                @foreach ($summaryRows as $i => $row)
+                    <div class="sumopt-row d-flex align-items-center mb-2" style="gap:.5rem;">
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-sm btn-light py-0 sumopt-up" title="Move up"><i class="bx bx-chevron-up"></i></button>
+                            <button type="button" class="btn btn-sm btn-light py-0 sumopt-down" title="Move down"><i class="bx bx-chevron-down"></i></button>
+                        </div>
+                        <input type="hidden" data-f="id" name="summary_options[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}">
+                        <input type="text" data-f="name" name="summary_options[{{ $i }}][name]" class="form-control" value="{{ $row['name'] ?? '' }}" placeholder="Title, e.g. Exterior" required maxlength="255">
+                        <input type="text" data-f="name_ar" name="summary_options[{{ $i }}][name_ar]" class="form-control" dir="rtl" value="{{ $row['name_ar'] ?? '' }}" placeholder="العنوان بالعربية" maxlength="255">
+                        <button type="button" class="btn btn-sm btn-outline-danger sumopt-remove" title="Remove"><i class="bx bx-trash"></i></button>
+                    </div>
+                @endforeach
+            </div>
+            <p class="text-muted font-size-12 mb-0 {{ count($summaryRows) ? 'd-none' : '' }}" id="sumopt-empty">No summary options — inspections show the standard areas.</p>
+
+            <template id="sumopt-tpl">
+                <div class="sumopt-row d-flex align-items-center mb-2" style="gap:.5rem;">
+                    <div class="d-flex flex-column">
+                        <button type="button" class="btn btn-sm btn-light py-0 sumopt-up" title="Move up"><i class="bx bx-chevron-up"></i></button>
+                        <button type="button" class="btn btn-sm btn-light py-0 sumopt-down" title="Move down"><i class="bx bx-chevron-down"></i></button>
+                    </div>
+                    <input type="hidden" data-f="id" value="">
+                    <input type="text" data-f="name" class="form-control" placeholder="Title, e.g. Exterior" required maxlength="255">
+                    <input type="text" data-f="name_ar" class="form-control" dir="rtl" placeholder="العنوان بالعربية" maxlength="255">
+                    <button type="button" class="btn btn-sm btn-outline-danger sumopt-remove" title="Remove"><i class="bx bx-trash"></i></button>
+                </div>
+            </template>
+        </div>
     </div>
 </div>
 
@@ -74,3 +123,37 @@
     <button class="btn btn-primary">{{ $type->exists ? 'Save Changes' : 'Create Type' }}</button>
     <a href="{{ $type->exists ? route('templates.show', $type) : route('templates.index') }}" class="btn btn-light">Cancel</a>
 </div>
+
+<script>
+(function () {
+    var list = document.getElementById('sumopt-list');
+    if (!list) return;
+    var empty = document.getElementById('sumopt-empty');
+
+    // Rows post in on-screen order, which becomes the display order.
+    function renumber() {
+        list.querySelectorAll('.sumopt-row').forEach(function (row, i) {
+            row.querySelectorAll('[data-f]').forEach(function (el) {
+                el.name = 'summary_options[' + i + '][' + el.dataset.f + ']';
+            });
+        });
+        empty.classList.toggle('d-none', list.children.length > 0);
+    }
+
+    document.getElementById('sumopt-add').addEventListener('click', function () {
+        list.appendChild(document.getElementById('sumopt-tpl').content.cloneNode(true));
+        renumber();
+        list.lastElementChild.querySelector('[data-f="name"]').focus();
+    });
+
+    list.addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        var row = btn.closest('.sumopt-row');
+        if (btn.classList.contains('sumopt-remove')) row.remove();
+        else if (btn.classList.contains('sumopt-up') && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+        else if (btn.classList.contains('sumopt-down') && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+        renumber();
+    });
+})();
+</script>

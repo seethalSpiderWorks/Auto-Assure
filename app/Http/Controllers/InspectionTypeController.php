@@ -24,7 +24,11 @@ class InspectionTypeController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $type = InspectionType::create($this->validateType($request));
+        $validated = $this->validateType($request);
+        $summaryOptions = $this->validateSummaryOptions($request);
+
+        $type = InspectionType::create($validated);
+        $this->syncSummaryOptions($type, $summaryOptions);
 
         return redirect()->route('templates.show', $type)->with('success', 'Inspection type created.');
     }
@@ -42,12 +46,16 @@ class InspectionTypeController extends Controller
 
     public function edit(InspectionType $template): View
     {
-        return view('templates.edit', ['type' => $template]);
+        return view('templates.edit', ['type' => $template->load('summaryOptions')]);
     }
 
     public function update(Request $request, InspectionType $template): RedirectResponse
     {
-        $template->update($this->validateType($request));
+        $validated = $this->validateType($request);
+        $summaryOptions = $this->validateSummaryOptions($request);
+
+        $template->update($validated);
+        $this->syncSummaryOptions($template, $summaryOptions);
 
         return redirect()->route('templates.show', $template)->with('success', 'Inspection type updated.');
     }
@@ -57,6 +65,52 @@ class InspectionTypeController extends Controller
         $template->delete();
 
         return redirect()->route('templates.index')->with('success', 'Inspection type deleted.');
+    }
+
+    /**
+     * Save the template's Summary options from the form rows: existing rows are
+     * renamed, new ones added, removed ones deleted, and the row order becomes
+     * the display order. Notes already written against a removed option stay in
+     * inspection_summaries — they simply stop being shown.
+     */
+    private function syncSummaryOptions(InspectionType $type, array $rows): void
+    {
+        $existing = $type->summaryOptions()->get()->keyBy('id');
+        $kept = [];
+
+        foreach (array_values($rows) as $i => $row) {
+            $row = BilingualText::applyAll($row, ['name']);
+            $values = [
+                'name' => trim($row['name']),
+                'name_ar' => filled($row['name_ar'] ?? null) ? trim($row['name_ar']) : null,
+                'sequence' => $i + 1,
+            ];
+
+            $option = $existing->get((int) ($row['id'] ?? 0));
+            if ($option) {
+                $option->update($values);
+            } else {
+                $option = $type->summaryOptions()->create($values);
+            }
+            $kept[] = $option->id;
+        }
+
+        $type->summaryOptions()->whereNotIn('id', $kept)->delete();
+    }
+
+    /**
+     * @return array<int, array{id?: int|null, name: string, name_ar?: string|null}>
+     */
+    private function validateSummaryOptions(Request $request): array
+    {
+        return $request->validate([
+            'summary_options' => ['nullable', 'array'],
+            'summary_options.*.id' => ['nullable', 'integer'],
+            'summary_options.*.name' => ['required', 'string', 'max:255'],
+            'summary_options.*.name_ar' => ['nullable', 'string', 'max:255'],
+        ], [
+            'summary_options.*.name.required' => 'Every summary option needs a title.',
+        ])['summary_options'] ?? [];
     }
 
     private function validateType(Request $request): array

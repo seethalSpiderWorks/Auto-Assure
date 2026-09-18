@@ -6,7 +6,6 @@ use App\Models\DamageDiagram;
 use App\Models\Inspection;
 use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
-use App\Models\InspectionSummary;
 use App\Models\InspectionType;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -227,15 +226,10 @@ class TestInspectionSeeder extends Seeder
 
     private function writeAreaNotes(Inspection $inspection): void
     {
-        foreach (InspectionSummary::types() as $typeId => $areaName) {
-            DB::table('inspection_summaries')->updateOrInsert(
-                ['inspection_id' => $inspection->id, 'summary_type_id' => $typeId],
-                [
-                    'summary' => self::AREA_NOTES[$areaName] ?? "{$areaName} inspected — nothing to report.",
-                    'updated_at' => now(),
-                    'created_at' => now(),
-                ]
-            );
+        $inspection->load('type.summaryOptions');
+
+        foreach ($inspection->summaryAreas() as $areaId => $areaName) {
+            $inspection->saveSummaryNote($areaId, self::AREA_NOTES[$areaName] ?? "{$areaName} inspected — nothing to report.");
         }
     }
 

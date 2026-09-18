@@ -403,6 +403,10 @@
         @endif
 
         {{-- ===== Checklist ===== --}}
+        {{-- Summary-only templates (Quick, Fleet) have no sections: the whole
+             checklist block is hidden, not removed, so its scripts still find
+             their elements. --}}
+        <div @if ($inspection->type && $inspection->type->sections->isEmpty()) style="display:none;" @endif>
         <div class="idet-section-head">
             <h5 class="mb-0">Inspection Checklist</h5>
             <div class="idet-cltools">
@@ -529,6 +533,7 @@
           @endforelse
         </div>
         <div id="idetNoResults" class="idet-card text-center text-muted py-4" style="display:none;">No sections match your search.</div>
+        </div>
 
     </div>
 </div>

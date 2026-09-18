@@ -9,11 +9,13 @@ use Illuminate\Support\Facades\DB;
 /**
  * A free-text note against one summary type (Exterior, Engine, Brakes, …) for
  * an inspection. Types come from the legacy tbl_summary_type lookup, which the
- * /inspectionreport summary tab also reads.
+ * /inspectionreport summary tab also reads — or, when the inspection's template
+ * has its own Summary options, from inspection_summary_options (keyed by
+ * summary_option_id instead). See Inspection::summaryAreas().
  */
 class InspectionSummary extends Model
 {
-    protected $fillable = ['inspection_id', 'summary_type_id', 'summary', 'summary_ar'];
+    protected $fillable = ['inspection_id', 'summary_type_id', 'summary_option_id', 'summary', 'summary_ar'];
 
     public function inspection(): BelongsTo
     {

@@ -105,6 +105,7 @@
                                 <th>Customer</th>
                                 <th>Phone</th>
                                 <th>Vehicle</th>
+                                <th>Inspection</th>
                                 <th>Technician</th>
                                 <th>Inspection Date</th>
                                 <th>Status</th>
@@ -141,6 +142,13 @@
                                     <td>
                                         @if($vehicle)
                                             <span class="insp-vehicle"><i class="bx bxs-car"></i> {{ $vehicle }}</span>
+                                        @else
+                                            <span class="text-muted">—</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if(optional($inspection->type)->name)
+                                            <span class="insp-type">{{ $inspection->type->name }}</span>
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif
@@ -188,7 +196,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7">
+                                    <td colspan="8">
                                         <div class="insp-empty">
                                             <i class="bx bx-clipboard"></i>
                                             <p>No inspections found{{ $hasFilters ? ' for these filters' : '' }}.</p>

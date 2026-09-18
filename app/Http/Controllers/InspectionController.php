@@ -33,7 +33,7 @@ class InspectionController extends Controller
         // CRM staff manage all inspections; technicians use the app/API only.
         // Order by most-recently-updated so edited inspections bubble to the top,
         // and a brand-new inspection (updated_at == created_at) also shows first.
-        $query = Inspection::with(['lead', 'technician'])->latest('updated_at');
+        $query = Inspection::with(['lead', 'technician', 'type'])->latest('updated_at');
 
         if ($user->isTechnician()) {
             $query->where('technician_id', $user->id);
@@ -145,13 +145,15 @@ class InspectionController extends Controller
 
         $lookups = $this->vehicleLookups($inspection);
 
-        // Summary types (Exterior, Engine, Brakes, …) and this inspection's notes.
-        $summaryTypes = InspectionSummary::types();
-        $summaries = $inspection->summaries()->pluck('summary', 'summary_type_id')->all();
+        // Summary areas — the template's own Summary options, or the legacy
+        // tbl_summary_type areas when it has none — and this inspection's notes.
+        $inspection->loadMissing(['type.summaryOptions', 'summaries']);
+        $summaryTypes = $inspection->summaryAreas();
+        $summaries = $inspection->summaryNotes();
         // The Arabic twin of each note, plus the area names in Arabic for the
-        // placeholders — both from the lookup the legacy screen reads.
-        $summariesAr = $inspection->summaries()->pluck('summary_ar', 'summary_type_id')->all();
-        $summaryTypesAr = InspectionSummary::typesAr();
+        // placeholders.
+        $summariesAr = $inspection->summaryNotes('summary_ar');
+        $summaryTypesAr = $inspection->summaryAreas(true);
 
         return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups', 'summaryTypes', 'summaries', 'summariesAr', 'summaryTypesAr'));
     }
@@ -192,11 +194,21 @@ class InspectionController extends Controller
         $modelsByMake = [];
         foreach ($activeModels as $m) {
             $mn = $makeIdToName[$m->model_make] ?? null;
-            if ($mn) $modelsByMake[$mn][] = $m->model_name;
+            if ($mn) $modelsByMake[$mn][] = trim($m->model_name);
+        }
+
+        // A stored make outside the active list (unpublished, or typed on the
+        // lead) must still be selectable, otherwise the select renders blank
+        // and silently clears it on save — the same rule as the years above.
+        $makes = VehicleLookups::names('car_make');
+        $storedMake = trim((string) $inspection->car_make);
+        if ($storedMake !== '' && ! in_array($storedMake, $makes, true)) {
+            $makes[] = $storedMake;
+            sort($makes, SORT_NATURAL | SORT_FLAG_CASE);
         }
 
         return [
-            'car_make' => VehicleLookups::names('car_make'),
+            'car_make' => $makes,
             'car_model' => VehicleLookups::names('car_model'),
             'modelsByMake' => $modelsByMake,
             'exterior_color' => VehicleLookups::names('exterior_color'),
@@ -286,14 +298,14 @@ class InspectionController extends Controller
         // Per-area summary notes (Exterior, Engine, …) shown in their own report
         // section. The Arabic edition takes their names from the lookup's own
         // summary_type_name_ar column, the same one the legacy report reads.
-        $summaryTypes = $lang === 'ar' ? InspectionSummary::typesAr() : InspectionSummary::types();
+        $inspection->loadMissing('type.summaryOptions');
+        $summaryTypes = $inspection->summaryAreas($lang === 'ar');
         // The Arabic edition prints the Arabic note where the technician wrote
         // one, and the English note where they did not.
-        $summaries = $lang === 'ar'
-            ? $inspection->summaries
-                ->mapWithKeys(fn ($s) => [$s->summary_type_id => filled($s->summary_ar) ? $s->summary_ar : $s->summary])
-                ->all()
-            : $inspection->summaries->pluck('summary', 'summary_type_id')->all();
+        $summaries = $inspection->summaryNotes();
+        if ($lang === 'ar') {
+            $summaries = array_replace($summaries, array_filter($inspection->summaryNotes('summary_ar'), 'filled'));
+        }
 
         return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries', 'lang'));
     }
@@ -316,12 +328,20 @@ class InspectionController extends Controller
             'type.sections.steps',
             'details.media',
             'sectionSummaries',
+            'summaries',
+            'type.summaryOptions',
         ]);
 
         $answers = $inspection->details->keyBy('inspection_step_id');
         $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        return view('inspections.report_preview', compact('inspection', 'answers', 'sectionSummaries'));
+        // Per-area summary notes — the template's own Summary options, or the
+        // standard areas when it has none — the same list the report prints.
+        $summaryTypes = $inspection->summaryAreas();
+        $summaryTypesAr = $inspection->summaryAreas(true);
+        $summaries = $inspection->summaryNotes();
+
+        return view('inspections.report_preview', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaryTypesAr', 'summaries'));
     }
 
     /**
@@ -347,9 +367,10 @@ class InspectionController extends Controller
         // Section-level summaries/ratings, keyed by section id.
         $sectionSummaries = $inspection->sectionSummaries->keyBy('inspection_section_id');
 
-        // Summary types (Exterior, Engine, Brakes, …) and this inspection's notes.
-        $summaryTypes = InspectionSummary::types();
-        $summaries = $inspection->summaries->pluck('summary', 'summary_type_id')->all();
+        // Summary areas (template options or legacy types) and this inspection's notes.
+        $inspection->loadMissing(['type.summaryOptions', 'summaries']);
+        $summaryTypes = $inspection->summaryAreas();
+        $summaries = $inspection->summaryNotes();
 
         // Inspection templates (active + this inspection's own type, even if now
         // inactive) with their full section/step tree. The Completion card and the
@@ -1174,25 +1195,15 @@ class InspectionController extends Controller
         $typeSummaries = $typeChanged ? [] : (array) $request->input('summaries', []);
         $typeSummariesAr = $typeChanged ? [] : (array) $request->input('summaries_ar', []);
         if ($typeSummaries) {
-            $validTypeIds = array_keys(InspectionSummary::types());
+            $inspection->load('type.summaryOptions');
+            $validTypeIds = array_keys($inspection->summaryAreas());
 
             foreach ($typeSummaries as $typeId => $text) {
                 if (! in_array((int) $typeId, $validTypeIds, true)) {
                     continue;
                 }
 
-                if (filled($text)) {
-                    $arabic = $typeSummariesAr[$typeId] ?? null;
-
-                    InspectionSummary::updateOrCreate(
-                        ['inspection_id' => $inspection->id, 'summary_type_id' => (int) $typeId],
-                        ['summary' => $text, 'summary_ar' => filled($arabic) ? $arabic : null]
-                    );
-                } else {
-                    InspectionSummary::where('inspection_id', $inspection->id)
-                        ->where('summary_type_id', (int) $typeId)
-                        ->delete();
-                }
+                $inspection->saveSummaryNote((int) $typeId, $text, $typeSummariesAr[$typeId] ?? null);
             }
         }
 
@@ -1229,11 +1240,10 @@ class InspectionController extends Controller
             // Every summary area (Exterior, Engine, Brakes, …) needs its note —
             // the report prints one per area, and the technician API enforces
             // the same "a note for every area" rule.
-            $noted = $inspection->summaries()
-                ->pluck('summary', 'summary_type_id')
-                ->filter(fn ($text) => filled($text));
+            $inspection->load('summaries');
+            $noted = collect($inspection->summaryNotes())->filter(fn ($text) => filled($text));
 
-            $missingNotes = collect(InspectionSummary::types())
+            $missingNotes = collect($inspection->summaryAreas())
                 ->reject(fn ($name, $typeId) => $noted->has($typeId))
                 ->values();
 

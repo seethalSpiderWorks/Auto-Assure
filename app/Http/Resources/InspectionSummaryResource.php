@@ -3,7 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Models\Inspection;
-use App\Models\InspectionSummary;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -105,17 +104,14 @@ class InspectionSummaryResource extends JsonResource
         // (Inspection::detailIsAnswered). This deliberately does NOT use the
         // model's progress(), which counts raw detail rows (incl. empty ones and
         // answers for steps outside the current type) and can disagree.
-        // Saved per-area summary notes (inspection_summaries), keyed by summary_type_id.
-        $savedSummaries = $this->relationLoaded('summaries')
-            ? $this->summaries->pluck('summary', 'summary_type_id')
-            : collect();
-        $savedSummariesAr = $this->relationLoaded('summaries')
-            ? $this->summaries->pluck('summary_ar', 'summary_type_id')
-            : collect();
-        $typesAr = InspectionSummary::typesAr();
+        // Saved per-area summary notes (inspection_summaries), keyed by area id.
+        $savedSummaries = collect($this->relationLoaded('summaries') ? $this->resource->summaryNotes() : []);
+        $savedSummariesAr = collect($this->relationLoaded('summaries') ? $this->resource->summaryNotes('summary_ar') : []);
+        $typesAr = $this->resource->summaryAreas(true);
 
-        // All active summary types with their saved notes, in lookup order.
-        $summaryAreas = collect(InspectionSummary::types())->map(fn ($name, $id) => [
+        // Every summary area (template options, or tbl_summary_type when the
+        // template has none) with its saved note, in display order.
+        $summaryAreas = collect($this->resource->summaryAreas())->map(fn ($name, $id) => [
             'id'         => $id,
             'name'       => $name,
             'name_ar'    => $typesAr[$id] ?? null,

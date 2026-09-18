@@ -173,16 +173,17 @@ class InspectionResource extends JsonResource
                 }
             ),
 
-            // Per-area summary notes (Exterior, Engine, Brakes, …) from tbl_summary_type.
+            // Per-area summary notes (Exterior, Engine, Brakes, …) — template
+            // Summary options, or tbl_summary_type when the template has none.
             'summaries' => $this->whenLoaded('summaries', function () {
-                $types = \App\Models\InspectionSummary::types();
+                $types = $this->resource->summaryAreas();
+                $typesAr = $this->resource->summaryAreas(true);
+                $key = $this->resource->summaryKey();
 
-                $typesAr = \App\Models\InspectionSummary::typesAr();
-
-                return $this->summaries->map(fn ($s) => [
-                    'summary_type_id'      => (int) $s->summary_type_id,
-                    'summary_type_name'    => $types[$s->summary_type_id] ?? null,
-                    'summary_type_name_ar' => $typesAr[$s->summary_type_id] ?? null,
+                return $this->summaries->whereNotNull($key)->map(fn ($s) => [
+                    'summary_type_id'      => (int) $s->{$key},
+                    'summary_type_name'    => $types[$s->{$key}] ?? null,
+                    'summary_type_name_ar' => $typesAr[$s->{$key}] ?? null,
                     'summary'              => $s->summary,
                     'summary_ar'           => $s->summary_ar,
                 ])->values();

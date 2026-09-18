@@ -155,7 +155,10 @@ class VehicleLookups
         }
 
         return $query->get()
-            ->map(fn ($row) => ['id' => (int) $row->id, 'name' => (string) $row->name])
+            // Many legacy names carry a trailing space ("Peugeot "). Request input
+            // is trimmed on save, so an untrimmed option would never match the
+            // stored value again and the select would load blank.
+            ->map(fn ($row) => ['id' => (int) $row->id, 'name' => trim((string) $row->name)])
             ->all();
     }
 

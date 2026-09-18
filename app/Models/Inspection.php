@@ -118,6 +118,93 @@ class Inspection extends Model
     }
 
     /**
+     * The template's own Summary options, or null when it has none and the
+     * legacy tbl_summary_type areas apply.
+     */
+    protected function summaryOptionList()
+    {
+        $options = $this->type?->summaryOptions;
+
+        return $options && $options->isNotEmpty() ? $options : null;
+    }
+
+    /**
+     * The Summary areas this inspection asks a note for, as id => name, in
+     * display order. The ids are option ids when the template has Summary
+     * options, otherwise tbl_summary_type ids — see summaryKey().
+     *
+     * @return array<int, string>
+     */
+    public function summaryAreas(bool $arabic = false): array
+    {
+        if ($options = $this->summaryOptionList()) {
+            return $options->mapWithKeys(fn ($o) => [
+                (int) $o->id => $arabic && filled($o->name_ar) ? $o->name_ar : $o->name,
+            ])->all();
+        }
+
+        return $arabic ? InspectionSummary::typesAr() : InspectionSummary::types();
+    }
+
+    /**
+     * The areas' Arabic names exactly as stored — null where none was entered,
+     * with no fallback to English. For API payloads that expose the raw value.
+     *
+     * @return array<int, string|null>
+     */
+    public function summaryAreaNamesAr(): array
+    {
+        if ($options = $this->summaryOptionList()) {
+            return $options->mapWithKeys(fn ($o) => [(int) $o->id => $o->name_ar])->all();
+        }
+
+        return DB::table('tbl_summary_type')
+            ->where('summary_type_status', 0)
+            ->pluck('summary_type_name_ar', 'summary_type_id')
+            ->all();
+    }
+
+    /**
+     * The inspection_summaries column the summaryAreas() ids are stored in.
+     */
+    public function summaryKey(): string
+    {
+        return $this->summaryOptionList() ? 'summary_option_id' : 'summary_type_id';
+    }
+
+    /**
+     * Saved notes keyed by area id — only those belonging to the current set
+     * of areas' kind, so legacy and option notes never mix.
+     *
+     * @return array<int, string|null>
+     */
+    public function summaryNotes(string $field = 'summary'): array
+    {
+        $key = $this->summaryKey();
+
+        return $this->summaries->whereNotNull($key)->pluck($field, $key)->all();
+    }
+
+    /**
+     * Save (or, when the English note is blank, remove) one area's note.
+     */
+    public function saveSummaryNote(int $areaId, ?string $text, ?string $textAr = null): void
+    {
+        $key = $this->summaryKey();
+
+        if (blank($text)) {
+            InspectionSummary::where('inspection_id', $this->id)->where($key, $areaId)->delete();
+
+            return;
+        }
+
+        InspectionSummary::updateOrCreate(
+            ['inspection_id' => $this->id, $key => $areaId],
+            ['summary' => $text, 'summary_ar' => filled($textAr) ? $textAr : null]
+        );
+    }
+
+    /**
      * Number of template steps that have been answered so far.
      */
     public function progress(): array
@@ -600,7 +687,8 @@ class Inspection extends Model
             }
             // Model year from make_model_year (the free-text combined field).
             if (! $inspection->car_year) {
-                $inspection->car_year = static::extractYearFromMakeModel($lead->make_model_year ?? null);
+                $inspection->car_year = static::extractYearFromMakeModel($lead->make_model_year ?? null)
+                    ?: static::resolveLeadYear($lead->lead_year ?? null);
             }
             // Manufacturing year from the dedicated lead_year field.
             if (! $inspection->manufacturing_year) {
@@ -633,8 +721,10 @@ class Inspection extends Model
                 'whatsapp_number'    => $basicReg?->breg_whatsapp,
                 'car_make'           => $carMake,
                 'car_model'          => $carModel,
-                // Model year from make_model_year (the free-text combined field).
-                'car_year'           => static::extractYearFromMakeModel($lead->make_model_year ?? null),
+                // Model year from make_model_year (the free-text combined field),
+                // else the lead's own Year field.
+                'car_year'           => static::extractYearFromMakeModel($lead->make_model_year ?? null)
+                    ?: static::resolveLeadYear($lead->lead_year ?? null),
                 // Manufacturing year from the dedicated lead_year field.
                 'manufacturing_year' => static::resolveLeadYear($lead->lead_year ?? null),
                 'plate_no'           => $lead->lead_vehicle_plate_no,
@@ -714,7 +804,7 @@ class Inspection extends Model
 
         // Already a name (non-numeric without commas) — pass through.
         if (! is_numeric($value) && ! str_contains($value, ',')) {
-            return (string) $value;
+            return trim((string) $value) ?: null;
         }
 
         // Comma-separated ids: resolve each one and join the names.
@@ -725,7 +815,7 @@ class Inspection extends Model
                 if (is_numeric($id)) {
                     $name = DB::table($table)->where($idColumn, $id)->value($nameColumn);
                     if ($name !== null && $name !== '') {
-                        $names[] = (string) $name;
+                        $names[] = trim((string) $name);
                     }
                 }
             }
@@ -733,9 +823,9 @@ class Inspection extends Model
         }
 
         // Single numeric id.
-        $name = DB::table($table)->where($idColumn, $value)->value($nameColumn);
+        $name = trim((string) DB::table($table)->where($idColumn, $value)->value($nameColumn));
 
-        return $name !== null && $name !== '' ? (string) $name : null;
+        return $name !== '' ? $name : null;
     }
 
     /**

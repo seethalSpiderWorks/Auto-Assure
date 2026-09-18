@@ -70,6 +70,15 @@ class InspectionType extends Model
         return $this->hasMany(InspectionSection::class)->orderBy('sequence');
     }
 
+    /**
+     * The Summary titles this template asks a note for. Empty means the
+     * inspection falls back to the legacy tbl_summary_type areas.
+     */
+    public function summaryOptions(): HasMany
+    {
+        return $this->hasMany(InspectionSummaryOption::class)->orderBy('sequence')->orderBy('id');
+    }
+
     public function steps(): HasManyThrough
     {
         return $this->hasManyThrough(InspectionStep::class, InspectionSection::class);

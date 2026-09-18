@@ -10,7 +10,6 @@ use App\Models\InspectionDetail;
 use App\Models\InspectionMedia;
 use App\Models\InspectionSection;
 use App\Models\InspectionSectionSummary;
-use App\Models\InspectionSummary;
 use App\Models\Lead;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -1116,8 +1115,8 @@ class InspectionController extends Controller
     }
 
     /**
-     * Summary areas (Exterior, Engine, Brakes, …) from tbl_summary_type for a
-     * given inspection — with the inspection details and any note already saved
+     * Summary areas (Exterior, Engine, Brakes, …) for a given inspection — the
+     * template's own Summary options, or tbl_summary_type when it has none — — with the inspection details and any note already saved
      * against each area.
      *
      * GET /api/inspections/{inspection}/summary/list
@@ -1126,22 +1125,19 @@ class InspectionController extends Controller
     {
         $this->authorizeTechnician($request, $inspection);
 
-        // Saved notes for this inspection, keyed by summary_type_id.
-        $saved = $inspection->summaries()->pluck('summary', 'summary_type_id');
-        $savedAr = $inspection->summaries()->pluck('summary_ar', 'summary_type_id');
+        // Saved notes for this inspection, keyed by area id.
+        $inspection->loadMissing(['type.summaryOptions', 'summaries']);
+        $saved = $inspection->summaryNotes();
+        $savedAr = $inspection->summaryNotes('summary_ar');
+        $namesAr = $inspection->summaryAreaNamesAr();
 
-        $areas = \Illuminate\Support\Facades\DB::table('tbl_summary_type')
-            ->where('summary_type_status', 0)
-            ->orderBy('summary_type_id')
-            ->get()
-            ->map(fn ($t) => [
-                'id' => (int) $t->summary_type_id,
-                'summary_type_name' => $t->summary_type_name,
-                // The area's own Arabic name, from the same lookup the legacy
-                // report reads.
-                'summary_type_name_ar' => $t->summary_type_name_ar,
-                'summary' => $saved->get($t->summary_type_id),
-                'summary_ar' => $savedAr->get($t->summary_type_id),
+        $areas = collect($inspection->summaryAreas())
+            ->map(fn ($name, $id) => [
+                'id' => (int) $id,
+                'summary_type_name' => $name,
+                'summary_type_name_ar' => $namesAr[$id] ?? null,
+                'summary' => $saved[$id] ?? null,
+                'summary_ar' => $savedAr[$id] ?? null,
             ])
             ->values();
 
@@ -1150,7 +1146,7 @@ class InspectionController extends Controller
 
     /**
      * Save the per-area summary notes. Every summary area is required — a note
-     * must be provided for each type in tbl_summary_type.
+     * must be provided for each of the inspection's summary areas.
      *
      * POST /api/inspections/{inspection}/summaries
      */
@@ -1162,7 +1158,8 @@ class InspectionController extends Controller
             return $cancelled;
         }
 
-        $types = InspectionSummary::types();   // [id => name]
+        $inspection->loadMissing('type.summaryOptions');
+        $types = $inspection->summaryAreas();   // [id => name]
 
         // Build "required for every area" rules so a missing/blank note fails
         // with a clear, per-area validation error.
@@ -1189,21 +1186,21 @@ class InspectionController extends Controller
         foreach ($validated['summaries'] as $typeId => $text) {
             $note = $arabic[$typeId] ?? null;
 
-            InspectionSummary::updateOrCreate(
-                ['inspection_id' => $inspection->id, 'summary_type_id' => (int) $typeId],
-                ['summary' => $text, 'summary_ar' => filled($note) ? $note : null]
-            );
+            if (array_key_exists((int) $typeId, $types)) {
+                $inspection->saveSummaryNote((int) $typeId, $text, $note);
+            }
         }
 
         $this->markStarted($inspection);
         $inspection->save();
 
-        $typesAr = InspectionSummary::typesAr();
+        $typesAr = $inspection->summaryAreas(true);
+        $key = $inspection->summaryKey();
 
-        $areas = $inspection->summaries()->get()->map(fn ($s) => [
-            'summary_type_id' => $s->summary_type_id,
-            'name' => $types[$s->summary_type_id] ?? null,
-            'name_ar' => $typesAr[$s->summary_type_id] ?? null,
+        $areas = $inspection->summaries()->whereNotNull($key)->get()->map(fn ($s) => [
+            'summary_type_id' => $s->{$key},
+            'name' => $types[$s->{$key}] ?? null,
+            'name_ar' => $typesAr[$s->{$key}] ?? null,
             'summary' => $s->summary,
             'summary_ar' => $s->summary_ar,
         ])->values();
