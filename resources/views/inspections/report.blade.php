@@ -178,7 +178,6 @@
         ['Make', $val($inspection->car_make)],
         ['Model', $val($inspection->car_model)],
         ['Year', $val($inspection->car_year)],
-        ['Manufacturing Year', $val($inspection->manufacturing_year)],
         ['VIN / Chassis No', $val($inspection->vin)],
         ['Plate No', $val($inspection->plate_no)],
         ['Odometer', $val($inspection->odometer)],

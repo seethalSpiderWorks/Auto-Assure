@@ -155,7 +155,6 @@
         ['Make', 'اسم الصانع', $val($inspection->car_make)],
         ['Model', 'الطراز', $val($inspection->car_model)],
         ['Year', 'سنة الطراز', $val($inspection->car_year)],
-        ['Manufacturing Year', 'سنة الصنع', $val($inspection->manufacturing_year)],
         ['VIN / Chassis No', 'رقم الهيكل', $val($inspection->vin)],
         ['Plate No', 'رقم اللوحة', $val($inspection->plate_no)],
         ['Odometer', 'قراءة العداد', $val($inspection->odometer)],
