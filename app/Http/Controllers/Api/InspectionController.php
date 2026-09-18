@@ -1208,10 +1208,23 @@ class InspectionController extends Controller
             'summary_ar' => $s->summary_ar,
         ])->values();
 
-        return response()->json([
+        $response = [
             'message' => 'Summaries saved.',
+            'has_calculated_verdict' => $inspection->usesCalculatedVerdict() ? 1 : 0,
             'summaries' => $areas,
-        ]);
+        ];
+
+        // Only templates with the "Calculated Overall Verdict" switch on get the
+        // verdict and its Recommendation; otherwise nothing was calculated, so
+        // neither key is sent. Both are null until a weighted section is rated.
+        if ($response['has_calculated_verdict']) {
+            $verdict = $inspection->calculatedVerdict();
+            $response['verdict'] = $inspection->calculatedVerdictPayload($verdict);
+            $response['recommendation'] = $verdict['band']['guide'] ?? null;
+            $response['recommendation_ar'] = $verdict['band']['guide_ar'] ?? null;
+        }
+
+        return response()->json($response);
     }
 
     /**
