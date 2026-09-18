@@ -10,6 +10,8 @@ class InspectionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $verdict = $this->calculatedVerdict();
+
         return [
             'id'                 => $this->id,
             'lead_id'            => $this->lead_id,
@@ -65,10 +67,18 @@ class InspectionResource extends JsonResource
 
             'odometer'              => $this->odometer,
             'overall_condition'       => $this->overall_condition,
-            'overall_condition_label' => Inspection::CONDITIONS[$this->overall_condition] ?? null,
-            'overall_rating'          => $this->overall_rating,
+            // Weighted templates (Comprehensive, Premium) return the Calculated
+            // Overall Verdict in these same fields — same types as before
+            // (overall_rating stays a one-decimal string). `recommendation` keeps
+            // the stored code so the app's existing handling is unaffected.
+            'overall_condition_label' => $verdict ? $verdict['band']['condition'] : (Inspection::CONDITIONS[$this->overall_condition] ?? null),
+            'overall_rating'          => $verdict ? number_format($verdict['rating'], 1, '.', '') : $this->overall_rating,
             'recommendation'          => $this->recommendation,
-            'recommendation_label'  => Inspection::RECOMMENDATIONS[$this->recommendation] ?? null,
+            'recommendation_label'  => $verdict ? $verdict['band']['guide'] : (Inspection::RECOMMENDATIONS[$this->recommendation] ?? null),
+            'recommendation_label_ar' => $verdict ? $verdict['band']['guide_ar'] : (Inspection::RECOMMENDATIONS_AR[$this->recommendation] ?? null),
+            // Score /100, rating /5, condition and recommendation from the section
+            // weights; null when the template has no weights or nothing is rated.
+            'calculated_verdict'      => $this->calculatedVerdictPayload($verdict),
             'estimated_repair_cost' => $this->estimated_repair_cost,
             'currency'              => $this->currency ?? 'AED',
             'summary'               => $this->summary,
@@ -97,6 +107,7 @@ class InspectionResource extends JsonResource
                     return $this->type->sections->map(fn ($section) => [
                         'section_id'   => $section->id,
                         'section_name' => $section->section_name,
+                        'weight'       => $section->weight,
                         'summary'      => optional($summaryBySection->get($section->id))->summary,
                         'rating'       => $rating(optional($summaryBySection->get($section->id))->rating),
                     ])->values();

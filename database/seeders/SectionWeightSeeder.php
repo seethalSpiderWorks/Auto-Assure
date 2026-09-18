@@ -10,14 +10,15 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Weight (%) of each section in the Overall Verdict score, for the
  * Comprehensive and Premium templates — the client's category table, which
- * adds up to 100.
+ * adds up to 100 — and switches their Calculated Overall Verdict on.
  *
  * Matched on section name; Premium calls After Market "Aftermarket Added
  * Accessories". Existing weights are never overwritten: set one by hand on
  * the template screen and this seeder leaves it alone. Safe to re-run.
  *
- * Needs the weight column first:
+ * Needs both columns first:
  *   php artisan migrate --path=database/migrations/2026_09_16_000000_add_weight_to_inspection_sections.php
+ *   php artisan migrate --path=database/migrations/2026_09_16_000001_add_has_calculated_verdict_to_inspection_types.php
  *   php artisan db:seed --class=SectionWeightSeeder
  */
 class SectionWeightSeeder extends Seeder
@@ -49,7 +50,16 @@ class SectionWeightSeeder extends Seeder
             return;
         }
 
+        if (! Schema::hasColumn('inspection_types', 'has_calculated_verdict')) {
+            $this->command?->error('inspection_types.has_calculated_verdict is missing — run the add_has_calculated_verdict_to_inspection_types migration first.');
+
+            return;
+        }
+
         foreach (InspectionType::whereIn('name', self::TEMPLATES)->with('sections')->get() as $type) {
+            // These two templates use the Calculated Overall Verdict.
+            $type->forceFill(['has_calculated_verdict' => true])->save();
+
             $set = 0;
 
             foreach ($type->sections as $section) {
@@ -62,7 +72,7 @@ class SectionWeightSeeder extends Seeder
             }
 
             $total = round((float) InspectionSection::where('inspection_type_id', $type->id)->sum('weight'), 2);
-            $this->command?->info("{$type->name}: {$set} section weight(s) set, total {$total}%.");
+            $this->command?->info("{$type->name}: calculated verdict on, {$set} section weight(s) set, total {$total}%.");
         }
     }
 }

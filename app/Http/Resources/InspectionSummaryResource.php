@@ -46,6 +46,8 @@ class InspectionSummaryResource extends JsonResource
         // the web details/summary screens.
         $stateOf = fn ($d): string => Inspection::choiceState($d);
 
+        $verdict = $this->calculatedVerdict();
+
         // A recorded section rating, formatted exactly as Inspection::sectionRating()
         // formats one (clamp 0.5–5, one decimal); null when nothing was recorded.
         $sectionRating = fn ($manual): ?float => filled($manual) && (float) $manual > 0
@@ -78,6 +80,7 @@ class InspectionSummaryResource extends JsonResource
                 'id'           => $section->id,
                 'section_name' => $section->section_name,
                 'sequence'     => $section->sequence,
+                'weight'       => $section->weight,
                 'description'  => $section->description,
                 'summary'      => optional($summaryBySection->get($section->id))->summary,
                 // Only what the technician actually recorded — null when the section
@@ -136,6 +139,7 @@ class InspectionSummaryResource extends JsonResource
                 'section_id'   => $section->id,
                 'section_name' => $section->section_name,
                 'sequence'     => $section->sequence,
+                'weight'       => $section->weight,
                 'rating'       => $meta?->rating !== null ? (float) $meta->rating : null,
                 'summary'      => $meta?->summary,
             ];
@@ -190,6 +194,10 @@ class InspectionSummaryResource extends JsonResource
             'reference'       => $this->reference,
             'status'          => $this->status,
             'inspection_type' => $this->whenLoaded('type', fn () => $this->type->name),
+            // The template's "Do you want to use the Calculated Overall Verdict?"
+            // switch: 1 = show verdict.calculated_verdict and its Recommendations,
+            // 0 = no calculated verdict for this inspection.
+            'has_calculated_verdict' => $this->usesCalculatedVerdict() ? 1 : 0,
 
             'scheduled_at' => optional($this->scheduled_at)->toIso8601String(),
             'started_at'   => optional($this->started_at)->toIso8601String(),
@@ -236,9 +244,12 @@ class InspectionSummaryResource extends JsonResource
                 'last_service_date'    => optional($this->last_service_date)->toDateString(),
             ],
 
+            // Weighted templates (Comprehensive, Premium) return the Calculated
+            // Overall Verdict in these same fields, same types as before;
+            // `recommendation` keeps the stored code.
             'verdict' => [
                 'overall_condition'       => $this->overall_condition,
-                'overall_condition_label' => (function () {
+                'overall_condition_label' => $verdict ? $verdict['band']['condition'] : (function () {
                     $rating = (float) ($this->overall_rating ?? 0);
                     return match (true) {
                         $rating >= 4.5 => 'Excellent',
@@ -249,9 +260,11 @@ class InspectionSummaryResource extends JsonResource
                         default        => Inspection::CONDITIONS[$this->overall_condition] ?? null,
                     };
                 })(),
-                'overall_rating'          => $this->overall_rating,
+                'overall_rating'          => $verdict ? number_format($verdict['rating'], 1, '.', '') : $this->overall_rating,
                 'recommendation'          => $this->recommendation,
-                'recommendation_label'    => Inspection::RECOMMENDATIONS[$this->recommendation] ?? null,
+                'recommendation_label'    => $verdict ? $verdict['band']['guide'] : (Inspection::RECOMMENDATIONS[$this->recommendation] ?? null),
+                'recommendation_label_ar' => $verdict ? $verdict['band']['guide_ar'] : (Inspection::RECOMMENDATIONS_AR[$this->recommendation] ?? null),
+                'calculated_verdict'      => $this->calculatedVerdictPayload($verdict),
                 'estimated_repair_cost'   => $this->estimated_repair_cost,
                 'currency'                => $this->currency ?? 'AED',
                 'summary'                 => $this->summary,

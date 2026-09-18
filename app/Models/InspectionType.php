@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class InspectionType extends Model
 {
-    protected $fillable = ['name', 'name_ar', 'description', 'description_ar', 'is_active', 'sequence', 'has_diagnostic_media'];
+    protected $fillable = ['name', 'name_ar', 'description', 'description_ar', 'is_active', 'sequence', 'has_diagnostic_media', 'has_calculated_verdict'];
 
     /**
      * Templates whose report prints the basic format the client asked for —
@@ -62,7 +62,7 @@ class InspectionType extends Model
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean', 'has_diagnostic_media' => 'boolean'];
+        return ['is_active' => 'boolean', 'has_diagnostic_media' => 'boolean', 'has_calculated_verdict' => 'boolean'];
     }
 
     public function sections(): HasMany

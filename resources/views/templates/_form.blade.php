@@ -55,6 +55,18 @@
                 Lets the technician attach extra photos, videos and PDF documents that aren't tied to any step.
             </small>
         </div>
+
+        {{-- Calculated Overall Verdict: score, rating, condition and Recommendations
+             worked out from the section weights. Off keeps the manual Overall
+             Rating and Recommendation the technician submits. --}}
+        <div class="form-group mb-0 border-top pt-3 mt-3">
+            <label class="form-label d-block mb-2">Do you want to use the Calculated Overall Verdict?</label>
+            <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="has_calculated_verdict" name="has_calculated_verdict" value="1"
+                       @checked(old('has_calculated_verdict', $type->has_calculated_verdict ?? false))>
+                <label class="custom-control-label" for="has_calculated_verdict">Yes — calculate the verdict and Recommendations from the section weights</label>
+            </div>
+        </div>
     </div>
 </div>
 

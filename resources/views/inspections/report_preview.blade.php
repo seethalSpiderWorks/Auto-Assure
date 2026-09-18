@@ -425,6 +425,10 @@
                     <span class="ar ar-blk" style="font-size:13px;margin-top:4px">قائمة فحص المركبات المستوردة المستعملة</span>
                 </div>
 
+                {{-- Gauge + rating only when the template's "Calculated Overall Verdict"
+                     switch is on — otherwise nothing was calculated to show. --}}
+                @php $usesCalculated = $inspection->usesCalculatedVerdict(); @endphp
+                @if ($usesCalculated)
                 {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
                 @php
                     $scoreF = round($tally['pass'] / $tTot * 100, 1);
@@ -481,6 +485,7 @@
                     <span><i style="background:#2fa84f"></i>Excellent</span>
                 </div>
                 <div class="cover-rating-title">Overall Rating</div>
+                @endif
 
                 <div class="stat-chips">
                     <div class="chip"><div class="n" style="color:#7fd39a">{{ $tally['pass'] }}</div><div class="l">Passed</div></div>
@@ -581,11 +586,13 @@
                         <span class="ar green">مطابق للمتطلبات</span>
                         <span class="en green">Compliance to Requirements</span> &nbsp;{!! $ck($compliant) !!}
                     </div>
+                    @if ($usesCalculated)
                     <div class="res-box" style="text-align:left">
                         <div class="fl muted" style="font-size:11px;font-weight:600">Overall Condition <span class="ar">الحالة العامة</span></div>
                         <div class="fv" style="font-weight:700;margin:2px 0 8px">{{ $condition }}</div>
                         <div class="fl muted" style="font-size:11px;font-weight:600">Recommendation <span class="ar">التوصية</span></div>
                         <div class="fv" style="font-weight:700">{{ $recommend }}</div>
+                    @endif
                     </div>
                 </div>
             </div>

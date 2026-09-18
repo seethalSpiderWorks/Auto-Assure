@@ -1182,7 +1182,7 @@
                                             <small class="text-muted js-secrating-label" data-section="{{ $section->id }}"></small>
                                             {{-- The rating's share of this section's weight — (rating / 5) × weight,
                                                  e.g. Engine 20% rated 4 → 16%. Only on weighted sections. --}}
-                                            @if ($section->weight !== null)
+                                            @if ($section->weight !== null && $inspection->usesCalculatedVerdict())
                                                 <span class="badge badge-soft-warning font-size-12 js-secweight" data-section="{{ $section->id }}"
                                                       data-weight="{{ (float) $section->weight }}" title="Rating ÷ 5 × section weight"></span>
                                             @endif
@@ -1203,8 +1203,12 @@
                                         {{-- Overall Verdict calculated from the section weights: each section
                                              adds (its rating / 5) × its weight, giving a score out of 100 that
                                              falls in one of the client's bands. Updates live as section ratings
-                                             change. Only on templates whose sections carry weights. --}}
-                                        @php($wVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect()))
+                                             change. Shown whenever the template's "Calculated Overall Verdict"
+                                             switch is on — as "Not rated" until weighted sections are rated. --}}
+                                        @php($wVerdict = $inspection->usesCalculatedVerdict()
+                                            ? ($inspection->weightedVerdict($sectionSummaries ?? collect())
+                                                ?? ['score' => 0, 'rating' => 0, 'rated' => 0, 'weighted' => 0, 'band' => \App\Models\Inspection::verdictBand(0)])
+                                            : null)
                                         @if ($wVerdict)
                                             @php($wRated = $wVerdict['rated'] > 0)
                                             <div class="col-12 mb-3">
@@ -1213,6 +1217,9 @@
                                                         <span><i class="bx bx-calculator text-success"></i> Calculated Overall Verdict</span>
                                                         <small id="wverdict-rated">{{ $wVerdict['rated'] }} of {{ $wVerdict['weighted'] }} sections rated</small>
                                                     </div>
+                                                    @if ($wVerdict['weighted'] === 0)
+                                                        <div class="alert alert-warning py-2 font-size-12 mb-3">No section of this template has a weight yet — set the section weights on the template to calculate the verdict.</div>
+                                                    @endif
                                                     <div class="wverdict__summary">
                                                         <div>
                                                             <div class="wverdict__num"><span id="wverdict-score">{{ rtrim(rtrim(number_format($wVerdict['score'], 1), '0'), '.') }}</span><span> / 100</span></div>
@@ -1225,7 +1232,6 @@
                                                         <div>
                                                             <span class="wverdict__cond" id="wverdict-cond"
                                                                   style="background:{{ $wRated ? $wVerdict['band']['color'] : '#b0b8c4' }};color:{{ $wRated ? $wVerdict['band']['text'] : '#fff' }};">{{ $wRated ? $wVerdict['band']['condition'] : 'Not rated' }}</span>
-                                                            <div class="wverdict__guide" id="wverdict-guide">{{ $wRated ? $wVerdict['band']['guide'] : 'Rate the sections to calculate the verdict.' }}</div>
                                                         </div>
                                                     </div>
                                                     {{-- The calculated /5 rating as stars; partial fills are painted by JS. --}}
@@ -1236,7 +1242,7 @@
                                                         <small id="wverdict-stars-label">{{ $wRated ? number_format($wVerdict['rating'], 1).'/5' : '' }}</small>
                                                     </div>
                                                     <table class="wverdict__table">
-                                                        <thead><tr><th>Score /100</th><th>Rating /5</th><th>Condition</th><th>Guide</th></tr></thead>
+                                                        <thead><tr><th>Score /100</th><th>Rating /5</th><th>Condition</th><th>Recommendations</th></tr></thead>
                                                         <tbody>
                                                             @foreach (\App\Models\Inspection::VERDICT_BANDS as $band)
                                                                 <tr data-wverdict-band="{{ $band['condition'] }}" class="{{ $wRated && $band['condition'] === $wVerdict['band']['condition'] ? 'is-current' : '' }}">
@@ -1252,14 +1258,14 @@
                                             </div>
                                         @endif
 
-                                        {{-- Overall Rating — highlighted section, shown first. Hidden where the
-                                             Calculated Overall Verdict above replaces it; kept in the form so
-                                             the saved overall_rating is posted back unchanged. --}}
+                                        {{-- Manual Overall Rating — no longer filled in by hand (the rating is
+                                             calculated), so always hidden; kept in the form so the saved
+                                             overall_rating is posted back unchanged. --}}
                                         @php($overallRating = (float) old('overall_rating', $inspection->overall_rating ?? 0))
                                         @php($labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'])
                                         @php($pcts = [20, 40, 60, 80, 100])
                                         @php($overallRatingBadgeClass = $overallRating == 0 ? 'is-zero' : ($overallRating >= 4.6 ? 'is-excellent' : ($overallRating >= 3.6 ? 'is-very-good' : ($overallRating >= 2.6 ? 'is-good' : ($overallRating >= 1.6 ? 'is-fair' : 'is-poor')))))
-                                        <div class="col-12 mb-3 {{ $wVerdict ? 'd-none' : '' }}">
+                                        <div class="col-12 mb-3 d-none">
                                             <div class="overall-rating-wrap">
                                                 <div class="overall-rating-wrap__header">
                                                     <span>
@@ -1291,14 +1297,16 @@
                                             </div>
                                         </div>
 
-                                        {{-- Recommendation --}}
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">Recommendation <span class="text-danger">*</span></label>
-                                            <select name="recommendation" data-wreq required class="form-control form-select">
-                                                <option value="">—</option>
-                                                @foreach (\App\Models\Inspection::RECOMMENDATIONS as $v => $l)<option value="{{ $v }}" @selected($inspection->recommendation === $v)>{{ $l }}</option>@endforeach
-                                            </select>
-                                        </div>
+                                        {{-- Recommendations: the calculated band's guide, read-only, only when the
+                                             template's Calculated Overall Verdict switch is on. The manual
+                                             Recommendation select is gone; nothing is posted, so any stored
+                                             value stays as it is. --}}
+                                        @if ($wVerdict)
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Recommendations</label>
+                                                <div class="form-control bg-light" id="wverdict-guide" style="height:auto;">{{ $wRated ? $wVerdict['band']['guide'] : 'Rate the sections to calculate the verdict.' }}</div>
+                                            </div>
+                                        @endif
                                         <div class="col-md-12 mb-3"><label class="form-label">Inspector Comment <span class="text-danger">*</span></label><textarea name="summary" rows="4" required class="form-control" placeholder="Enter the inspector's overall assessment...">{{ old('summary', $inspection->summary) }}</textarea></div>
                                         {{-- The Arabic twin, the pairing the legacy report form uses for
                                              "Overview in Arabic". Optional: the Arabic report falls back to
@@ -2037,6 +2045,8 @@
         recommendation: 'Recommendation',
         summary: 'Inspector Comment',
     };
+    // The manual Recommendation select is no longer rendered; drop it when absent.
+    if (! root.querySelector('[name="recommendation"]')) delete VERDICT_FIELDS.recommendation;
 
     function verdictFields() {
         return Object.keys(VERDICT_FIELDS)
@@ -2053,7 +2063,7 @@
     // Every input the Verdict step needs — the three verdict fields plus one
     // note per summary area — so the bead can show partial progress.
     function verdictCounts() {
-        const all = verdictFields().concat(Array.from(root.querySelectorAll('.sum-card__input')));
+        const all = verdictFields().concat(Array.from(root.querySelectorAll('.sum-card__input[required]')));
         return {
             filled: all.filter(el => (el.value || '').trim() !== '').length,
             total: all.length,
@@ -2063,7 +2073,7 @@
     // A note per summary area (Exterior, Engine, …). Templates with no areas
     // configured pass trivially.
     function summariesReady() {
-        const boxes = Array.from(root.querySelectorAll('.sum-card__input'));
+        const boxes = Array.from(root.querySelectorAll('.sum-card__input[required]'));
         return boxes.every(t => t.value.trim() !== '');
     }
 
@@ -2078,7 +2088,7 @@
             if (! el || (el.value || '').trim() === '') out.push(VERDICT_FIELDS[name]);
         });
 
-        const blank = Array.from(root.querySelectorAll('.sum-card__input'))
+        const blank = Array.from(root.querySelectorAll('.sum-card__input[required]'))
             .filter(t => t.value.trim() === '').length;
         if (blank) out.push(blank + ' summary note' + (blank === 1 ? '' : 's'));
 
@@ -2174,8 +2184,9 @@
         const weightEl = root.querySelector('.js-secweight[data-section="' + sectionId + '"]');
         if (weightEl) {
             const weight = parseFloat(weightEl.dataset.weight) || 0;
-            const pct = Math.round(val / 5 * weight * 100) / 100;
-            weightEl.textContent = pct + '% of ' + weight + '%';
+            weightEl.textContent = val > 0
+                ? Math.round(val / 5 * weight * 100) / 100 + '% of ' + weight + '%'
+                : '';
         }
         paintWeightedVerdict();
     }

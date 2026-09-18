@@ -9,7 +9,7 @@
         : (str_contains($cond,'very good') ? 'is-very-good'
         : (str_contains($cond,'good') ? 'is-good'
         : (str_contains($cond,'fair') ? 'is-fair'
-        : (str_contains($cond,'poor') ? 'is-poor' : 'is-none'))));
+        : (str_contains($cond,'poor') || str_contains($cond,'critical') ? 'is-poor' : 'is-none'))));
     // Gauge colour based on condition rating.
     $gaugeColor = match ($condClass) {
         'is-excellent' => '#22c55e',

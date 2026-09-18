@@ -318,7 +318,7 @@ class InspectionController extends Controller
             // Rejecting it produced a "damage.images" error the app had no
             // field to attach to, so it surfaced against every question.
             'damage.images' => ['nullable', 'array'],
-            'damage.images.*' => ['required', 'string'],
+            'damage.images.*' => ['nullable', 'string'],
             'damage.marks' => ['nullable', 'array'],
             'damage.marks.*' => ['nullable', 'array', 'max:2000'],
             'damage.marks.*.*.x' => ['required', 'numeric', 'min:0', 'max:20000'],
@@ -343,22 +343,6 @@ class InspectionController extends Controller
 
         $validated = $validator->validated();
         $validSteps = $inspection->type->steps()->pluck('inspection_steps.id')->all();
-
-        // A section that carries a damage canvas cannot be saved without it: if
-        // this request touches such a section, the diagram must either arrive in
-        // the same payload or already be stored. Only the sections in THIS
-        // request are checked — answering a section with no canvas is unaffected.
-        if ($missingDamage = $this->missingSectionDamage($inspection, $validated)) {
-            return response()->json([
-                'message' => 'Damage diagram required.',
-                'errors' => collect($missingDamage)
-                    ->mapWithKeys(fn ($m) => ["damage.images.{$m['key']}" => [$m['message']]])
-                    ->all(),
-                // The same thing structured, so the app can jump straight to the
-                // section and canvas that needs drawing.
-                'missing' => $missingDamage,
-            ], 422);
-        }
 
         foreach ($validated['answers'] as $a) {
             $stepId = (int) $a['step_id'];
@@ -1046,16 +1030,6 @@ class InspectionController extends Controller
             ], 422);
         }
 
-        // A section that carries a damage canvas needs it saved before the
-        // inspection can be submitted. `sections` names the section and diagram
-        // so the app can send the technician back to the right screen.
-        if ($missingDamage = $inspection->missingDamageDiagrams()) {
-            return response()->json([
-                'message' => 'Damage diagram missing.',
-                'missing' => $missingDamage,
-            ], 422);
-        }
-
         // Stamp the start before the finish: an inspection submitted without any
         // prior save (answers/media/customer all optional) is still PENDING here,
         // and would otherwise land as "completed" with a NULL started_at. The web
@@ -1255,65 +1229,6 @@ class InspectionController extends Controller
      * @param  array<string, mixed>  $validated
      * @return array<int, array{key: string, name: string, section_id: int, section_name: string, message: string}>
      */
-    private function missingSectionDamage(Inspection $inspection, array $validated): array
-    {
-        $inspection->loadMissing(['type.sections.steps', 'type.sections.damageDiagrams', 'details']);
-
-        $sections = $inspection->type?->sections ?? collect();
-
-        // Steps this request answers, plus the ones already answered.
-        $stepIds = collect($validated['answers'] ?? [])->pluck('step_id')->map('intval');
-        $answered = $inspection->details
-            ->filter(fn ($d) => Inspection::detailIsAnswered($d))
-            ->pluck('inspection_step_id')
-            ->filter()
-            ->map('intval')
-            ->merge($stepIds)
-            ->unique();
-
-        // Only sections this request touches, and only those it also completes.
-        $touched = $sections
-            ->filter(fn ($section) => $section->steps->whereIn('id', $stepIds->all())->isNotEmpty())
-            ->pluck('id')
-            ->merge(collect($validated['sections'] ?? [])->pluck('section_id')->map('intval'))
-            ->unique();
-
-        $completed = $sections
-            ->whereIn('id', $touched)
-            ->filter(fn ($section) => $section->steps->isNotEmpty()
-                && $section->steps->pluck('id')->every(fn ($id) => $answered->contains((int) $id)))
-            ->pluck('id');
-
-        $sent = array_keys((array) ($validated['damage']['images'] ?? []));
-        $missing = [];
-
-        foreach ($sections->whereIn('id', $completed) as $section) {
-            if (! $section->relationLoaded('damageDiagrams')) {
-                continue;
-            }
-
-            foreach ($section->damageDiagrams as $diagram) {
-                if (! $diagram->is_active || ! $diagram->imageExists() || $diagram->palette()->isEmpty()) {
-                    continue;
-                }
-
-                if (in_array($diagram->key, $sent, true) || filled($inspection->damageImagePath($diagram->key))) {
-                    continue;
-                }
-
-                $missing[] = [
-                    'key' => $diagram->key,
-                    'name' => $diagram->name,
-                    'section_id' => $section->id,
-                    'section_name' => $section->section_name,
-                    'message' => "The {$diagram->name} damage diagram is required for the {$section->section_name} section.",
-                ];
-            }
-        }
-
-        return $missing;
-    }
-
     private function markStarted(Inspection $inspection): void
     {
         if ($inspection->status === Inspection::STATUS_PENDING) {

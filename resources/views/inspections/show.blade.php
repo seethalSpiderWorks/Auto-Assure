@@ -31,6 +31,25 @@
     };
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? null;
 
+    // Weighted templates (Comprehensive, Premium): the Calculated Overall Verdict
+    // from the section weights — same as the edit screen and the report.
+    // Shown whenever the template's "Calculated Overall Verdict" switch is on.
+    $usesCalculated = $inspection->usesCalculatedVerdict();
+    $weightedVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect());
+    $weightedRated = $weightedVerdict && $weightedVerdict['rated'] > 0;
+    if ($usesCalculated) {
+        // The manual rating and Recommendation do not apply; the calculated
+        // values below fill these in once a weighted section is rated.
+        $overallRatingVal = 0;
+        $condition = null;
+        $recommend = null;
+    }
+    if ($weightedRated) {
+        $overallRatingVal = $weightedVerdict['rating'];
+        $condition = $weightedVerdict['band']['condition'];
+        $recommend = $weightedVerdict['band']['guide'];
+    }
+
     // Pass / Fail / N-A for a saved answer (same rule as the report).
     $stateOf = function ($d) {
         if (! $d) return 'na';
@@ -243,9 +262,23 @@
         </div>
 
         {{-- ===== Verdict ===== --}}
-        @if($condition || $recommend || $inspection->summary)
+        @if($usesCalculated || $condition || $recommend || $inspection->summary)
             <div class="idet-card mt-3">
                 <div class="idet-card__title"><i class="bx bx-clipboard"></i> Overall Verdict</div>
+                @if($usesCalculated)
+                    {{-- Calculated Overall Verdict from the section weights — same as the edit screen. --}}
+                    <div class="idet-wverdict">
+                        <div class="idet-wverdict__head">
+                            <span><i class="bx bx-calculator"></i> Calculated Overall Verdict</span>
+                            <small>{{ $weightedVerdict['rated'] ?? 0 }} of {{ $weightedVerdict['weighted'] ?? 0 }} sections rated</small>
+                        </div>
+                        <div class="idet-wverdict__row">
+                            <div><div class="idet-wverdict__num">{{ $weightedRated ? rtrim(rtrim(number_format($weightedVerdict['score'], 1), '0'), '.') : '0' }}<span> / 100</span></div><div class="idet-fact__k">Score</div></div>
+                            <div><div class="idet-wverdict__num">{{ $weightedRated ? number_format($weightedVerdict['rating'], 1) : '—' }}<span> / 5</span></div><div class="idet-fact__k">Rating</div></div>
+                            <span class="idet-wverdict__cond" style="background:{{ $weightedRated ? $weightedVerdict['band']['color'] : '#b0b8c4' }};color:{{ $weightedRated ? $weightedVerdict['band']['text'] : '#fff' }};">{{ $weightedRated ? $weightedVerdict['band']['condition'] : 'Not rated' }}</span>
+                        </div>
+                    </div>
+                @endif
                 <div class="idet-facts idet-facts--verdict">
                     <div class="idet-fact"><span class="idet-fact__k">Condition</span><span class="idet-fact__v">{{ $condition ?: '—' }}</span></div>
                     <div class="idet-fact"><span class="idet-fact__k">Rating</span>
@@ -260,7 +293,7 @@
                             @endif
                         </span>
                     </div>
-                    <div class="idet-fact"><span class="idet-fact__k">Recommendation</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
+                    <div class="idet-fact"><span class="idet-fact__k">{{ $usesCalculated ? 'Recommendations' : 'Recommendation' }}</span><span class="idet-fact__v">{{ $recommend ?: '—' }}</span></div>
                 </div>
                 @if($inspection->summary)
                     <p class="idet-summary">{{ $inspection->summary }}</p>
@@ -595,6 +628,15 @@
     .idet-facts { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 22px; }
     .idet-facts--verdict { grid-template-columns:repeat(4, minmax(0,1fr)); }
     .idet-fact { display:flex; flex-direction:column; }
+    /* Calculated Overall Verdict (section weights) */
+    .idet-wverdict { border:1px solid #e4e8ee; border-radius:12px; padding:12px 16px; margin-bottom:16px; }
+    .idet-wverdict__head { display:flex; justify-content:space-between; flex-wrap:wrap; gap:.5rem; font-weight:700; color:#00263D; margin-bottom:10px; }
+    .idet-wverdict__head i { color:#04B084; }
+    .idet-wverdict__head small { font-weight:500; color:#8a94a6; }
+    .idet-wverdict__row { display:flex; align-items:center; flex-wrap:wrap; gap:1rem 2rem; }
+    .idet-wverdict__num { font-size:26px; font-weight:800; color:#00263D; line-height:1; }
+    .idet-wverdict__num span { font-size:14px; font-weight:600; color:#8a94a6; }
+    .idet-wverdict__cond { display:inline-block; padding:5px 16px; border-radius:999px; font-weight:700; font-size:14px; }
     .idet-fact__k { font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; color:#98a2b3; margin-bottom:3px; }
     .idet-fact__v { font-size:14.5px; font-weight:600; color:#344054; }
     /* The report link is long: give it the full row and let it wrap. */

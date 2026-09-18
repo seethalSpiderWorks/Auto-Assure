@@ -260,13 +260,14 @@ class Inspection extends Model
      * Overall Verdict bands for the weighted /100 score — the client's table.
      * Each band maps its score range onto its /5 rating range; checked top down.
      * 'ink' is a darker shade of 'color' for text on the faded table cells.
+     * 'guide' is printed as the Recommendations; the _ar twins are for the Arabic report.
      */
     public const VERDICT_BANDS = [
-        ['condition' => 'Excellent', 'min' => 90, 'max' => 100, 'rating_min' => 4.5, 'rating_max' => 5.0, 'color' => '#2fa84f', 'text' => '#fff', 'ink' => '#1e7b3a', 'guide' => 'Minimal defects, no major concerns'],
-        ['condition' => 'Very Good', 'min' => 80, 'max' => 89, 'rating_min' => 4.0, 'rating_max' => 4.4, 'color' => '#92d050', 'text' => '#1c2430', 'ink' => '#4d7c1f', 'guide' => 'Minor repairs/maintenance'],
-        ['condition' => 'Good', 'min' => 65, 'max' => 79, 'rating_min' => 3.0, 'rating_max' => 3.9, 'color' => '#ffc000', 'text' => '#1c2430', 'ink' => '#8a6400', 'guide' => 'Noticeable repairs/maintenance'],
-        ['condition' => 'Poor', 'min' => 40, 'max' => 64, 'rating_min' => 2.0, 'rating_max' => 2.9, 'color' => '#ed7d31', 'text' => '#fff', 'ink' => '#b4561a', 'guide' => 'Major repairs required'],
-        ['condition' => 'Critical', 'min' => 0, 'max' => 39, 'rating_min' => 1.0, 'rating_max' => 1.9, 'color' => '#e0241b', 'text' => '#fff', 'ink' => '#b3261e', 'guide' => 'Serious mechanical/safety/structural concerns'],
+        ['condition' => 'Excellent', 'min' => 90, 'max' => 100, 'rating_min' => 4.5, 'rating_max' => 5.0, 'color' => '#2fa84f', 'text' => '#fff', 'ink' => '#1e7b3a', 'guide' => 'Minimal defects, no major concerns', 'condition_ar' => 'ممتاز', 'guide_ar' => 'عيوب طفيفة، لا توجد مخاوف كبيرة'],
+        ['condition' => 'Very Good', 'min' => 80, 'max' => 89, 'rating_min' => 4.0, 'rating_max' => 4.4, 'color' => '#92d050', 'text' => '#1c2430', 'ink' => '#4d7c1f', 'guide' => 'Minor repairs/maintenance', 'condition_ar' => 'جيد جداً', 'guide_ar' => 'إصلاحات/صيانة بسيطة'],
+        ['condition' => 'Good', 'min' => 65, 'max' => 79, 'rating_min' => 3.0, 'rating_max' => 3.9, 'color' => '#ffc000', 'text' => '#1c2430', 'ink' => '#8a6400', 'guide' => 'Noticeable repairs/maintenance', 'condition_ar' => 'جيد', 'guide_ar' => 'إصلاحات/صيانة ملحوظة'],
+        ['condition' => 'Poor', 'min' => 40, 'max' => 64, 'rating_min' => 2.0, 'rating_max' => 2.9, 'color' => '#ed7d31', 'text' => '#fff', 'ink' => '#b4561a', 'guide' => 'Major repairs required', 'condition_ar' => 'ضعيف', 'guide_ar' => 'تتطلب إصلاحات كبيرة'],
+        ['condition' => 'Critical', 'min' => 0, 'max' => 39, 'rating_min' => 1.0, 'rating_max' => 1.9, 'color' => '#e0241b', 'text' => '#fff', 'ink' => '#b3261e', 'guide' => 'Serious mechanical/safety/structural concerns', 'condition_ar' => 'حرج', 'guide_ar' => 'مخاوف جدية ميكانيكية/تتعلق بالسلامة/هيكلية'],
     ];
 
     /**
@@ -276,15 +277,22 @@ class Inspection extends Model
      * weighted sections.
      *
      * @param  \Illuminate\Support\Collection  $sectionSummaries  keyed by inspection_section_id
+     * @param  iterable|null  $sections  the template's sections; defaults to type.sections
+     * Null too when the template's Calculated Overall Verdict switch is off.
+     *
      * @return array{score:float,rating:float,rated:int,weighted:int,band:array}|null
      */
-    public function weightedVerdict($sectionSummaries): ?array
+    public function weightedVerdict($sectionSummaries, $sections = null): ?array
     {
+        if (! $this->usesCalculatedVerdict()) {
+            return null;
+        }
+
         $score = 0.0;
         $rated = 0;
         $weighted = 0;
 
-        foreach ($this->type?->sections ?? [] as $section) {
+        foreach ($sections ?? ($this->type?->sections ?? []) as $section) {
             if ($section->weight === null) {
                 continue;
             }
@@ -305,6 +313,71 @@ class Inspection extends Model
         $band = self::verdictBand($score);
 
         return ['score' => $score, 'rating' => self::verdictRating($score, $band), 'rated' => $rated, 'weighted' => $weighted, 'band' => $band];
+    }
+
+    /**
+     * The weighted verdict for the API, or null when it does not apply (template
+     * without weights, or no section rated yet) — callers then keep the stored
+     * values. Uses the relations already loaded and queries only what is
+     * missing, without loading relations onto the model, so the resources that
+     * switch blocks on relationLoaded() keep their payload.
+     */
+    public function calculatedVerdict(): ?array
+    {
+        if (! $this->usesCalculatedVerdict()) {
+            return null;
+        }
+
+        $sections = $this->relationLoaded('type') && $this->type && $this->type->relationLoaded('sections')
+            ? $this->type->sections
+            : InspectionSection::where('inspection_type_id', $this->inspection_type_id)->get(['id', 'weight']);
+
+        if (! $sections->contains(fn ($s) => $s->weight !== null)) {
+            return null;
+        }
+
+        $summaries = $this->relationLoaded('sectionSummaries')
+            ? $this->sectionSummaries->keyBy('inspection_section_id')
+            : InspectionSectionSummary::where('inspection_id', $this->id)->get(['inspection_section_id', 'rating'])->keyBy('inspection_section_id');
+
+        $verdict = $this->weightedVerdict($summaries, $sections);
+
+        return $verdict && $verdict['rated'] > 0 ? $verdict : null;
+    }
+
+    /**
+     * Is the template's Calculated Overall Verdict switch on? Reads the loaded
+     * type when there is one, otherwise just the flag — without loading the
+     * relation, so the API resources keep their payload.
+     */
+    public function usesCalculatedVerdict(): bool
+    {
+        if ($this->relationLoaded('type')) {
+            return (bool) $this->type?->has_calculated_verdict;
+        }
+
+        return (bool) InspectionType::whereKey($this->inspection_type_id)->value('has_calculated_verdict');
+    }
+
+    /**
+     * The calculated_verdict block the API returns, null when it does not apply.
+     */
+    public function calculatedVerdictPayload(?array $verdict): ?array
+    {
+        if (! $verdict) {
+            return null;
+        }
+
+        return [
+            'score'             => $verdict['score'],
+            'rating'            => $verdict['rating'],
+            'condition'         => $verdict['band']['condition'],
+            'condition_ar'      => $verdict['band']['condition_ar'],
+            'recommendation'    => $verdict['band']['guide'],
+            'recommendation_ar' => $verdict['band']['guide_ar'],
+            'rated_sections'    => $verdict['rated'],
+            'weighted_sections' => $verdict['weighted'],
+        ];
     }
 
     public static function verdictBand(float $score): array

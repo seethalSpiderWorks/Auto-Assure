@@ -487,6 +487,25 @@ class InspectionController extends Controller
 
         // Rating as a percentage (same formula as the edit page & report).
         $ratingPercent = $rating > 0 ? (int) round(($rating / 5) * 100) : 0;
+        $recommendation = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? null;
+
+        // Weighted templates (Comprehensive, Premium): the Calculated Overall
+        // Verdict from the section weights — same as the edit screen and report.
+        $weightedVerdict = $inspection->weightedVerdict($summaryBySection);
+        if ($weightedVerdict && $weightedVerdict['rated'] > 0) {
+            $rating = $weightedVerdict['rating'];
+            $ratingPercent = $weightedVerdict['score'];
+            $condition = $weightedVerdict['band']['condition'];
+            $conditionNote = match ($condition) {
+                'Excellent' => 'Vehicle is in excellent condition.',
+                'Very Good' => 'Vehicle is in very good condition.',
+                'Good' => 'Vehicle is in good condition. Minor attention may be needed.',
+                'Poor' => 'Vehicle requires significant attention.',
+                default => 'Vehicle has serious mechanical, safety or structural concerns.',
+            };
+            $recommendation = $weightedVerdict['band']['guide'];
+            $stars = (int) round($rating);
+        }
 
         $overview = [
             'condition' => $condition,
@@ -497,8 +516,8 @@ class InspectionController extends Controller
             'completed' => $totalAnswered,
             'total' => $totalSteps,
             'allAnswered' => $totalSteps > 0 && $totalAnswered >= $totalSteps,
-            'recommendation' => Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? null,
-            'overall_rating' => $inspection->overall_rating,
+            'recommendation' => $recommendation,
+            'overall_rating' => $weightedVerdict && $weightedVerdict['rated'] > 0 ? $rating : $inspection->overall_rating,
         ];
 
         return view('inspections.summary', compact('inspection', 'overview', 'sections'));
@@ -1021,7 +1040,9 @@ class InspectionController extends Controller
             'odometer' => $validated['odometer'] ?? null,
             'overall_condition' => $validated['overall_condition'] ?? null,
             'overall_rating' => $validated['overall_rating'] ?? null,
-            'recommendation' => $validated['recommendation'] ?? null,
+            // Weighted templates post no recommendation field (the calculated
+            // Recommendations replace it), so keep the stored value there.
+            'recommendation' => $request->has('recommendation') ? ($validated['recommendation'] ?? null) : $inspection->recommendation,
             'estimated_repair_cost' => $validated['estimated_repair_cost'] ?? $inspection->estimated_repair_cost,
             'currency' => $validated['currency'] ?? $inspection->currency,
             'summary' => $validated['summary'] ?? null,
@@ -1196,7 +1217,7 @@ class InspectionController extends Controller
             // The Overall Verdict block drives the report headline and cannot be
             // derived from the answers, so it has to be filled in by hand.
             $verdictMissing = [];
-            if (blank($inspection->recommendation))        { $verdictMissing[] = 'Recommendation'; }
+            // No manual Recommendation any more — the calculated verdict supplies it.
             if (blank($inspection->summary))               { $verdictMissing[] = 'Inspector Comment'; }
 
             if ($verdictMissing !== []) {

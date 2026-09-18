@@ -18,6 +18,9 @@ class InspectionTypeResource extends JsonResource
             'is_active' => (bool) $this->is_active,
             // Whether the app should offer the step-less Diagnostic Media bucket.
             'has_diagnostic_media' => (bool) $this->has_diagnostic_media,
+            // Verdict and Recommendations are calculated from the section weights;
+            // false means the app submits overall_rating / recommendation as before.
+            'has_calculated_verdict' => (bool) $this->has_calculated_verdict,
             'sequence' => $this->sequence,
             'sections' => InspectionSectionResource::collection($this->whenLoaded('sections')),
         ];

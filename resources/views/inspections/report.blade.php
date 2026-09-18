@@ -30,9 +30,13 @@
 
     // Weighted templates (Comprehensive, Premium) score the verdict from the
     // section weights instead — the same Calculated Overall Verdict as the edit
-    // screen: score /100, rating /5 and condition from Inspection::VERDICT_BANDS.
+    // screen: score /100, rating /5, condition and Recommendations from
+    // Inspection::VERDICT_BANDS.
+    $usesCalculated = $inspection->usesCalculatedVerdict();
     $weightedVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect());
-    if ($weightedVerdict && $weightedVerdict['rated'] > 0) {
+    $useWeighted = $weightedVerdict && $weightedVerdict['rated'] > 0;
+    if ($useWeighted) {
+        $recommend          = $weightedVerdict['band']['guide'];
         $overallRatingVal   = $weightedVerdict['rating'];
         $overallRatingPct   = $weightedVerdict['score'];
         $overallRatingBadge = $weightedVerdict['band']['condition'];
@@ -201,6 +205,15 @@
             'General Photos' => 'صور عامة',
             'Vehicle Photos' => 'صور المركبة',
             'Vehicle Summary' => 'بيانات المركبة',
+            'Make' => 'الشركة المصنعة',
+            'Model' => 'الطراز',
+            'Year' => 'السنة',
+            'Fuel Type' => 'نوع الوقود',
+            'Odometer' => 'عداد المسافة',
+            'Exterior Colour' => 'اللون الخارجي',
+            'Owner' => 'المالك',
+            'Phone' => 'الهاتف',
+            'Email' => 'البريد الإلكتروني',
             'Damage Points' => 'مواضع الأضرار',
             'Paint Inspection Images' => 'صور فحص الطلاء',
             'Signatures' => 'التواقيع',
@@ -223,7 +236,9 @@
     // Verdict values follow the stored codes, so the Arabic report prints the
     // technician's actual choice rather than a fixed phrase.
     if ($isAr) {
-        $recommend   = Inspection::RECOMMENDATIONS_AR[$inspection->recommendation] ?? $recommend;
+        $recommend   = $useWeighted
+            ? $weightedVerdict['band']['guide_ar']
+            : (Inspection::RECOMMENDATIONS_AR[$inspection->recommendation] ?? $recommend);
         $overallCond = Inspection::CONDITIONS_AR[$inspection->overall_condition] ?? $overallCond;
     }
 
@@ -427,6 +442,29 @@
         .cover .cover_right{ flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; }
         .cover .cover_right .card{ width:100%; }
         .cover .cover_right img{ max-width:100%; }
+        /* cover: full-width vehicle card (templates without the calculated gauge) */
+        .cover .vcard{ display:flex; width:100%; margin-bottom:18px; background:#fff; border-radius:16px; overflow:hidden; text-align:left;
+            box-shadow:0 18px 44px rgba(0,0,0,.28); }
+        .cover .vcard__media{ flex:0 0 52%; min-height:320px; background:#eef1f5; }
+        .cover .vcard__media img{ width:100%; height:100%; object-fit:cover; display:block; }
+        .cover .vcard__body{ flex:1 1 auto; min-width:0; padding:24px 26px; display:flex; flex-direction:column; }
+        .cover .vcard__eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--brand-2); }
+        .cover .vcard__title{ font-family:'Quicksand',sans-serif; font-size:24px; font-weight:700; color:#00263d; line-height:1.2; margin-top:4px; }
+        .cover .vcard__plate{ align-self:flex-start; margin-top:8px; padding:3px 12px; border:1.5px solid #00263d; border-radius:6px;
+            font-size:12px; font-weight:700; letter-spacing:1px; color:#00263d; background:#f7f9fb; }
+        .cover .vcard__tiles{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin-top:16px; }
+        .cover .vcard__tile{ background:#f4f7fa; border-radius:10px; padding:8px 12px; border-left:3px solid var(--brand-2); }
+        .cover .vcard__tile .k{ font-size:9.5px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#8b93a1; }
+        .cover .vcard__tile .v{ font-size:13px; font-weight:700; color:#1c2430; margin-top:2px; word-break:break-word; }
+        .cover .vcard__owner{ margin-top:auto; padding-top:14px; border-top:1px solid var(--line); }
+        .cover .vcard__tiles + .vcard__owner{ margin-top:16px; }
+        .cover .vcard__owner-name{ font-size:15px; font-weight:700; color:#1c2430; margin-top:3px; }
+        .cover .vcard__owner-meta{ display:flex; flex-wrap:wrap; gap:4px 18px; font-size:11.5px; color:#3b4655; margin-top:4px; }
+        .cover .vcard__owner-meta b{ color:#8b93a1; font-weight:600; margin-right:4px; }
+        .cover .vcard--noimg .vcard__tiles{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+        [dir="rtl"] .cover .vcard{ text-align:right; }
+        [dir="rtl"] .cover .vcard__tile{ border-left:0; border-right:3px solid var(--brand-2); }
+        [dir="rtl"] .cover .vcard__owner-meta b{ margin-right:0; margin-left:4px; }
         /* cover rating gauge (dark theme) */
         .cover .cover-gauge{ display:block; margin:0 auto 0; max-width:350px; }
         .cover .cover-cond-legend{ display:flex; gap:16px; justify-content:center; margin-top:2px;
@@ -519,6 +557,9 @@
 
                 <div class="cover_cntr">
 
+                {{-- Gauge + Overall Verdict only when the template's "Calculated Overall
+                     Verdict" switch is on — otherwise nothing was calculated to show. --}}
+                @if ($usesCalculated)
  <div class="cover_left">
    {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
                 @php
@@ -615,17 +656,18 @@
                                 @endif
                             </div>
                         </div>
-                        <div class="fact"><div class="fl">{{ $L('Recommendation') }}</div><div class="fv">{{ $recommend }}</div></div>
+                        <div class="fact"><div class="fl">{{ $L('Recommendation') }}</div><div class="fv" style="font-size:11px;">{{ $recommend }}</div></div>
                     </div>
                 </div>
 
                 </div>
+                @endif
 
       {{-- Vehicle image leads this section (client request) — shown only when
                  a primary vehicle photo has been uploaded for the inspection.
                  When there is no vehicle image, the whole right column is omitted so
                  the gauge/verdict column (cover_left) centres on its own. --}}
-            @if ($inspection->vehicleImageUrl())
+            @if ($usesCalculated && $inspection->vehicleImageUrl())
  <div class="cover_right">
                 <div class="card" style="padding:10px; text-align:center; margin-bottom:10px;">
                     <img src="{{ \App\Support\Thumbnailer::url($inspection->vehicle_image, 760) }}" alt="Vehicle image" loading="lazy" decoding="async"
@@ -660,6 +702,49 @@
                         </div>
                 </div>
             @endif
+
+            {{-- No gauge on this template (Calculated Overall Verdict off), so the
+                 vehicle card takes the full cover width: photo on the left, the
+                 key specs and owner details on the right — no dead white space. --}}
+            @unless ($usesCalculated)
+                @php
+                    $specMap = collect($specs)->mapWithKeys(fn ($sp) => [$sp[0] => $sp[1]]);
+                    $coverTiles = [
+                        ['Make', $specMap['Make']],
+                        ['Model', $specMap['Model']],
+                        ['Year', $specMap['Year']],
+                        ['Fuel Type', $specMap['Fuel Type']],
+                        ['Odometer', $inspection->odometer ? number_format($inspection->odometer).' km' : $specMap['Odometer']],
+                        ['Exterior Colour', $specMap['Exterior Colour']],
+                    ];
+                    $vehImg = $inspection->vehicleImageUrl() ? \App\Support\Thumbnailer::url($inspection->vehicle_image, 760) : null;
+                @endphp
+                <div class="vcard {{ $vehImg ? '' : 'vcard--noimg' }}">
+                    @if ($vehImg)
+                        <div class="vcard__media"><img src="{{ $vehImg }}" alt="Vehicle image" loading="lazy" decoding="async"></div>
+                    @endif
+                    <div class="vcard__body">
+                        <div class="vcard__eyebrow">{{ $L('Vehicle Summary') }}</div>
+                        <div class="vcard__title">{{ trim(($inspection->car_year ? $inspection->car_year.' ' : '').$inspection->car_make.' '.$inspection->car_model) ?: 'N/A' }}</div>
+                        @if ($inspection->plate_no)
+                            <span class="vcard__plate">{{ $inspection->plate_no }}</span>
+                        @endif
+                        <div class="vcard__tiles">
+                            @foreach ($coverTiles as [$k, $v])
+                                <div class="vcard__tile"><div class="k">{{ $L($k) }}</div><div class="v"><bdi>{{ $v }}</bdi></div></div>
+                            @endforeach
+                        </div>
+                        <div class="vcard__owner">
+                            <div class="vcard__eyebrow">{{ $L('Owner') }}</div>
+                            <div class="vcard__owner-name">{{ $val($inspection->customer_name) }}</div>
+                            <div class="vcard__owner-meta">
+                                <span><b>{{ $L('Phone') }}</b> {{ $val($inspection->customer_phone) }}</span>
+                                <span><b>{{ $L('Email') }}</b> {{ $val($inspection->customer_email) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endunless
 
 
                 </div>

@@ -47,11 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inspection-types', [InspectionTypeController::class, 'index']);
     Route::get('/inspection-types/{inspectionType}', [InspectionTypeController::class, 'show']);
 
-    // List inspections for the authenticated technician: today's jobs first (in
-    // slot order), then upcoming days latest-first, then overdue, then unscheduled.
-    //   ?status=pending          filter by status (default: everything but completed)
-    //   ?date=today              only jobs scheduled today
-    //   ?date=2026-07-28         only jobs scheduled on that day
+  
     Route::get('/inspections', [InspectionController::class, 'index']);
 
     // Full technician history — in progress, completed and cancelled jobs.
@@ -66,10 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/inspections/{inspection}', [InspectionController::class, 'show']);
 
-    // Customer & vehicle details. The POST alias exists because PHP does not
-    // parse multipart/form-data bodies on PUT — send the vehicle_image file to
-    // POST (or POST to the PUT url with _method=PUT); JSON-only updates can
-    // still use PUT.
+   
     Route::put('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer']);
     Route::post('/inspections/{inspection}/customer', [InspectionController::class, 'updateCustomer']);
 
@@ -77,9 +70,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inspections/{inspection}/media', [InspectionController::class, 'uploadMedia']);
     Route::delete('/media/{media}', [InspectionController::class, 'deleteMedia']);
 
-    // Additional media for the inspection as a whole (not tied to a step or a
-    // section) — the same bucket as "Additional media" on the web edit screen.
-    //   POST body: files[] (+ optional labels[]), or a single file (+ label).
     Route::get('/inspections/{inspection}/extra-media', [InspectionController::class, 'extraMedia']);
     Route::post('/inspections/{inspection}/extra-media', [InspectionController::class, 'uploadExtraMedia']);
     //   DELETE .../{media}  removes one; DELETE the collection with media_ids[] removes several.

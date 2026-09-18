@@ -17,6 +17,8 @@ class InspectionSectionResource extends JsonResource
             'section_name_ar' => $this->section_name_ar,
             'description' => $this->description,
             'sequence' => $this->sequence,
+            // Share (%) of the Overall Verdict score; null when not weighted.
+            'weight' => $this->weight,
             'steps' => InspectionStepResource::collection($this->whenLoaded('steps')),
         ];
     }
