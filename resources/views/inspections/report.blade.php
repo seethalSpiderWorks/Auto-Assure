@@ -924,7 +924,12 @@
             {{-- Vehicle summary --}}
             <div class="sec-bar"><span class="en">{{ $L('Vehicle Summary') }}</span></div>
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
-            @php $specCols = array_chunk($specs, (int) ceil(count($specs) / 2)); @endphp
+            {{-- Make, Model and Year are left out here (client request) — the cover
+                 already shows them. --}}
+            @php
+                $summarySpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year'], true)));
+                $specCols = array_chunk($summarySpecs, (int) ceil(count($summarySpecs) / 2));
+            @endphp
             <div class="grid2">
                 @foreach ($specCols as $col)
                     <div class="item-card" style="min-height:auto">
