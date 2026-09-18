@@ -66,8 +66,8 @@ class QuickInspectionTemplateSeeder extends Seeder
         $type->fill([
             'description' => static::TYPE_DESCRIPTION,
             'is_active' => true,
-            // A quick visual check — no advanced computerised diagnostic run.
-            'has_diagnostic_media' => false,
+            // Diagnostic Media is the photo bucket for these templates.
+            'has_diagnostic_media' => true,
             'sequence' => $type->sequence ?: ((int) InspectionType::max('sequence') + 1),
         ])->save();
 
