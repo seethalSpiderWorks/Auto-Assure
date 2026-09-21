@@ -513,6 +513,65 @@
         .toolbar{ max-width:900px; margin:0 auto 14px; text-align:right; }
         .btn{ background:var(--brand); color:#fff; border:none; padding:9px 18px; border-radius:10px; cursor:pointer;
             font-size:13px; font-weight:600; text-decoration:none; }
+
+        /* ---- mobile / small screens (on-screen only) ----
+           The printed PDF is governed by @media print below and is unaffected by
+           these rules — this block only reflows the layout for phones/tablets so
+           the report is readable when the shared link is opened on a device. */
+        @media screen and (max-width:768px){
+            body{ padding:10px; }
+
+            /* cover: drop its fixed print height and stack the two columns */
+            .cover{ min-height:auto; }
+            .cover .top{ padding:34px 18px; }
+            .cover h1{ font-size:26px; }
+            .cover .site{ font-size:13px; }
+            .cover .cover_cntr{ flex-direction:column; gap:22px; margin-top:18px; }
+            .cover .cover_left,.cover .cover_right{ flex:1 1 auto; width:100%; }
+            .cover .cover-gauge{ width:100%; max-width:320px; height:auto; }
+            .cover .card.tight{ width:auto !important; max-width:350px; margin:0 auto; }
+            .cover .stat-chips{ flex-wrap:wrap; }
+            .cover .bar{ flex-direction:column; gap:10px; padding:18px 22px; }
+            .cover .bar > div{ text-align:left !important; }
+
+            /* cover vehicle card: photo above the details instead of beside them */
+            .cover .vcard{ flex-direction:column; }
+            .cover .vcard__media{ flex:0 0 auto; min-height:200px; }
+            .cover .vcard__body{ padding:18px 20px; }
+            .cover .vcard__tiles,
+            .cover .vcard--noimg .vcard__tiles{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+
+            /* content pages: tighter gutters */
+            .page{ padding:16px 14px 20px; }
+            .card{ padding:16px 16px; }
+            .make-h{ font-size:20px; }
+            .sec-bar .en{ font-size:16px; }
+
+            /* two-column card grids collapse to a single column */
+            .grid2 > .item-card{ flex:1 1 100%; min-width:100%; }
+
+            /* galleries: two across instead of three */
+            .gal figure{ width:calc(50% - 6px); }
+            .gal img{ height:140px; }
+
+            /* diagnostic doc buttons stack one per row */
+            .doc-grid{ grid-template-columns:1fr; }
+
+            /* wide bilingual tables (EV / technical) scroll sideways rather than
+               overflow the page */
+            .dt{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+            /* damage diagrams use the full width on a phone */
+            .card img[style*="width:80%"]{ width:100% !important; }
+        }
+
+        @media screen and (max-width:420px){
+            .gal figure{ width:100%; }
+            .cover .vcard__tiles,
+            .cover .vcard--noimg .vcard__tiles{ grid-template-columns:1fr; }
+            .sign .col{ flex:1 1 100%; min-width:0; }
+        }
+
         @page{ size:A4; margin:0; }
         @media print{
             {{-- Print every colour, gradient and background exactly as it shows on
