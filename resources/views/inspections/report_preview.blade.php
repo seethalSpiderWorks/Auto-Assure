@@ -161,6 +161,7 @@
         ['Region', 'المنطقة', $val($inspection->region)],
         ['Exterior Colour', 'اللون الخارجي', $val($inspection->exterior_color)],
         ['Gearbox', 'ناقل الحركة', $val($inspection->gearbox)],
+        ['Vehicle Condition', 'حالة المركبة', $val($inspection->vehicle_condition)],
         ['Fuel Type', 'نوع الوقود', $val($inspection->fuel_type)],
         ['Body Type', 'نوع الهيكل', $val($inspection->body_type)],
         ['No. of Keys', 'عدد المفاتيح', $val($inspection->number_of_keys)],
