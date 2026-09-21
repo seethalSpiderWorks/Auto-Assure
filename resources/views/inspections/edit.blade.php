@@ -2335,9 +2335,9 @@
             });
         }
 
-        // Legacy draws r=5 on a 512px canvas; keep that visual weight on these
-        // wider diagrams instead of a dot too small to see.
-        function dotRadius(cv) { return Math.max(4, Math.round(cv.width * 0.01)); }
+        // Small marker: about half the legacy r=5-on-512px weight, scaled to
+        // the diagram's width so it reads the same on every canvas size.
+        function dotRadius(cv) { return Math.max(3, Math.round(cv.width * 0.005)); }
 
         function render(cv) {
             const img = bases[cv.dataset.damageView];
@@ -2353,7 +2353,7 @@
                 ctx.fill();
                 // A ring, because a palette can include white (N/V on the chassis)
                 // which would otherwise vanish into the diagram.
-                ctx.lineWidth = Math.max(2, r * 0.3);
+                ctx.lineWidth = Math.max(1, r * 0.25);
                 ctx.strokeStyle = 'rgba(28,36,48,.8)';
                 ctx.stroke();
             });
@@ -2472,7 +2472,8 @@
                     // goes, matching what the eye sees.
                     let hit = -1;
                     for (let i = list.length - 1; i >= 0; i--) {
-                        if (Math.hypot(list[i].x - x, list[i].y - y) <= r * 1.6) { hit = i; break; }
+                        // Generous hit area — the dot itself is small to click on.
+                        if (Math.hypot(list[i].x - x, list[i].y - y) <= Math.max(r * 2.5, 10 * scale)) { hit = i; break; }
                     }
                     if (hit === -1) { say('No dot there — click one to remove it', 'text-muted'); return; }
                     list.splice(hit, 1);
