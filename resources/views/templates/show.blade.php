@@ -6,7 +6,10 @@
     $stepCount = $type->sections->sum(fn($s) => $s->steps->count());
     // Section weights make up the Overall Verdict /100 score, so they should total 100.
     $weightTotal = round((float) $type->sections->sum('weight'), 2);
-    $weighted = $type->sections->contains(fn($s) => $s->weight !== null);
+    // Weights only feed the Calculated Overall Verdict, so they are shown and
+    // edited only when the template's switch for it is on.
+    $showWeight = (bool) $type->has_calculated_verdict;
+    $weighted = $showWeight && $type->sections->contains(fn($s) => $s->weight !== null);
     $fmtWeight = fn($w) => rtrim(rtrim(number_format((float) $w, 2), '0'), '.');
 @endphp
 
@@ -75,7 +78,7 @@
                                     <span class="badge badge-soft-primary font-size-13">{{ $section->sequence }}</span>
                                     <h5 class="mb-0">{{ $section->section_name }}</h5>
                                     @if($section->section_name_ar)<span class="text-muted" dir="rtl">— {{ $section->section_name_ar }}</span>@endif
-                                    @if($section->weight !== null)<span class="badge badge-soft-warning font-size-12" title="Weight in the Overall Verdict score">{{ $fmtWeight($section->weight) }}%</span>@endif
+                                    @if($showWeight && $section->weight !== null)<span class="badge badge-soft-warning font-size-12" title="Weight in the Overall Verdict score">{{ $fmtWeight($section->weight) }}%</span>@endif
                                     @foreach ($section->damageDiagrams as $dg)
                                         <span class="badge badge-soft-info font-size-11"><i class="bx bx-palette"></i> {{ $dg->name }}</span>
                                     @endforeach
@@ -90,10 +93,12 @@
                                 <input type="text" name="group_name_ar" dir="rtl" value="{{ $section->group_name_ar }}" class="form-control form-control-sm" placeholder="العنوان الرئيسي">
                                 <input type="text" name="section_name" value="{{ $section->section_name }}" class="form-control form-control-sm" placeholder="Section name" required>
                                 <input type="text" name="section_name_ar" dir="rtl" value="{{ $section->section_name_ar }}" class="form-control form-control-sm flex-grow-1" placeholder="الاسم بالعربية">
+                                @if($showWeight)
                                 <div class="input-group input-group-sm" style="width:120px;" title="Weight in the Overall Verdict score">
                                     <input type="number" name="weight" value="{{ $section->weight !== null ? $fmtWeight($section->weight) : '' }}" class="form-control" step="0.01" min="0" max="100" placeholder="Weight">
                                     <span class="input-group-text">%</span>
                                 </div>
+                                @endif
                                 {{-- Damage diagrams drawn inside this step. A diagram belongs to one
                                      section, so ticking it here takes it off whichever section had it.
                                      Tiles rather than checkboxes: the thumbnail is what an admin
@@ -218,14 +223,16 @@
                                 <label class="form-label font-size-12 text-muted">Section name</label>
                                 <input type="text" name="section_name" class="form-control" placeholder="e.g. Engine &amp; Mechanical  —  or  Engine[ar]المحرك" required>
                             </div>
-                            <div class="col-md-3 form-group mb-0">
+                            <div class="col-md-{{ $showWeight ? 3 : 5 }} form-group mb-0">
                                 <label class="form-label font-size-12 text-muted">Section name (Arabic) — بالعربية</label>
                                 <input type="text" name="section_name_ar" dir="rtl" class="form-control" placeholder="مثال: المحرك والميكانيكا">
                             </div>
+                            @if($showWeight)
                             <div class="col-md-2 form-group mb-0">
                                 <label class="form-label font-size-12 text-muted">Weight (%)</label>
                                 <input type="number" name="weight" class="form-control" step="0.01" min="0" max="100" placeholder="e.g. 20">
                             </div>
+                            @endif
                             <div class="col-md-3 form-group mb-0 align-self-end">
                                 <button class="btn btn-dark btn-block"><i class="bx bx-plus"></i> Add Section</button>
                             </div>

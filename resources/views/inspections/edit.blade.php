@@ -1160,7 +1160,11 @@
 
                                     {{-- Section-level rating (shown on the report's Inspection Summary).
                                          The per-section summary note was removed from this screen; notes
-                                         already saved are left untouched by both save paths. --}}
+                                         already saved are left untouched by both save paths. Only on
+                                         templates with the Calculated Overall Verdict switch on — the
+                                         ratings feed that verdict; elsewhere nothing is posted, so any
+                                         stored rating stays as it is. --}}
+                                    @if ($inspection->usesCalculatedVerdict())
                                     @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
                                     @php($secRating = (float) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
                                     <div class="border-top pt-3 mt-2" data-section-summary="{{ $section->id }}">
@@ -1188,6 +1192,7 @@
                                             @endif
                                         </div>
                                     </div>
+                                    @endif
                                 </div>
                             </div>
 
