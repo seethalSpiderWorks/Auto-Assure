@@ -5,7 +5,7 @@
     $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
-    $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
+    $inspDt    = optional($inspection->date_of_inspection ?: $inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
     $condition = Inspection::CONDITIONS[$inspection->overall_condition] ?? '—';
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
@@ -563,10 +563,10 @@
             <div class="sec-bar"><span class="en">Owner Details</span><span class="ar">بيانات المالك</span></div>
             <div class="card tight">
                 <div class="facts">
-                    <div class="fact"><div class="fl">Owner Name <span class="ar">اسم المالك</span></div><div class="fv">{{ $val($inspection->customer_name) }}</div></div>
-                    <div class="fact"><div class="fl">Phone <span class="ar">رقم الهاتف</span></div><div class="fv" style="direction:ltr">{{ $val($inspection->customer_phone) }}</div></div>
-                    <div class="fact"><div class="fl">Email <span class="ar">البريد الإلكتروني</span></div><div class="fv" style="word-break:break-all">{{ $val($inspection->customer_email) }}</div></div>
+                    <div class="fact"><div class="fl">Customer Name <span class="ar">اسم العميل</span></div><div class="fv">{{ $val($inspection->customer_name) }}</div></div>
                     <div class="fact"><div class="fl">Reference <span class="ar">المرجع</span></div><div class="fv">{{ $reportNo }}</div></div>
+                    <div class="fact"><div class="fl">Inspection Date <span class="ar">تاريخ الفحص</span></div><div class="fv">{{ $val($inspDt) }}</div></div>
+                    <div class="fact"><div class="fl">Plate No <span class="ar">رقم اللوحة</span></div><div class="fv">{{ $val($inspection->plate_no) }}</div></div>
                 </div>
             </div>
 
@@ -819,7 +819,7 @@
         @endphp
         @if ($areaNotes->isNotEmpty())
         <div class="page">
-            <div class="sec-bar"><span class="en">Summary Notes by Area</span><span class="ar">ملخص الفحص حسب القسم</span></div>
+            <div class="sec-bar"><span class="en">Inspection Summary</span><span class="ar">ملخص الفحص</span></div>
             <div class="grid2">
                 @foreach ($areaNotes as $an)
                     <div class="item-card" style="display:flex;flex-direction:column;gap:8px;">

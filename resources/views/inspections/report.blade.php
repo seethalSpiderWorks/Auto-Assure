@@ -6,7 +6,7 @@
     $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
-    $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
+    $inspDt    = optional($inspection->date_of_inspection ?: $inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
     $typeName  = optional($inspection->type)->name ?: 'Inspection';
@@ -208,8 +208,10 @@
             'Inspection Report' => 'تقرير الفحص',
             'Inspection Checklist for Used Imported Vehicle' => 'قائمة فحص المركبات المستعملة المستوردة',
             'Inspector Comment' => 'ملاحظات الفاحص',
-            'Summary Notes by Area' => 'ملخص الفحص حسب القسم',
             'Inspection Summary' => 'ملخص الفحص',
+            'Reference' => 'المرجع',
+            'Inspection Date' => 'تاريخ الفحص',
+            'Plate No' => 'رقم اللوحة',
             'Diagnostic Media' => 'تقارير الفحص بالكمبيوتر',
             'General Photos' => 'صور عامة',
             'Vehicle Photos' => 'صور المركبة',
@@ -755,16 +757,20 @@
                             @endforeach
                             {{-- Owner details, moved into the Vehicle Summary box (client request) --}}
                             <tr>
-                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Owner Name</td>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Customer Name</td>
                                 <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_name) }}</td>
                             </tr>
                             <tr>
-                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Phone</td>
-                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_phone) }}</td>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Reference</td>
+                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($reportNo) }}</td>
                             </tr>
                             <tr>
-                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Email</td>
-                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_email) }}</td>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Inspection Date</td>
+                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspDt) }}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Plate No</td>
+                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->plate_no) }}</td>
                             </tr>
                         </table>
                     </div>
@@ -807,8 +813,9 @@
                             <div class="vcard__eyebrow">{{ $L('Owner') }}</div>
                             <div class="vcard__owner-name">{{ $val($inspection->customer_name) }}</div>
                             <div class="vcard__owner-meta">
-                                <span><b>{{ $L('Phone') }}</b> {{ $val($inspection->customer_phone) }}</span>
-                                <span><b>{{ $L('Email') }}</b> {{ $val($inspection->customer_email) }}</span>
+                                <span><b>{{ $L('Reference') }}</b> <bdi>{{ $val($reportNo) }}</bdi></span>
+                                <span><b>{{ $L('Inspection Date') }}</b> <bdi>{{ $val($inspDt) }}</bdi></span>
+                                <span><b>{{ $L('Plate No') }}</b> <bdi>{{ $val($inspection->plate_no) }}</bdi></span>
                             </div>
                         </div>
                     </div>
@@ -902,7 +909,7 @@
         @endphp
         @if (!empty($areaNotes))
         <div class="page">
-            <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Inspection Summary' : 'Summary Notes by Area') }}</span></div>
+            <div class="sec-bar"><span class="en">{{ $L('Inspection Summary') }}</span></div>
 
             <div class="grid2">
                 @foreach ($areaNotes as $an)
