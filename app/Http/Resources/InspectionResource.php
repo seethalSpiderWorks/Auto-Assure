@@ -10,7 +10,8 @@ class InspectionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $verdict = $this->calculatedVerdict();
+        // Unrated counts as score 0 (Critical), matching the admin screens.
+        $verdict = $this->calculatedVerdict(true);
 
         return [
             'id'                 => $this->id,
@@ -82,7 +83,8 @@ class InspectionResource extends JsonResource
             'recommendation_label'  => $verdict ? $verdict['band']['guide'] : (Inspection::RECOMMENDATIONS[$this->recommendation] ?? null),
             'recommendation_label_ar' => $verdict ? $verdict['band']['guide_ar'] : (Inspection::RECOMMENDATIONS_AR[$this->recommendation] ?? null),
             // Score /100, rating /5, condition and recommendation from the section
-            // weights; null when the template has no weights or nothing is rated.
+            // weights (nothing rated = score 0, Critical); null when the template
+            // has no weights.
             'calculated_verdict'      => $this->calculatedVerdictPayload($verdict),
             'estimated_repair_cost' => $this->estimated_repair_cost,
             'currency'              => $this->currency ?? 'AED',

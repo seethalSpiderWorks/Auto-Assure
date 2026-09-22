@@ -408,8 +408,11 @@ class Inspection extends Model
      * values. Uses the relations already loaded and queries only what is
      * missing, without loading relations onto the model, so the resources that
      * switch blocks on relationLoaded() keep their payload.
+     *
+     * $includeUnrated: nothing rated scores 0 — the Critical band — as on the
+     * admin edit screen and report, instead of null.
      */
-    public function calculatedVerdict(): ?array
+    public function calculatedVerdict(bool $includeUnrated = false): ?array
     {
         if (! $this->usesCalculatedVerdict()) {
             return null;
@@ -429,7 +432,7 @@ class Inspection extends Model
 
         $verdict = $this->weightedVerdict($summaries, $sections);
 
-        return $verdict && $verdict['rated'] > 0 ? $verdict : null;
+        return $verdict && ($includeUnrated || $verdict['rated'] > 0) ? $verdict : null;
     }
 
     /**
