@@ -609,8 +609,10 @@
                     <div class="res-box" style="text-align:left">
                         <div class="fl muted" style="font-size:11px;font-weight:600">Overall Condition <span class="ar">الحالة العامة</span></div>
                         <div class="fv" style="font-weight:700;margin:2px 0 8px">{{ $condition }}</div>
+                        @if (filled($inspection->recommendation))
                         <div class="fl muted" style="font-size:11px;font-weight:600">Recommendation <span class="ar">التوصية</span></div>
                         <div class="fv" style="font-weight:700">{{ $recommend }}</div>
+                        @endif
                     @endif
                     </div>
                 </div>

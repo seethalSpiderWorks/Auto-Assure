@@ -352,9 +352,9 @@ class Inspection extends Model
     public const VERDICT_BANDS = [
         ['condition' => 'Excellent', 'min' => 90, 'max' => 100, 'rating_min' => 4.5, 'rating_max' => 5.0, 'color' => '#2fa84f', 'text' => '#fff', 'ink' => '#1e7b3a', 'guide' => 'Minimal defects, no major concerns', 'condition_ar' => 'ممتاز', 'guide_ar' => 'عيوب طفيفة، لا توجد مخاوف كبيرة'],
         ['condition' => 'Very Good', 'min' => 80, 'max' => 89, 'rating_min' => 4.0, 'rating_max' => 4.4, 'color' => '#92d050', 'text' => '#1c2430', 'ink' => '#4d7c1f', 'guide' => 'Minor repairs/maintenance', 'condition_ar' => 'جيد جداً', 'guide_ar' => 'إصلاحات/صيانة بسيطة'],
-        ['condition' => 'Good', 'min' => 65, 'max' => 79, 'rating_min' => 3.0, 'rating_max' => 3.9, 'color' => '#ffc000', 'text' => '#1c2430', 'ink' => '#8a6400', 'guide' => 'Noticeable repairs/maintenance', 'condition_ar' => 'جيد', 'guide_ar' => 'إصلاحات/صيانة ملحوظة'],
-        ['condition' => 'Poor', 'min' => 40, 'max' => 64, 'rating_min' => 2.0, 'rating_max' => 2.9, 'color' => '#ed7d31', 'text' => '#fff', 'ink' => '#b4561a', 'guide' => 'Major repairs required', 'condition_ar' => 'ضعيف', 'guide_ar' => 'تتطلب إصلاحات كبيرة'],
-        ['condition' => 'Critical', 'min' => 0, 'max' => 39, 'rating_min' => 1.0, 'rating_max' => 1.9, 'color' => '#e0241b', 'text' => '#fff', 'ink' => '#b3261e', 'guide' => 'Serious mechanical/safety/structural concerns', 'condition_ar' => 'حرج', 'guide_ar' => 'مخاوف جدية ميكانيكية/تتعلق بالسلامة/هيكلية'],
+        ['condition' => 'Good', 'min' => 65, 'max' => 79, 'rating_min' => 3.3, 'rating_max' => 3.9, 'color' => '#ffc000', 'text' => '#1c2430', 'ink' => '#8a6400', 'guide' => 'Noticeable repairs/maintenance', 'condition_ar' => 'جيد', 'guide_ar' => 'إصلاحات/صيانة ملحوظة'],
+        ['condition' => 'Poor', 'min' => 40, 'max' => 64, 'rating_min' => 2.0, 'rating_max' => 3.2, 'color' => '#ed7d31', 'text' => '#fff', 'ink' => '#b4561a', 'guide' => 'Major repairs required', 'condition_ar' => 'ضعيف', 'guide_ar' => 'تتطلب إصلاحات كبيرة'],
+        ['condition' => 'Critical', 'min' => 0, 'max' => 39, 'rating_min' => 0.0, 'rating_max' => 1.9, 'color' => '#e0241b', 'text' => '#fff', 'ink' => '#b3261e', 'guide' => 'Serious mechanical/safety/structural concerns', 'condition_ar' => 'حرج', 'guide_ar' => 'مخاوف جدية ميكانيكية/تتعلق بالسلامة/هيكلية'],
     ];
 
     /**
@@ -399,7 +399,7 @@ class Inspection extends Model
         $score = round(min(100, $score), 1);
         $band = self::verdictBand($score);
 
-        return ['score' => $score, 'rating' => self::verdictRating($score, $band), 'rated' => $rated, 'weighted' => $weighted, 'band' => $band];
+        return ['score' => $score, 'rating' => self::verdictRating($score), 'rated' => $rated, 'weighted' => $weighted, 'band' => $band];
     }
 
     /**
@@ -479,14 +479,12 @@ class Inspection extends Model
     }
 
     /**
-     * Place the score within its band's rating range — 85 → 4.2, 72 → 3.5.
+     * Stars out of 5 straight from the score, so they match the gauge —
+     * 85 → 4.3, 32.5 → 1.6, 0 → 0.
      */
-    public static function verdictRating(float $score, array $band): float
+    public static function verdictRating(float $score): float
     {
-        $t = ($score - $band['min']) / max(1, $band['max'] - $band['min']);
-        $rating = $band['rating_min'] + max(0, min(1, $t)) * ($band['rating_max'] - $band['rating_min']);
-
-        return round(min($band['rating_max'], $rating), 1);
+        return round(max(0, min(100, $score)) / 20, 1);
     }
 
     /**

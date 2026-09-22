@@ -1215,7 +1215,9 @@
                                                 ?? ['score' => 0, 'rating' => 0, 'rated' => 0, 'weighted' => 0, 'band' => \App\Models\Inspection::verdictBand(0)])
                                             : null)
                                         @if ($wVerdict)
-                                            @php($wRated = $wVerdict['rated'] > 0)
+                                            {{-- Nothing rated scores 0, which is the Critical band (client request),
+                                                 so the verdict always shows. --}}
+                                            @php($wRated = true)
                                             <div class="col-12 mb-3">
                                                 <div class="wverdict" id="wverdict">
                                                     <div class="wverdict__head">
@@ -2220,24 +2222,25 @@
         score = Math.round(Math.min(100, score) * 10) / 10;
 
         const band = VERDICT_BANDS.find(b => score >= b.min) || VERDICT_BANDS[VERDICT_BANDS.length - 1];
-        const t = Math.max(0, Math.min(1, (score - band.min) / Math.max(1, band.max - band.min)));
-        const rating = Math.min(band.rating_max, Math.round((band.rating_min + t * (band.rating_max - band.rating_min)) * 10) / 10);
+        // Stars straight from the score (score / 20), as Inspection::verdictRating().
+        const rating = Math.round(Math.max(0, Math.min(100, score)) / 20 * 10) / 10;
 
         document.getElementById('wverdict-score').textContent = score;
-        document.getElementById('wverdict-rating').textContent = rated ? rating.toFixed(1) : '—';
+        // Nothing rated scores 0 — the Critical band — so the verdict always shows.
+        document.getElementById('wverdict-rating').textContent = rating.toFixed(1);
         document.getElementById('wverdict-rated').textContent = rated + ' of ' + weighted + ' sections rated';
         const cond = document.getElementById('wverdict-cond');
-        cond.textContent = rated ? band.condition : 'Not rated';
-        cond.style.background = rated ? band.color : '#b0b8c4';
-        cond.style.color = rated ? band.text : '#fff';
-        document.getElementById('wverdict-guide').textContent = rated ? band.guide : 'Rate the sections to calculate the verdict.';
-        const starVal = rated ? rating : 0;
+        cond.textContent = band.condition;
+        cond.style.background = band.color;
+        cond.style.color = band.text;
+        document.getElementById('wverdict-guide').textContent = band.guide;
+        const starVal = rating;
         box.querySelectorAll('.js-wverdict-star').forEach(star => {
             fillStar(star, starVal - (parseInt(star.dataset.val, 10) - 1));
         });
-        document.getElementById('wverdict-stars-label').textContent = rated ? rating.toFixed(1) + '/5' : '';
+        document.getElementById('wverdict-stars-label').textContent = rating.toFixed(1) + '/5';
         box.querySelectorAll('[data-wverdict-band]').forEach(tr => {
-            tr.classList.toggle('is-current', rated > 0 && tr.dataset.wverdictBand === band.condition);
+            tr.classList.toggle('is-current', tr.dataset.wverdictBand === band.condition);
         });
     }
 

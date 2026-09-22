@@ -34,7 +34,8 @@
     // Inspection::VERDICT_BANDS.
     $usesCalculated = $inspection->usesCalculatedVerdict();
     $weightedVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect());
-    $useWeighted = $weightedVerdict && $weightedVerdict['rated'] > 0;
+    // Nothing rated scores 0, which is the Critical band (client request).
+    $useWeighted = (bool) $weightedVerdict;
     if ($useWeighted) {
         $recommend          = $weightedVerdict['band']['guide'];
         $overallRatingVal   = $weightedVerdict['rating'];
@@ -212,6 +213,7 @@
             'Reference' => 'المرجع',
             'Inspection Date' => 'تاريخ الفحص',
             'Plate No' => 'رقم اللوحة',
+            'Not rated' => 'غير مُقيَّم',
             'Diagnostic Media' => 'تقارير الفحص بالكمبيوتر',
             'General Photos' => 'صور عامة',
             'Vehicle Photos' => 'صور المركبة',
@@ -634,8 +636,11 @@
  <div class="cover_left">
    {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
                 @php
-                    $scoreF = $overallRatingVal > 0 ? $overallRatingPct : round($tally['pass'] / $tTot * 100, 1);
-                    $scoreLbl = $overallRatingVal > 0 ? (string) $overallRatingPct : rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
+                    // Nothing rated yet: show 0 and "Not rated", as the edit screen does,
+                    // rather than a pass-share score that reads as a verdict.
+                    $isRated = $overallRatingVal > 0 || $useWeighted;
+                    $scoreF = $isRated ? $overallRatingPct : 0;
+                    $scoreLbl = $isRated ? (string) $overallRatingPct : '0';
                     $bands = [
                         ['Poor', 0, 20, '#e0483d'], ['Fair', 20, 40, '#efb008'],
                         ['Good', 40, 60, '#f2903f'], ['Very Good', 60, 80, '#5ab84d'],
@@ -648,8 +653,8 @@
                     // band. The gauge measures a different thing (share of passed items),
                     // so the two can legitimately differ. The band is only a fallback for
                     // inspections saved before the verdict was made mandatory.
-                    $condColor  = $ratingColors[$overallRatingBadge] ?? $cColor;
-                    $condition  = $condition ?: $cond;
+                    $condColor  = $isRated ? ($ratingColors[$overallRatingBadge] ?? $cColor) : '#b0b8c4';
+                    $condition  = $isRated ? ($condition ?: $cond) : 'Not rated';
 
                     $cx = 200; $cy = 170;
                     $rBand = 150; $rMinO = 133; $rMinI = 126; $rMajI = 116; $rLabel = 102; $rNeedle = 112;
@@ -716,18 +721,20 @@
                         <div class="fact" style="display:flex;flex-direction:column;align-items:center;">
                             <div class="fl">{{ $L('Overall Rating') }}</div>
                             <div class="fv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
-                                @if($overallRatingVal > 0)
+                                @if($overallRatingVal > 0 || $useWeighted)
                                     @for($i = 1; $i <= 5; $i++)
                                         @php $fill = max(0, min(1, $overallRatingVal - ($i - 1))); $pct = round($fill * 100, 1); @endphp
                                         <span class="star" style="font-size:15px;line-height:1;{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#dfe3ea;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#dfe3ea '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>
                                     @endfor
                                     <span style="font-size:12px;font-weight:700;color:#1c2430;">{{ number_format($overallRatingVal, 1) }}/5</span>
                                 @else
-                                    {{ $overallCond ?? $L($condition) }}
+                                    {{ $L('Not rated') }}
                                 @endif
                             </div>
                         </div>
+                        @if($overallRatingVal > 0 || $useWeighted)
                         <div class="fact"><div class="fl">{{ $L('Recommendation') }}</div><div class="fv" style="font-size:11px;">{{ $recommend }}</div></div>
+                        @endif
                     </div>
                 </div>
 
