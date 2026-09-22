@@ -18,6 +18,11 @@ class InspectionResource extends JsonResource
             'branch_id'          => $this->branch_id,
             'technician_id'      => $this->technician_id,
             'inspection_type_id' => $this->inspection_type_id,
+            // Template name, flat so the app need not dig into `type`. Only
+            // where the type is loaded (the detail endpoint), so the job list
+            // doesn't pay a query per row.
+            'inspection_type_name'    => $this->whenLoaded('type', fn () => $this->type?->name),
+            'inspection_type_name_ar' => $this->whenLoaded('type', fn () => $this->type?->name_ar),
 
             'status'       => $this->status,
             'scheduled_at' => optional($this->scheduled_at)->toIso8601String(),
