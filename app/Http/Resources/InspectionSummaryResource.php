@@ -45,7 +45,8 @@ class InspectionSummaryResource extends JsonResource
         // the web details/summary screens.
         $stateOf = fn ($d): string => Inspection::choiceState($d);
 
-        $verdict = $this->calculatedVerdict();
+        // Unrated counts as score 0 (Critical), matching the admin screens.
+        $verdict = $this->calculatedVerdict(true);
 
         // A recorded section rating, formatted exactly as Inspection::sectionRating()
         // formats one (clamp 0.5–5, one decimal); null when nothing was recorded.

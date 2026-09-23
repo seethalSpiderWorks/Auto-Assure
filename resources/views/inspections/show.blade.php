@@ -63,6 +63,7 @@
         'Make'                 => $inspection->car_make,
         'Model'                => $inspection->car_model,
         'Model Year'           => $inspection->car_year,
+        'Vehicle Condition'    => $inspection->vehicle_condition,
         'VIN / Chassis No'     => $inspection->vin,
         'Plate No'             => $inspection->plate_no,
         'Odometer'             => $inspection->odometer ? number_format($inspection->odometer).' km' : null,

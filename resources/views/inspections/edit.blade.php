@@ -1160,7 +1160,11 @@
 
                                     {{-- Section-level rating (shown on the report's Inspection Summary).
                                          The per-section summary note was removed from this screen; notes
-                                         already saved are left untouched by both save paths. --}}
+                                         already saved are left untouched by both save paths. Only on
+                                         templates with the Calculated Overall Verdict switch on — the
+                                         ratings feed that verdict; elsewhere nothing is posted, so any
+                                         stored rating stays as it is. --}}
+                                    @if ($inspection->usesCalculatedVerdict())
                                     @php($sectionSummary = ($sectionSummaries ?? collect())->get($section->id))
                                     @php($secRating = (float) old('section_ratings.'.$section->id, $sectionSummary->rating ?? 0))
                                     <div class="border-top pt-3 mt-2" data-section-summary="{{ $section->id }}">
@@ -1188,6 +1192,7 @@
                                             @endif
                                         </div>
                                     </div>
+                                    @endif
                                 </div>
                             </div>
 
@@ -1210,7 +1215,9 @@
                                                 ?? ['score' => 0, 'rating' => 0, 'rated' => 0, 'weighted' => 0, 'band' => \App\Models\Inspection::verdictBand(0)])
                                             : null)
                                         @if ($wVerdict)
-                                            @php($wRated = $wVerdict['rated'] > 0)
+                                            {{-- Nothing rated scores 0, which is the Critical band (client request),
+                                                 so the verdict always shows. --}}
+                                            @php($wRated = true)
                                             <div class="col-12 mb-3">
                                                 <div class="wverdict" id="wverdict">
                                                     <div class="wverdict__head">
@@ -2215,24 +2222,25 @@
         score = Math.round(Math.min(100, score) * 10) / 10;
 
         const band = VERDICT_BANDS.find(b => score >= b.min) || VERDICT_BANDS[VERDICT_BANDS.length - 1];
-        const t = Math.max(0, Math.min(1, (score - band.min) / Math.max(1, band.max - band.min)));
-        const rating = Math.min(band.rating_max, Math.round((band.rating_min + t * (band.rating_max - band.rating_min)) * 10) / 10);
+        // Stars straight from the score (score / 20), as Inspection::verdictRating().
+        const rating = Math.round(Math.max(0, Math.min(100, score)) / 20 * 10) / 10;
 
         document.getElementById('wverdict-score').textContent = score;
-        document.getElementById('wverdict-rating').textContent = rated ? rating.toFixed(1) : '—';
+        // Nothing rated scores 0 — the Critical band — so the verdict always shows.
+        document.getElementById('wverdict-rating').textContent = rating.toFixed(1);
         document.getElementById('wverdict-rated').textContent = rated + ' of ' + weighted + ' sections rated';
         const cond = document.getElementById('wverdict-cond');
-        cond.textContent = rated ? band.condition : 'Not rated';
-        cond.style.background = rated ? band.color : '#b0b8c4';
-        cond.style.color = rated ? band.text : '#fff';
-        document.getElementById('wverdict-guide').textContent = rated ? band.guide : 'Rate the sections to calculate the verdict.';
-        const starVal = rated ? rating : 0;
+        cond.textContent = band.condition;
+        cond.style.background = band.color;
+        cond.style.color = band.text;
+        document.getElementById('wverdict-guide').textContent = band.guide;
+        const starVal = rating;
         box.querySelectorAll('.js-wverdict-star').forEach(star => {
             fillStar(star, starVal - (parseInt(star.dataset.val, 10) - 1));
         });
-        document.getElementById('wverdict-stars-label').textContent = rated ? rating.toFixed(1) + '/5' : '';
+        document.getElementById('wverdict-stars-label').textContent = rating.toFixed(1) + '/5';
         box.querySelectorAll('[data-wverdict-band]').forEach(tr => {
-            tr.classList.toggle('is-current', rated > 0 && tr.dataset.wverdictBand === band.condition);
+            tr.classList.toggle('is-current', tr.dataset.wverdictBand === band.condition);
         });
     }
 
@@ -2330,9 +2338,9 @@
             });
         }
 
-        // Legacy draws r=5 on a 512px canvas; keep that visual weight on these
-        // wider diagrams instead of a dot too small to see.
-        function dotRadius(cv) { return Math.max(4, Math.round(cv.width * 0.01)); }
+        // Small marker: about half the legacy r=5-on-512px weight, scaled to
+        // the diagram's width so it reads the same on every canvas size.
+        function dotRadius(cv) { return Math.max(3, Math.round(cv.width * 0.005)); }
 
         function render(cv) {
             const img = bases[cv.dataset.damageView];
@@ -2348,7 +2356,7 @@
                 ctx.fill();
                 // A ring, because a palette can include white (N/V on the chassis)
                 // which would otherwise vanish into the diagram.
-                ctx.lineWidth = Math.max(2, r * 0.3);
+                ctx.lineWidth = Math.max(1, r * 0.25);
                 ctx.strokeStyle = 'rgba(28,36,48,.8)';
                 ctx.stroke();
             });
@@ -2467,7 +2475,8 @@
                     // goes, matching what the eye sees.
                     let hit = -1;
                     for (let i = list.length - 1; i >= 0; i--) {
-                        if (Math.hypot(list[i].x - x, list[i].y - y) <= r * 1.6) { hit = i; break; }
+                        // Generous hit area — the dot itself is small to click on.
+                        if (Math.hypot(list[i].x - x, list[i].y - y) <= Math.max(r * 2.5, 10 * scale)) { hit = i; break; }
                     }
                     if (hit === -1) { say('No dot there — click one to remove it', 'text-muted'); return; }
                     list.splice(hit, 1);

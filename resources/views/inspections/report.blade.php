@@ -6,7 +6,7 @@
     $reportNo  = $inspection->reference;
     $reportDt  = optional($inspection->completed_at ?: $inspection->updated_at)->format('d-M-Y');
     $reportTm  = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('h:i A');
-    $inspDt    = optional($inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
+    $inspDt    = optional($inspection->date_of_inspection ?: $inspection->scheduled_at ?: $inspection->started_at ?: $inspection->created_at)->format('d-M-Y');
     $recommend = Inspection::RECOMMENDATIONS[$inspection->recommendation] ?? '—';
     $compliant = $inspection->recommendation !== 'avoid';
     $typeName  = optional($inspection->type)->name ?: 'Inspection';
@@ -34,7 +34,8 @@
     // Inspection::VERDICT_BANDS.
     $usesCalculated = $inspection->usesCalculatedVerdict();
     $weightedVerdict = $inspection->weightedVerdict($sectionSummaries ?? collect());
-    $useWeighted = $weightedVerdict && $weightedVerdict['rated'] > 0;
+    // Nothing rated scores 0, which is the Critical band (client request).
+    $useWeighted = (bool) $weightedVerdict;
     if ($useWeighted) {
         $recommend          = $weightedVerdict['band']['guide'];
         $overallRatingVal   = $weightedVerdict['rating'];
@@ -184,6 +185,7 @@
         ['Region', $val($inspection->region)],
         ['Exterior Colour', $val($inspection->exterior_color)],
         ['Gearbox', $val($inspection->gearbox)],
+        ['Vehicle Condition', $val($inspection->vehicle_condition)],
         ['Fuel Type', $val($inspection->fuel_type)],
         ['Body Type', $val($inspection->body_type)],
         ['No. of Keys', $val($inspection->number_of_keys)],
@@ -207,8 +209,11 @@
             'Inspection Report' => 'تقرير الفحص',
             'Inspection Checklist for Used Imported Vehicle' => 'قائمة فحص المركبات المستعملة المستوردة',
             'Inspector Comment' => 'ملاحظات الفاحص',
-            'Summary Notes by Area' => 'ملخص الفحص حسب القسم',
             'Inspection Summary' => 'ملخص الفحص',
+            'Reference' => 'المرجع',
+            'Inspection Date' => 'تاريخ الفحص',
+            'Plate No' => 'رقم اللوحة',
+            'Not rated' => 'غير مُقيَّم',
             'Diagnostic Media' => 'تقارير الفحص بالكمبيوتر',
             'General Photos' => 'صور عامة',
             'Vehicle Photos' => 'صور المركبة',
@@ -216,6 +221,7 @@
             'Make' => 'الشركة المصنعة',
             'Model' => 'الطراز',
             'Year' => 'السنة',
+            'Vehicle Condition' => 'حالة المركبة',
             'Fuel Type' => 'نوع الوقود',
             'Odometer' => 'عداد المسافة',
             'Exterior Colour' => 'اللون الخارجي',
@@ -976,7 +982,7 @@
         @endphp
         @if (!empty($areaNotes))
         <div class="page">
-            <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Inspection Summary' : 'Summary Notes by Area') }}</span></div>
+            <div class="sec-bar"><span class="en">{{ $L('Inspection Summary') }}</span></div>
 
             <div class="grid2">
                 @foreach ($areaNotes as $an)

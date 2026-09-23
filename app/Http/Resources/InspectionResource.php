@@ -10,7 +10,8 @@ class InspectionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $verdict = $this->calculatedVerdict();
+        // Unrated counts as score 0 (Critical), matching the admin screens.
+        $verdict = $this->calculatedVerdict(true);
 
         return [
             'id'                 => $this->id,
@@ -18,6 +19,11 @@ class InspectionResource extends JsonResource
             'branch_id'          => $this->branch_id,
             'technician_id'      => $this->technician_id,
             'inspection_type_id' => $this->inspection_type_id,
+            // Template name, flat so the app need not dig into `type`. Only
+            // where the type is loaded (the detail endpoint), so the job list
+            // doesn't pay a query per row.
+            'inspection_type_name'    => $this->whenLoaded('type', fn () => $this->type?->name),
+            'inspection_type_name_ar' => $this->whenLoaded('type', fn () => $this->type?->name_ar),
 
             'status'       => $this->status,
             'scheduled_at' => optional($this->scheduled_at)->toIso8601String(),
@@ -77,7 +83,8 @@ class InspectionResource extends JsonResource
             'recommendation_label'  => $verdict ? $verdict['band']['guide'] : (Inspection::RECOMMENDATIONS[$this->recommendation] ?? null),
             'recommendation_label_ar' => $verdict ? $verdict['band']['guide_ar'] : (Inspection::RECOMMENDATIONS_AR[$this->recommendation] ?? null),
             // Score /100, rating /5, condition and recommendation from the section
-            // weights; null when the template has no weights or nothing is rated.
+            // weights (nothing rated = score 0, Critical); null when the template
+            // has no weights.
             'calculated_verdict'      => $this->calculatedVerdictPayload($verdict),
             'estimated_repair_cost' => $this->estimated_repair_cost,
             'currency'              => $this->currency ?? 'AED',
