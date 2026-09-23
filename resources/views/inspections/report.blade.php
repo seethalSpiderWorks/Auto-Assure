@@ -572,6 +572,108 @@
             .sign .col{ flex:1 1 100%; min-width:0; }
         }
 
+        /* ================= redesigned cover (report card) ================= */
+        /* The cover keeps its navy canvas (see .cover above) and lays a light,
+           structured "report card" on top: white header, navy hero band, white
+           info cards, a rating strip, inspector comment, feature strip and a
+           green footer pinned to the bottom of the sheet. */
+        .cover .top{ display:none; }               /* old centred cover body — replaced */
+        .rc{ display:flex; flex-direction:column; flex:1; }
+        .rc-pad{ padding-left:34px; padding-right:34px; }
+
+        /* ---- header (white, minimal) ---- */
+        .rc-head{ display:flex; align-items:center; justify-content:space-between; gap:22px;
+            background:#fff; padding:18px 34px; border-bottom:2px solid #2fa84f; }
+        .rc-head__logo{ flex:0 0 auto; }
+        .rc-head__logo img{ height:46px; width:auto; display:block; }
+        .rc-head__tag{ margin-top:5px; font-family:'Quicksand',sans-serif; font-weight:700;
+            font-size:8px; letter-spacing:1.3px; color:#8b93a1; white-space:nowrap; }
+        .rc-head__title{ flex:1 1 auto; min-width:0; text-align:right; }
+        .rc-head__title h1{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:26px;
+            line-height:1.1; color:#0f2d43; }
+        .rc-head__title h1 .g{ color:#2fa84f; }
+        .rc-head__title .sub{ margin-top:5px; font-size:11.5px; color:#8b93a1; font-weight:500; }
+
+        /* ---- hero band (navy — sits directly on the cover canvas) ---- */
+        .rc-hero{ display:flex; align-items:center; gap:24px; padding:24px 34px 22px; }
+        .rc-hero__gauge{ flex:0 0 40%; max-width:40%; text-align:center; }
+        .rc-hero__car{ flex:1 1 auto; position:relative; border-radius:14px; overflow:hidden;
+            background:#0c2136; min-height:220px; }
+        .rc-hero__car > img{ width:100%; height:100%; max-height:280px; object-fit:cover; display:block; }
+        .rc-inspected{ position:absolute; top:14px; right:14px; display:inline-flex; align-items:center; gap:6px;
+            background:#2fa84f; color:#fff; font-weight:700; font-size:11px; letter-spacing:.4px; padding:6px 13px; border-radius:20px; }
+        .rc-hero__tagline{ position:absolute; right:18px; bottom:14px; text-align:right; color:#fff;
+            font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; font-size:21px; line-height:1.1;
+            text-shadow:0 2px 10px rgba(0,0,0,.55); }
+        .rc-gauge-score{ font-size:30px; font-weight:800; color:#fff; line-height:1; font-family:'Poppins',sans-serif; }
+        .rc-gauge-score span{ font-size:16px; font-weight:700; color:#8ea3b5; }
+        .rc-gauge-pill{ display:inline-block; margin-top:10px; padding:5px 22px; border-radius:999px;
+            font-size:14px; font-weight:700; letter-spacing:.3px; border:1.5px solid; }
+        .rc-gauge-legend{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px;
+            font-size:10.5px; font-weight:600; color:#c2cede; }
+        .rc-gauge-legend i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+
+        /* ---- info cards (Vehicle Summary + <Make> Details) ---- */
+        .rc-cards{ display:flex; gap:16px; padding:2px 34px 16px; align-items:stretch; }
+        .rc-card{ flex:1 1 0; min-width:0; background:#fff; border-radius:12px; overflow:hidden;
+            box-shadow:0 8px 22px rgba(0,0,0,.22); }
+        .rc-card__head{ display:flex; align-items:center; gap:10px; background:#0f2d43; color:#fff; padding:11px 18px; }
+        .rc-card__head .ic{ flex:0 0 auto; display:flex; }
+        .rc-card__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
+        .rc-card__body{ padding:6px 18px 12px; }
+        .rc-card__cols{ display:flex; gap:18px; }
+        .rc-card__cols > .rc-kv{ flex:1 1 0; min-width:0; }
+        .rc-kv{ width:100%; border-collapse:collapse; }
+        .rc-kv td{ padding:6.5px 2px; border-bottom:1px solid #eef0f4; font-size:11px; vertical-align:middle; }
+        .rc-kv tr:last-child td{ border-bottom:none; }
+        .rc-kv .k{ color:#5b6472; font-weight:500; }
+        .rc-kv .v{ text-align:right; font-weight:700; color:#0f2d43; padding-left:8px; }
+
+        /* ---- rating + recommendation strip ---- */
+        .rc-verdict{ display:flex; margin:0 34px 16px; background:#fff; border-radius:12px; overflow:hidden;
+            box-shadow:0 8px 22px rgba(0,0,0,.22); }
+        .rc-verdict > div{ flex:1 1 0; padding:15px 24px; }
+        .rc-verdict > div + div{ border-left:1px solid #eef0f4; }
+        .rc-verdict .lbl{ font-size:13px; color:#5b6472; font-weight:600; }
+        .rc-verdict .stars{ display:flex; align-items:center; gap:8px; margin-top:6px; }
+        .rc-verdict .stars .num{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; color:#0f2d43; }
+        .rc-verdict .rec{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; color:#0f2d43; margin-top:4px; }
+
+        /* ---- inspector comment ---- */
+        .rc-comment{ margin:0 34px 18px; background:#fff; border-radius:12px; overflow:hidden;
+            box-shadow:0 8px 22px rgba(0,0,0,.22); }
+        .rc-comment__head{ display:flex; align-items:center; gap:10px; background:#0f2d43; color:#fff; padding:11px 18px; }
+        .rc-comment__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
+        .rc-comment__body{ padding:15px 20px; font-size:12px; line-height:1.7; color:#2b3340; white-space:pre-line; }
+
+        /* ---- feature strip + footer (pinned to sheet bottom) ---- */
+        .rc-features{ margin-top:auto; display:flex; justify-content:space-between; gap:6px;
+            background:rgba(0,0,0,.28); border-top:1px solid rgba(255,255,255,.10); padding:16px 30px; }
+        .rc-feature{ flex:1 1 0; display:flex; align-items:center; justify-content:center; gap:9px;
+            color:#fff; font-size:10.5px; font-weight:600; line-height:1.25; text-align:left; }
+        .rc-feature + .rc-feature{ border-left:1px solid rgba(255,255,255,.12); }
+        .rc-feature .ic{ flex:0 0 auto; color:#5ab84d; display:flex; }
+        .rc-foot{ display:flex; align-items:center; justify-content:space-between; padding:13px 34px; color:#fff;
+            background:linear-gradient(90deg,#0a1f33 0%,#0a1f33 46%,#1f8f4a 74%,#2fa84f 100%); }
+        .rc-foot .site{ font-size:12px; font-weight:500; }
+        .rc-foot .tag{ font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; letter-spacing:1px; font-size:12px; }
+
+        @media screen and (max-width:768px){
+            .rc-head{ flex-direction:column; align-items:flex-start; gap:12px; }
+            .rc-head__title{ text-align:left; }
+            .rc-head__title h1{ font-size:22px; }
+            .rc-hero{ flex-direction:column; }
+            .rc-hero__gauge{ flex:1 1 auto; max-width:100%; width:100%; }
+            .rc-hero__car{ flex:1 1 auto; width:100%; }
+            .rc-cards{ flex-direction:column; }
+            .rc-verdict{ flex-direction:column; }
+            .rc-verdict > div + div{ border-left:0; border-top:1px solid #eef0f4; }
+            .rc-features{ flex-wrap:wrap; }
+            .rc-feature{ flex:1 1 40%; }
+            .rc-feature + .rc-feature{ border-left:0; }
+            .rc-foot{ flex-direction:column; gap:8px; text-align:center; }
+        }
+
         @page{ size:A4; margin:0; }
         @media print{
             {{-- Print every colour, gradient and background exactly as it shows on
@@ -604,6 +706,7 @@
                  accent edge on .sec-bar is an inset shadow with no blur, so it
                  renders correctly and is deliberately left alone. --}}
             .card,.item-card,.logo-chip,[style*="box-shadow"]{ box-shadow:none !important; }
+            .rc-card,.rc-verdict,.rc-comment{ box-shadow:none !important; }
             .page .card,.page .item-card{ border:1px solid var(--line); }
             .cover-art,.thanks-art,.hero,.thanks-logo{ filter:none !important; }
         }
@@ -615,233 +718,206 @@
 
         {{-- ============================== COVER ============================== --}}
         <div class="cover">
-            <div class="top">
-                <span class="logo-chip"><img src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure"></span>
-                <h1><span class="g">{{ $reportKind }}</span><br>{{ $L('Inspection Report') }}</h1>
-                <div class="site">{{ $L('Inspection Checklist for Used Imported Vehicle') }}</div>
+            @php
+                // ---- Overall score for the hero gauge (same logic as before) ----
+                $scoreF = $overallRatingVal > 0 ? $overallRatingPct : round($tally['pass'] / $tTot * 100, 1);
+                $scoreLbl = $overallRatingVal > 0 ? (string) $overallRatingPct : rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
+                $bands = [
+                    ['Poor', 0, 20, '#e0483d'], ['Fair', 20, 40, '#efb008'],
+                    ['Good', 40, 60, '#f2903f'], ['Very Good', 60, 80, '#5ab84d'],
+                    ['Excellent', 80, 100.01, '#2fa84f'],
+                ];
+                $cond = 'Poor'; $cColor = '#e0483d';
+                foreach ($bands as $b) { if ($scoreF >= $b[1] && $scoreF < $b[2]) { $cond = $b[0]; $cColor = $b[3]; break; } }
+                // Printed condition is the technician's verdict; the band is a fallback.
+                $condColor  = $ratingColors[$overallRatingBadge] ?? $cColor;
+                $condition  = $condition ?: $cond;
 
+                // Gauge geometry (225°..-45° sweep).
+                $cx = 200; $cy = 170;
+                $rBand = 150; $rMinO = 133; $rMinI = 126; $rMajI = 116; $rLabel = 102; $rNeedle = 112;
+                $ang = fn ($v) => deg2rad(225 - 2.7 * max(0, min(100, $v)));
+                $pt  = function ($v, $rr) use ($cx, $cy, $ang) {
+                    $a = $ang($v);
+                    return [round($cx + $rr * cos($a), 1), round($cy - $rr * sin($a), 1)];
+                };
+                [$ax, $ay] = $pt(0, $rBand); [$bx, $by] = $pt(100, $rBand);
+                $arc = "M {$ax} {$ay} A {$rBand} {$rBand} 0 1 1 {$bx} {$by}";
+                $na = $ang($scoreF); $nperp = $na + M_PI / 2; $nw = 6.5;
+                [$ntx, $nty] = $pt($scoreF, $rNeedle);
+                $nblx = round($cx + $nw * cos($nperp), 1); $nbly = round($cy - $nw * sin($nperp), 1);
+                $nbrx = round($cx - $nw * cos($nperp), 1); $nbry = round($cy + $nw * sin($nperp), 1);
 
+                // Hero vehicle image (falls back to a report photo, then the stock art).
+                $coverVehImg = $inspection->vehicleImageUrl()
+                    ? \App\Support\Thumbnailer::url($inspection->vehicle_image, 900)
+                    : ($heroPhoto ?: asset('img/pdf_design/cover-photo.webp'));
 
-                <div class="cover_cntr">
+                // Card data.
+                $specMap = collect($specs)->mapWithKeys(fn ($sp) => [$sp[0] => $sp[1]]);
+                $summaryRows = [
+                    ['Make',  $specMap['Make']],
+                    ['Model', $specMap['Model']],
+                    ['Year',  $specMap['Year']],
+                    ['Region', $specMap['Region']],
+                    ['Owner Name', $val($inspection->customer_name)],
+                    ['Phone', $val($inspection->customer_phone)],
+                    ['Email', $val($inspection->customer_email)],
+                ];
+                // Make, Model and Year are already shown in the Vehicle Summary card.
+                $detailSpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Region'], true)));
+                $detailCols = array_chunk($detailSpecs, (int) ceil(count($detailSpecs) / 2));
+                $detailTitle = ($makeHeading === 'N/A' ? 'Vehicle' : $makeHeading) . ' Details';
 
-                {{-- Gauge + Overall Verdict only when the template's "Calculated Overall
-                     Verdict" switch is on — otherwise nothing was calculated to show. --}}
-                @if ($usesCalculated)
- <div class="cover_left">
-   {{-- Overall Rating gauge — hero of the cover, themed for the navy background --}}
-                @php
-                    $scoreF = $overallRatingVal > 0 ? $overallRatingPct : round($tally['pass'] / $tTot * 100, 1);
-                    $scoreLbl = $overallRatingVal > 0 ? (string) $overallRatingPct : rtrim(rtrim(number_format($scoreF, 1), '0'), '.');
-                    $bands = [
-                        ['Poor', 0, 20, '#e0483d'], ['Fair', 20, 40, '#efb008'],
-                        ['Good', 40, 60, '#f2903f'], ['Very Good', 60, 80, '#5ab84d'],
-                        ['Excellent', 80, 100.01, '#2fa84f'],
-                    ];
-                    $cond = 'Poor'; $cColor = '#e0483d';
-                    foreach ($bands as $b) { if ($scoreF >= $b[1] && $scoreF < $b[2]) { $cond = $b[0]; $cColor = $b[3]; break; } }
+                $coverSummary = $val($inspection->summary) === 'N/A' ? null : $pick($inspection->summary, $inspection->summary_ar);
+            @endphp
 
-                    // The printed condition is the TECHNICIAN'S verdict, not the gauge
-                    // band. The gauge measures a different thing (share of passed items),
-                    // so the two can legitimately differ. The band is only a fallback for
-                    // inspections saved before the verdict was made mandatory.
-                    $condColor  = $ratingColors[$overallRatingBadge] ?? $cColor;
-                    $condition  = $condition ?: $cond;
+            <div class="rc">
 
-                    $cx = 200; $cy = 170;
-                    $rBand = 150; $rMinO = 133; $rMinI = 126; $rMajI = 116; $rLabel = 102; $rNeedle = 112;
-                    $ang = fn ($v) => deg2rad(225 - 2.7 * max(0, min(100, $v)));
-                    $pt  = function ($v, $rr) use ($cx, $cy, $ang) {
-                        $a = $ang($v);
-                        return [round($cx + $rr * cos($a), 1), round($cy - $rr * sin($a), 1)];
-                    };
-                    [$ax, $ay] = $pt(0, $rBand); [$bx, $by] = $pt(100, $rBand);
-                    $arc = "M {$ax} {$ay} A {$rBand} {$rBand} 0 1 1 {$bx} {$by}";
-                    $na = $ang($scoreF); $nperp = $na + M_PI / 2; $nw = 6.5;
-                    [$ntx, $nty] = $pt($scoreF, $rNeedle);
-                    $nblx = round($cx + $nw * cos($nperp), 1); $nbly = round($cy - $nw * sin($nperp), 1);
-                    $nbrx = round($cx - $nw * cos($nperp), 1); $nbry = round($cy + $nw * sin($nperp), 1);
-                @endphp
-                <svg class="cover-gauge" viewBox="0 0 400 300" width="400" role="img" aria-label="Overall rating {{ $scoreLbl }} of 100">
-                    {{-- track --}}
-                    <path d="{{ $arc }}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="22" stroke-linecap="round"/>
-                    {{-- fill 0..score in the condition colour --}}
-                    <path pathLength="100" d="{{ $arc }}" fill="none" stroke="{{ $cColor }}" stroke-width="22"
-                          stroke-linecap="round" stroke-dasharray="{{ $scoreF }} 100" stroke-dashoffset="0"/>
-                    {{-- minor ticks every 2.5 --}}
-                    @for ($v = 0; $v <= 100; $v += 2.5)
-                        @php [$mox,$moy] = $pt($v,$rMinO); [$mix,$miy] = $pt($v,$rMinI); @endphp
-                        <line x1="{{ $mox }}" y1="{{ $moy }}" x2="{{ $mix }}" y2="{{ $miy }}" stroke="rgba(255,255,255,.28)" stroke-width="1.4"/>
-                    @endfor
-                    {{-- major ticks + numbers every 10 --}}
-                    @for ($v = 0; $v <= 100; $v += 10)
-                        @php [$Mox,$Moy] = $pt($v,$rMinO); [$Mix,$Miy] = $pt($v,$rMajI); [$lx2,$ly2] = $pt($v,$rLabel); @endphp
-                        <line x1="{{ $Mox }}" y1="{{ $Moy }}" x2="{{ $Mix }}" y2="{{ $Miy }}" stroke="rgba(255,255,255,.5)" stroke-width="2.2"/>
-                        <text x="{{ $lx2 }}" y="{{ $ly2 }}" font-size="12" font-weight="600" fill="#c2cede" text-anchor="middle" dominant-baseline="central" font-family="Poppins,sans-serif">{{ $v }}</text>
-                    @endfor
-                    {{-- needle + hub --}}
-                    <polygon points="{{ $ntx }},{{ $nty }} {{ $nblx }},{{ $nbly }} {{ $nbrx }},{{ $nbry }}" fill="{{ $cColor }}"/>
-                    <circle cx="{{ $cx }}" cy="{{ $cy }}" r="10" fill="#fff" stroke="{{ $cColor }}" stroke-width="3"/>
-                    {{-- readout --}}
-                </svg>
-
-                {{-- score readout — seated in the gauge centre, condition coloured by its score band --}}
-                <div class="cover-score" style="margin-top:-30px; margin-bottom:30px; text-align:center;">
-                    <div class="cover-score-num" style="font-size:34px; font-weight:800; color:#fff; line-height:1; font-family:'Poppins',sans-serif;">
-                        {{ $scoreLbl }}<span style="font-size:18px; font-weight:700; color:#8ea3b5;"> / 100</span>
+                {{-- ---------- header ---------- --}}
+                <div class="rc-head">
+                    <div class="rc-head__logo">
+                        <img src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
+                        <div class="rc-head__tag">INSPECT &nbsp;•&nbsp; VERIFY &nbsp;•&nbsp; DRIVE WITH CONFIDENCE</div>
                     </div>
-                    <div class="cover-score-cond" style="display:inline-block; margin-top:10px; padding:5px 16px; border-radius:999px; font-size:13.5px; font-weight:700; letter-spacing:.3px; color:{{ $condColor }}; background:{{ $condColor }}22; border:1px solid {{ $condColor }};">
-                        {{ $L($condition) }}
+                    <div class="rc-head__title">
+                        <h1><span class="g">{{ $reportKind }}</span> {{ $L('Inspection Report') }}</h1>
+                        <div class="sub">{{ $L('Inspection Checklist for Used Imported Vehicle') }}</div>
                     </div>
                 </div>
 
-                <div class="cover-cond-legend">
-                    <span><i style="background:#e0483d"></i>{{ $L('Poor') }}</span>
-                    <span><i style="background:#efb008"></i>{{ $L('Fair') }}</span>
-                    <span><i style="background:#f2903f"></i>{{ $L('Good') }}</span>
-                    <span><i style="background:#5ab84d"></i>{{ $L('Very Good') }}</span>
-                    <span><i style="background:#2fa84f"></i>{{ $L('Excellent') }}</span>
-                </div>
-                <div class="cover-rating-title">{{ $L('Overall Verdict') }}</div>
-
-               
-
-                {{-- Overall condition & recommendation --}}
-              
-                <div class="card tight" style=" width :350px;">
-                    <div class="facts">
-                        <div class="fact" style="display:flex;flex-direction:column;align-items:center;">
-                            <div class="fl">{{ $L('Overall Rating') }}</div>
-                            <div class="fv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
-                                @if($overallRatingVal > 0)
-                                    @for($i = 1; $i <= 5; $i++)
-                                        @php $fill = max(0, min(1, $overallRatingVal - ($i - 1))); $pct = round($fill * 100, 1); @endphp
-                                        <span class="star" style="font-size:15px;line-height:1;{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#dfe3ea;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#dfe3ea '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>
-                                    @endfor
-                                    <span style="font-size:12px;font-weight:700;color:#1c2430;">{{ number_format($overallRatingVal, 1) }}/5</span>
-                                @else
-                                    {{ $overallCond ?? $L($condition) }}
-                                @endif
-                            </div>
+                {{-- ---------- hero band: gauge + vehicle ---------- --}}
+                <div class="rc-hero">
+                    <div class="rc-hero__gauge">
+                        <svg class="cover-gauge" viewBox="0 0 400 300" width="100%" role="img" aria-label="Overall rating {{ $scoreLbl }} of 100">
+                            <path d="{{ $arc }}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="22" stroke-linecap="round"/>
+                            <path pathLength="100" d="{{ $arc }}" fill="none" stroke="{{ $cColor }}" stroke-width="22"
+                                  stroke-linecap="round" stroke-dasharray="{{ $scoreF }} 100" stroke-dashoffset="0"/>
+                            @for ($v = 0; $v <= 100; $v += 2.5)
+                                @php [$mox,$moy] = $pt($v,$rMinO); [$mix,$miy] = $pt($v,$rMinI); @endphp
+                                <line x1="{{ $mox }}" y1="{{ $moy }}" x2="{{ $mix }}" y2="{{ $miy }}" stroke="rgba(255,255,255,.28)" stroke-width="1.4"/>
+                            @endfor
+                            @for ($v = 0; $v <= 100; $v += 10)
+                                @php [$Mox,$Moy] = $pt($v,$rMinO); [$Mix,$Miy] = $pt($v,$rMajI); [$lx2,$ly2] = $pt($v,$rLabel); @endphp
+                                <line x1="{{ $Mox }}" y1="{{ $Moy }}" x2="{{ $Mix }}" y2="{{ $Miy }}" stroke="rgba(255,255,255,.5)" stroke-width="2.2"/>
+                                <text x="{{ $lx2 }}" y="{{ $ly2 }}" font-size="12" font-weight="600" fill="#c2cede" text-anchor="middle" dominant-baseline="central" font-family="Poppins,sans-serif">{{ $v }}</text>
+                            @endfor
+                            <polygon points="{{ $ntx }},{{ $nty }} {{ $nblx }},{{ $nbly }} {{ $nbrx }},{{ $nbry }}" fill="{{ $cColor }}"/>
+                            <circle cx="{{ $cx }}" cy="{{ $cy }}" r="10" fill="#fff" stroke="{{ $cColor }}" stroke-width="3"/>
+                        </svg>
+                        <div style="margin-top:-34px;">
+                            <div class="rc-gauge-score">{{ $scoreLbl }}<span> / 100</span></div>
+                            <div class="rc-gauge-pill" style="color:{{ $condColor }}; border-color:{{ $condColor }}; background:{{ $condColor }}1f;">{{ $L($condition) }}</div>
                         </div>
-                        <div class="fact"><div class="fl">{{ $L('Recommendation') }}</div><div class="fv" style="font-size:11px;">{{ $recommend }}</div></div>
+                        <div class="rc-gauge-legend">
+                            <span><i style="background:#e0483d"></i>{{ $L('Poor') }}</span>
+                            <span><i style="background:#efb008"></i>{{ $L('Fair') }}</span>
+                            <span><i style="background:#f2903f"></i>{{ $L('Good') }}</span>
+                            <span><i style="background:#5ab84d"></i>{{ $L('Very Good') }}</span>
+                            <span><i style="background:#2fa84f"></i>{{ $L('Excellent') }}</span>
+                        </div>
+                    </div>
+                    <div class="rc-hero__car">
+                        <img src="{{ $coverVehImg }}" alt="Vehicle image" loading="lazy" decoding="async">
+                        <span class="rc-inspected">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                            INSPECTED
+                        </span>
+                        <div class="rc-hero__tagline">Quality Vehicles<br>Safer Journeys</div>
                     </div>
                 </div>
 
-                </div>
-                @endif
-
-      {{-- Vehicle image leads this section (client request) — shown only when
-                 a primary vehicle photo has been uploaded for the inspection.
-                 When there is no vehicle image, the whole right column is omitted so
-                 the gauge/verdict column (cover_left) centres on its own. --}}
-            @if ($usesCalculated && $inspection->vehicleImageUrl())
- <div class="cover_right">
-                <div class="card" style="padding:10px; text-align:center; margin-bottom:10px;">
-                    <img src="{{ \App\Support\Thumbnailer::url($inspection->vehicle_image, 760) }}" alt="Vehicle image" loading="lazy" decoding="async"
-                         style="width:100%; max-width:520px; max-height:260px; object-fit:contain;  ">
-
-                    {{-- Vehicle summary — compact spec list beneath the image (client request) --}}
-                    <div style="margin-top:12px; padding-top:12px; border-top:1px solid #e6e9ee; text-align:left;">
-                        <div style="font-family:'Quicksand',sans-serif; font-weight:700; font-size:13px; color:#1c2431; margin-bottom:8px; text-align:center;">Vehicle Summary</div>
-                        <table style="width:100%; border-collapse:collapse; font-size:10.5px;">
-                            @foreach ($specs as $sp)
-                                @continue(! in_array($sp[0], ['Make', 'Model', 'Year'], true))
-                                <tr>
-                                    <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">{{ $sp[0] }}</td>
-                                    <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $sp[1] }}</td>
-                                </tr>
-                            @endforeach
-                            {{-- Owner details, moved into the Vehicle Summary box (client request) --}}
-                            <tr>
-                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Owner Name</td>
-                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_name) }}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Phone</td>
-                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_phone) }}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:3px 8px; color:#8b93a1; font-weight:600; white-space:nowrap; vertical-align:top;">Email</td>
-                                <td style="padding:3px 8px; color:#1c2430; font-weight:600; text-align:right;">{{ $val($inspection->customer_email) }}</td>
-                            </tr>
-                        </table>
+                {{-- ---------- info cards ---------- --}}
+                <div class="rc-cards">
+                    <div class="rc-card">
+                        <div class="rc-card__head">
+                            <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 1 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
+                            <span class="t">{{ $L('Vehicle Summary') }}</span>
+                        </div>
+                        <div class="rc-card__body">
+                            <table class="rc-kv">
+                                @foreach ($summaryRows as $sp)
+                                    <tr><td class="k">{{ $L($sp[0]) }}</td><td class="v"><bdi>{{ $sp[1] }}</bdi></td></tr>
+                                @endforeach
+                            </table>
+                        </div>
                     </div>
+                    <div class="rc-card">
+                        <div class="rc-card__head">
+                            <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
+                            <span class="t">{{ $detailTitle }}</span>
                         </div>
-                </div>
-            @endif
-
-            {{-- No gauge on this template (Calculated Overall Verdict off), so the
-                 vehicle card takes the full cover width: photo on the left, the
-                 key specs and owner details on the right — no dead white space. --}}
-            @unless ($usesCalculated)
-                @php
-                    $specMap = collect($specs)->mapWithKeys(fn ($sp) => [$sp[0] => $sp[1]]);
-                    $coverTiles = [
-                        ['Make', $specMap['Make']],
-                        ['Model', $specMap['Model']],
-                        ['Year', $specMap['Year']],
-                        ['Fuel Type', $specMap['Fuel Type']],
-                        ['Odometer', $inspection->odometer ? number_format($inspection->odometer).' km' : $specMap['Odometer']],
-                        ['Exterior Colour', $specMap['Exterior Colour']],
-                    ];
-                    $vehImg = $inspection->vehicleImageUrl() ? \App\Support\Thumbnailer::url($inspection->vehicle_image, 760) : null;
-                @endphp
-                <div class="vcard {{ $vehImg ? '' : 'vcard--noimg' }}">
-                    @if ($vehImg)
-                        <div class="vcard__media"><img src="{{ $vehImg }}" alt="Vehicle image" loading="lazy" decoding="async"></div>
-                    @endif
-                    <div class="vcard__body">
-                        <div class="vcard__eyebrow">{{ $L('Vehicle Summary') }}</div>
-                        <div class="vcard__title">{{ trim(($inspection->car_year ? $inspection->car_year.' ' : '').$inspection->car_make.' '.$inspection->car_model) ?: 'N/A' }}</div>
-                        @if ($inspection->plate_no)
-                            <span class="vcard__plate">{{ $inspection->plate_no }}</span>
-                        @endif
-                        <div class="vcard__tiles">
-                            @foreach ($coverTiles as [$k, $v])
-                                <div class="vcard__tile"><div class="k">{{ $L($k) }}</div><div class="v"><bdi>{{ $v }}</bdi></div></div>
-                            @endforeach
-                        </div>
-                        <div class="vcard__owner">
-                            <div class="vcard__eyebrow">{{ $L('Owner') }}</div>
-                            <div class="vcard__owner-name">{{ $val($inspection->customer_name) }}</div>
-                            <div class="vcard__owner-meta">
-                                <span><b>{{ $L('Phone') }}</b> {{ $val($inspection->customer_phone) }}</span>
-                                <span><b>{{ $L('Email') }}</b> {{ $val($inspection->customer_email) }}</span>
+                        <div class="rc-card__body">
+                            <div class="rc-card__cols">
+                                @foreach ($detailCols as $col)
+                                    <table class="rc-kv">
+                                        @foreach ($col as $sp)
+                                            <tr><td class="k">{{ $L($sp[0]) }}</td><td class="v"><bdi>{{ $sp[1] }}</bdi></td></tr>
+                                        @endforeach
+                                    </table>
+                                @endforeach
                             </div>
                         </div>
                     </div>
                 </div>
-            @endunless
 
-
+                {{-- ---------- rating + recommendation ---------- --}}
+                <div class="rc-verdict">
+                    <div>
+                        <div class="lbl">{{ $L('Overall Rating') }}</div>
+                        <div class="stars">
+                            @if ($overallRatingVal > 0)
+                                <span style="white-space:nowrap;">@for($i = 1; $i <= 5; $i++)@php $fill = max(0, min(1, $overallRatingVal - ($i - 1))); $pct = round($fill * 100, 1); @endphp<span class="star" style="font-size:22px;line-height:1;{{ $fill >= 1 ? 'color:#f1b44c;' : ($fill <= 0 ? 'color:#dfe3ea;' : 'background:linear-gradient(90deg,#f1b44c '.$pct.'%,#dfe3ea '.$pct.'%);-webkit-background-clip:text;background-clip:text;color:transparent;') }}">★</span>@endfor</span>
+                                <span class="num">{{ number_format($overallRatingVal, 1) }}/5</span>
+                            @else
+                                <span class="num">{{ $overallCond ?? $L($condition) }}</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div>
+                        <div class="lbl">{{ $L('Recommendation') }}</div>
+                        <div class="rec">{{ $recommend }}</div>
+                    </div>
                 </div>
 
-
-
-            {{-- Inspector Comment moved onto the cover (client request); the cover's
-                 .top centres its children, so this wrapper forces a left-aligned,
-                 full-width block. --}}
-            <div style="width:100%; text-align:left;">
-                
-                <div class="card" style="text-align:left;">
-                    <div class="sec-bar"><span class="en">{{ $L('Inspector Comment') }}</span></div>
-                    @php $summary = $val($inspection->summary) === 'N/A' ? null : $pick($inspection->summary, $inspection->summary_ar); @endphp
-                    @if ($summary)
-                        <div style="white-space:pre-line;font-weight:600;color:#2b3340;line-height:1.7">{{ $summary }}</div>
-                    @else
-                        <div class="muted">No additional inspector comments were recorded.</div>
-                    @endif
+                {{-- ---------- inspector comment ---------- --}}
+                <div class="rc-comment">
+                    <div class="rc-comment__head">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+                        <span class="t">{{ $L('Inspector Comment') }}</span>
+                    </div>
+                    <div class="rc-comment__body">{{ $coverSummary ?: 'No additional inspector comments were recorded.' }}</div>
                 </div>
-            </div>
 
-             
+                {{-- ---------- feature strip ---------- --}}
+                <div class="rc-features">
+                    <div class="rc-feature">
+                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+                        <span>200+ Inspection<br>Checkpoints</span>
+                    </div>
+                    <div class="rc-feature">
+                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+                        <span>Expert<br>Inspectors</span>
+                    </div>
+                    <div class="rc-feature">
+                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
+                        <span>Detailed Digital<br>Report</span>
+                    </div>
+                    <div class="rc-feature">
+                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                        <span>On-Site<br>Inspection</span>
+                    </div>
+                    <div class="rc-feature">
+                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg></span>
+                        <span>Trusted by<br>Thousands</span>
+                    </div>
+                </div>
 
-                {{-- Owner details moved into the Vehicle Summary box (see cover_right) --}}
-            </div>
-            <div class="bar">
-                <!-- <div><div class="lab">Report No.</div><div class="v">{{ $reportNo }}</div></div> -->
-                <div  ><div class="lab">Report Date</div><div class="v">{{ $reportDt }}, {{ $reportTm ?: 'N/A' }}</div></div>
-                <div style="text-align:right"><div class="lab">Vehicle</div><div class="v">{{ $val(trim($inspection->car_year.' '.$inspection->car_make.' '.$inspection->car_model)) }}</div></div>
+                {{-- ---------- footer bar ---------- --}}
+                <div class="rc-foot">
+                    <span class="site">🌐 &nbsp;www.autoassure.qa</span>
+                    <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
+                </div>
             </div>
         </div>
 
