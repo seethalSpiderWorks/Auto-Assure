@@ -910,7 +910,7 @@
 
                 {{-- ---------- footer bar ---------- --}}
                 <div class="rc-foot">
-                    <span class="site">🌐 &nbsp;www.autoassure.qa</span>
+                    <span class="site"> </span>
                     <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
                 </div>
             </div>
@@ -921,7 +921,7 @@
              of all sheets. The <tfoot> spacer reserves its height so content never
              overlaps. Print-only; hidden on screen where the page isn't paginated. --}}
         <div class="rc-foot print-footer">
-            <span class="site">🌐 &nbsp;www.autoassure.qa</span>
+            <span class="site"> </span>
             <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
         </div>
 
