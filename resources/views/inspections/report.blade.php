@@ -607,6 +607,10 @@
         .rc-hero__car{ flex:1 1 auto; position:relative; border-radius:14px; overflow:hidden;
             background:#0c2136; min-height:220px; }
         .rc-hero__car > img{ width:100%; height:100%; max-height:280px; object-fit:cover; display:block; }
+        /* Gauge off (template without the Calculated Overall Verdict): the image is
+           the whole band, so it gets a fixed banner height instead of the 40/60 split. */
+        .rc-hero--nogauge .rc-hero__car{ min-height:0; }
+        .rc-hero--nogauge .rc-hero__car > img{ height:300px; max-height:300px; object-position:center; }
         .rc-inspected{ position:absolute; top:14px; right:14px; display:inline-flex; align-items:center; gap:6px;
             background:#2fa84f; color:#fff; font-weight:700; font-size:11px; letter-spacing:.4px; padding:6px 13px; border-radius:20px; }
         .rc-hero__tagline{ position:absolute; right:18px; bottom:14px; text-align:right; color:#fff;
@@ -660,10 +664,12 @@
             color:#fff; font-size:10.5px; font-weight:600; line-height:1.25; text-align:left; }
         .rc-feature + .rc-feature{ border-left:1px solid rgba(255,255,255,.12); }
         .rc-feature .ic{ flex:0 0 auto; color:#5ab84d; display:flex; }
-        .rc-foot{ display:flex; align-items:center; justify-content:space-between; padding:13px 34px; color:#fff;
+        .rc-foot{ display:flex; align-items:center; justify-content:center; padding:13px 34px; color:#fff;
             background:linear-gradient(90deg,#0a1f33 0%,#0a1f33 46%,#1f8f4a 74%,#2fa84f 100%); }
-        .rc-foot .site{ font-size:12px; font-weight:500; }
         .rc-foot .tag{ font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; letter-spacing:1px; font-size:12px; }
+        /* .cover is a flex column and .rc fills it, so auto margin drops the green bar
+           to the very bottom of the cover sheet whatever the content above it is. */
+        .cover .rc-foot{ margin-top:auto; }
 
         @media screen and (max-width:768px){
             .rc-head{ flex-direction:column; align-items:flex-start; gap:12px; }
@@ -672,6 +678,7 @@
             .rc-hero{ flex-direction:column; }
             .rc-hero__gauge{ flex:1 1 auto; max-width:100%; width:100%; }
             .rc-hero__car{ flex:1 1 auto; width:100%; }
+            .rc-hero--nogauge .rc-hero__car > img{ height:200px; max-height:200px; }
             .rc-cards{ flex-direction:column; }
             {{-- The three data columns get too narrow on tablets — wrap them so each
                  key/value table keeps at least ~45% of the card width (2-up). --}}
@@ -829,7 +836,10 @@
                 </div>
 
                 {{-- ---------- hero band: gauge + vehicle ---------- --}}
-                <div class="rc-hero">
+                {{-- The gauge is the Calculated Overall Verdict; templates with that
+                     switch off score nothing, so the vehicle image takes the whole band. --}}
+                <div class="rc-hero{{ $usesCalculated ? '' : ' rc-hero--nogauge' }}">
+                    @if ($usesCalculated)
                     <div class="rc-hero__gauge">
                         <svg class="cover-gauge" viewBox="0 0 400 300" width="100%" role="img" aria-label="Overall rating {{ $scoreLbl }} of 100">
                             <path d="{{ $arc }}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="22" stroke-linecap="round"/>
@@ -859,6 +869,7 @@
                             <span><i style="background:#2fa84f"></i>{{ $L('Excellent') }}</span>
                         </div>
                     </div>
+                    @endif
                     <div class="rc-hero__car">
                         <img src="{{ $coverVehImg }}" alt="Vehicle image" loading="lazy" decoding="async">
                         <span class="rc-inspected">
@@ -892,6 +903,9 @@
                 </div>
 
                 {{-- ---------- rating + recommendation ---------- --}}
+                {{-- Both values come from the Calculated Overall Verdict — hidden when
+                     the template's switch is off. --}}
+                @if ($usesCalculated)
                 <div class="rc-verdict">
                     <div>
                         <div class="lbl">{{ $L('Overall Rating') }}</div>
@@ -909,6 +923,7 @@
                         <div class="rec">{{ $recommend }}</div>
                     </div>
                 </div>
+                @endif
 
                 {{-- ---------- inspector comment ---------- --}}
                 <div class="rc-comment">
@@ -923,7 +938,6 @@
 
                 {{-- ---------- footer bar ---------- --}}
                 <div class="rc-foot">
-                    <span class="site"> </span>
                     <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
                 </div>
             </div>
@@ -934,7 +948,6 @@
              of all sheets. The <tfoot> spacer reserves its height so content never
              overlaps. Print-only; hidden on screen where the page isn't paginated. --}}
         <div class="rc-foot print-footer">
-            <span class="site"> </span>
             <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
         </div>
 
