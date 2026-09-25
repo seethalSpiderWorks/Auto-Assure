@@ -225,9 +225,7 @@
             'Fuel Type' => 'نوع الوقود',
             'Odometer' => 'عداد المسافة',
             'Exterior Colour' => 'اللون الخارجي',
-            'Owner' => 'المالك',
-            'Phone' => 'الهاتف',
-            'Email' => 'البريد الإلكتروني',
+            'Customer Name' => 'اسم العميل',
             'Damage Points' => 'مواضع الأضرار',
             'Paint Inspection Images' => 'صور فحص الطلاء',
             'Signatures' => 'التواقيع',
@@ -777,12 +775,13 @@
                     ['Model', $specMap['Model']],
                     ['Year',  $specMap['Year']],
                     ['Region', $specMap['Region']],
-                    ['Owner Name', $val($inspection->customer_name)],
-                    ['Phone', $val($inspection->customer_phone)],
-                    ['Email', $val($inspection->customer_email)],
+                    ['Customer Name', $val($inspection->customer_name)],
+                    ['Reference', $val($reportNo)],
+                    ['Inspection Date', $val($inspDt)],
+                    ['Plate No', $specMap['Plate No']],
                 ];
-                // Make, Model and Year are already shown in the Vehicle Summary card.
-                $detailSpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Region'], true)));
+                // Make, Model, Year, Region and Plate No are already shown in the Vehicle Summary card.
+                $detailSpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Region', 'Plate No'], true)));
                 $detailCols = array_chunk($detailSpecs, (int) ceil(count($detailSpecs) / 2));
                 $detailTitle = ($makeHeading === 'N/A' ? 'Vehicle' : $makeHeading) . ' Details';
 
