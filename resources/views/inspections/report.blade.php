@@ -1063,14 +1063,20 @@
         @endif
 
         {{-- ============================== VEHICLE SUMMARY ============================== --}}
+        {{-- Hidden at the client's request — the cover's Vehicle Summary card and the
+             <Make> Details card beside it already carry these rows. Flip the flag to
+             bring the page back. --}}
+        @php $showVehicleSummaryPage = false; @endphp
+        @if ($showVehicleSummaryPage)
         <div class="page">
             {{-- Vehicle summary --}}
             <div class="sec-bar"><span class="en">{{ $L('Vehicle Summary') }}</span></div>
             <div class="make-h">{{ $makeHeading }}<span class="u"></span></div>
-            {{-- Make, Model and Year are left out here (client request) — the cover
-                 already shows them. --}}
+            {{-- Client request: this page carries only the rows the cover doesn't —
+                 Make, Model, Year, Plate No, Odometer, Region, Exterior Colour,
+                 Gearbox, Last Service Date and Vehicle Condition are left out. --}}
             @php
-                $summarySpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year'], true)));
+                $summarySpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Plate No', 'Odometer', 'Region', 'Exterior Colour', 'Gearbox', 'Last Service Date', 'Vehicle Condition'], true)));
                 $specCols = array_chunk($summarySpecs, (int) ceil(count($summarySpecs) / 2));
             @endphp
             <div class="grid2">
@@ -1089,6 +1095,7 @@
             </div>
 
         </div>
+        @endif
 
         @unless ($basicReport)   {{-- EV & PHEV, technical measurements — left out of the basic report --}}
 {{-- ============================== EV & PHEV (bilingual, if present) ============================== --}}
