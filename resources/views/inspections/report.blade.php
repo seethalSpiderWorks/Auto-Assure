@@ -307,6 +307,9 @@
         .body-sheet > tbody > tr > td{ padding:0; }
         .body-sheet > thead .page-header{ background:var(--bg); padding:16px 24px 18px; margin-bottom:0; }
         .body-sheet > thead .brand-logo{ height:32px; }
+        .body-sheet > tfoot > tr > td{ padding:0; }
+        .foot-space{ height:0; }
+        .rc-foot.print-footer{ display:none; }
         .brand-pill{ display:inline-flex; align-items:center; gap:7px; background:var(--brand); color:#fff;
             font-weight:700; font-size:13px; padding:7px 15px 7px 10px; border-radius:20px; letter-spacing:.2px; }
         .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
@@ -715,6 +718,14 @@
             .rc-card,.rc-verdict,.rc-comment{ box-shadow:none !important; }
             .page .card,.page .item-card{ border:1px solid var(--line); }
             .cover-art,.thanks-art,.hero,.thanks-logo{ filter:none !important; }
+
+            {{-- Brand footer pinned to the bottom of every printed page. The tfoot
+                 spacer reserves the same height so page content never runs under it.
+                 The cover's own inline footer is hidden here — the fixed bar already
+                 sits at the same spot on page 1, so keeping both would double it up. --}}
+            .rc-foot.print-footer{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:10; }
+            .foot-space{ height:46px; }
+            .cover .rc-foot{ display:none; }
         }
     </style>
 </head>
@@ -895,29 +906,7 @@
                     <div class="rc-comment__body">{{ $coverSummary ?: 'No additional inspector comments were recorded.' }}</div>
                 </div>
 
-                {{-- ---------- feature strip ---------- --}}
-                <div class="rc-features">
-                    <div class="rc-feature">
-                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
-                        <span>200+ Inspection<br>Checkpoints</span>
-                    </div>
-                    <div class="rc-feature">
-                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
-                        <span>Expert<br>Inspectors</span>
-                    </div>
-                    <div class="rc-feature">
-                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
-                        <span>Detailed Digital<br>Report</span>
-                    </div>
-                    <div class="rc-feature">
-                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-                        <span>On-Site<br>Inspection</span>
-                    </div>
-                    <div class="rc-feature">
-                        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg></span>
-                        <span>Trusted by<br>Thousands</span>
-                    </div>
-                </div>
+       
 
                 {{-- ---------- footer bar ---------- --}}
                 <div class="rc-foot">
@@ -925,6 +914,15 @@
                     <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
                 </div>
             </div>
+        </div>
+
+        {{-- Fixed footer bar — Chrome paints a position:fixed element at the same
+             spot on every printed page, so this pins the brand footer to the bottom
+             of all sheets. The <tfoot> spacer reserves its height so content never
+             overlaps. Print-only; hidden on screen where the page isn't paginated. --}}
+        <div class="rc-foot print-footer">
+            <span class="site">🌐 &nbsp;www.autoassure.qa</span>
+            <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
         </div>
 
         {{-- ==============================================================
@@ -942,6 +940,12 @@
                     </div>
                 </td></tr>
             </thead>
+            {{-- The <tfoot> repeats on every printed page and reserves the strip of
+                 space the fixed footer bar (.print-footer, below) overlays, so page
+                 content never slides underneath it. --}}
+            <tfoot>
+                <tr><td><div class="foot-space"></div></td></tr>
+            </tfoot>
             <tbody>
                 <tr><td>
 
