@@ -634,7 +634,7 @@
         .rc-kv td{ padding:6.5px 2px; border-bottom:1px solid #eef0f4; font-size:11px; vertical-align:middle; }
         .rc-kv tr:last-child td{ border-bottom:none; }
         .rc-kv .k{ color:#5b6472; font-weight:500; }
-        .rc-kv .v{ text-align:right; font-weight:700; color:#0f2d43; padding-left:8px; }
+        .rc-kv .v{ text-align:right; font-weight:700; color:#0f2d43; padding-left:8px; overflow-wrap:anywhere; }
 
         /* ---- rating + recommendation strip ---- */
         .rc-verdict{ display:flex; margin:0 34px 16px; background:#fff; border-radius:12px; overflow:hidden;
@@ -644,7 +644,7 @@
         .rc-verdict .lbl{ font-size:13px; color:#5b6472; font-weight:600; }
         .rc-verdict .stars{ display:flex; align-items:center; gap:8px; margin-top:6px; }
         .rc-verdict .stars .num{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; color:#0f2d43; }
-        .rc-verdict .rec{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; color:#0f2d43; margin-top:4px; }
+        .rc-verdict .rec{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:18px; color:#0f2d43; margin-top:4px; }
 
         /* ---- inspector comment ---- */
         .rc-comment{ margin:0 34px 18px; background:#fff; border-radius:12px; overflow:hidden;
@@ -673,12 +673,29 @@
             .rc-hero__gauge{ flex:1 1 auto; max-width:100%; width:100%; }
             .rc-hero__car{ flex:1 1 auto; width:100%; }
             .rc-cards{ flex-direction:column; }
+            {{-- The three data columns get too narrow on tablets — wrap them so each
+                 key/value table keeps at least ~45% of the card width (2-up). --}}
+            .rc-card__cols{ flex-wrap:wrap; }
+            .rc-card__cols > .rc-kv{ flex:1 1 45%; }
             .rc-verdict{ flex-direction:column; }
             .rc-verdict > div + div{ border-left:0; border-top:1px solid #eef0f4; }
             .rc-features{ flex-wrap:wrap; }
             .rc-feature{ flex:1 1 40%; }
             .rc-feature + .rc-feature{ border-left:0; }
             .rc-foot{ flex-direction:column; gap:8px; text-align:center; }
+                  .rc-card {
+    flex: 1 1 100%; 
+}    .rc-card__cols { 
+        flex-direction: column;
+    }
+        }
+
+  
+
+        {{-- On phones the data columns stack into a single readable list. --}}
+        @media screen and (max-width:480px){
+            .rc-card__cols{ flex-direction:column; gap:0; }
+            .rc-card__cols > .rc-kv{ flex:1 1 auto; }
         }
 
         @page{ size:A4; margin:0; }
@@ -782,7 +799,16 @@
                 ];
                 // Make, Model, Year, Region and Plate No are already shown in the Vehicle Summary card.
                 $detailSpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Region', 'Plate No'], true)));
-                $detailCols = array_chunk($detailSpecs, (int) ceil(count($detailSpecs) / 2));
+                // All the card data (summary rows + detail specs) laid out in three even,
+                // side-by-side columns. ceil(count/3) as the chunk size fills the columns
+                // left-to-right and always yields at most three columns.
+                $dataRows = array_merge($summaryRows, $detailSpecs);
+                $dataPer  = max(1, (int) ceil(count($dataRows) / 3));
+                $dataCols = [
+                    array_slice($dataRows, 0, $dataPer),
+                    array_slice($dataRows, $dataPer, $dataPer),
+                    array_slice($dataRows, $dataPer * 2),
+                ];
                 $detailTitle = ($makeHeading === 'N/A' ? 'Vehicle' : $makeHeading) . ' Details';
 
                 $coverSummary = $val($inspection->summary) === 'N/A' ? null : $pick($inspection->summary, $inspection->summary_ar);
@@ -848,24 +874,12 @@
                     <div class="rc-card">
                         <div class="rc-card__head">
                             <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 1 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
-                            <span class="t">{{ $L('Vehicle Summary') }}</span>
+                            <span class="t">{{ $L('Vehicle Summary') }}   </span>
                         </div>
-                        <div class="rc-card__body">
-                            <table class="rc-kv">
-                                @foreach ($summaryRows as $sp)
-                                    <tr><td class="k">{{ $L($sp[0]) }}</td><td class="v"><bdi>{{ $sp[1] }}</bdi></td></tr>
-                                @endforeach
-                            </table>
-                        </div>
-                    </div>
-                    <div class="rc-card">
-                        <div class="rc-card__head">
-                            <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
-                            <span class="t">{{ $detailTitle }}</span>
-                        </div>
+
                         <div class="rc-card__body">
                             <div class="rc-card__cols">
-                                @foreach ($detailCols as $col)
+                                @foreach ($dataCols as $col)
                                     <table class="rc-kv">
                                         @foreach ($col as $sp)
                                             <tr><td class="k">{{ $L($sp[0]) }}</td><td class="v"><bdi>{{ $sp[1] }}</bdi></td></tr>
