@@ -605,7 +605,7 @@
         .rc-hero{ display:flex; align-items:center; gap:24px; padding:24px 34px 22px; }
         .rc-hero__gauge{ flex:0 0 40%; max-width:40%; text-align:center; }
         .rc-hero__car{ flex:1 1 auto; position:relative; border-radius:14px; overflow:hidden;
-            background:#0c2136; min-height:220px; }
+            background:#0c2136; min-height:220px; max-width:500px; margin:0 auto; }
         .rc-hero__car > img{ width:100%; height:100%; max-height:280px; object-fit:cover; display:block; }
         /* Gauge off (template without the Calculated Overall Verdict): the image is
            the whole band, so it gets a fixed banner height instead of the 40/60 split. */
