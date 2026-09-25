@@ -185,12 +185,12 @@
         ['Region', $val($inspection->region)],
         ['Exterior Colour', $val($inspection->exterior_color)],
         ['Gearbox', $val($inspection->gearbox)],
-        ['Vehicle Condition', $val($inspection->vehicle_condition)],
+        ['Last Service Date', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
         ['Fuel Type', $val($inspection->fuel_type)],
         ['Body Type', $val($inspection->body_type)],
         ['No. of Keys', $val($inspection->number_of_keys)],
         ['With Service History', $inspection->with_service_history === null ? $val(null) : ($inspection->with_service_history ? 'Yes' : 'No')],
-        ['Last Service Date', $val(optional($inspection->last_service_date)->format('d-m-Y'))],
+        ['Vehicle Condition', $val($inspection->vehicle_condition)],
     ];
 
     // Arabic edition (…/report/inspection-ar/{token}) — the second link the legacy
