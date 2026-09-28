@@ -321,9 +321,9 @@
         .doc-tag{ color:#aab0bb; font-family:'Quicksand',sans-serif; font-weight:500; font-size:12px; }
 
         /* ---- dark section bar (navy w/ emerald accent edge) ---- */
-        .sec-bar{ background:var(--bar); color:#fff; border-radius:10px; padding:10px 17px 10px 17px; margin:0 0 18px;
+        .sec-bar{ background:var(--bar); color:#fff; border-radius:10px; padding:10px; margin:0 0 18px;
             box-shadow:inset 5px 0 0 var(--brand-2); display:flex; align-items:center; justify-content:space-between; }
-        .sec-bar .en{ font-family:'Quicksand',sans-serif; font-weight:600; font-size:18px; }
+        .sec-bar .en{ font-family:'Quicksand',sans-serif; font-weight:600; font-size:16px; }
         .sec-bar .ar{ font-size:14px; color:#cfd4dc; font-weight:400; }
 
         /* ---- per-section banner image ---- */
@@ -340,7 +340,7 @@
         .grid2 > .item-card{ flex:1 1 calc(50% - 8px); min-width:calc(50% - 8px); margin-bottom:0; }
 
         /* ---- item (check) card ---- */
-        .item-card{ background:var(--card); border-radius:10px; padding:16px 18px; box-shadow:0 6px 18px rgba(24,33,54,.06);
+        .item-card{ background:var(--card); border-radius:10px; padding:10px; box-shadow:0 6px 18px rgba(24,33,54,.06);
              margin-bottom:16px; }
         .item-head{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
         .item-title{ font-weight:700; font-size:13px; color:#1c2431; }
