@@ -68,6 +68,16 @@
             </div>
         </div>
 
+        {{-- Report title: "<Kind> Inspection Report" or plain "Inspection Report". --}}
+        <div class="form-group mb-0 border-top pt-3 mt-3">
+            <label class="form-label d-block mb-2">Show the template name in the report title?</label>
+            <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="show_name_in_report" name="show_name_in_report" value="1"
+                       @checked(old('show_name_in_report', $type->show_name_in_report ?? true))>
+                <label class="custom-control-label" for="show_name_in_report">Yes — e.g. "Premium Inspection Report"; off prints just "Inspection Report"</label>
+            </div>
+        </div>
+
         {{-- Summary options: the titles the inspection's "Summary — a note per
              area" block asks for, in this order. None set means the inspection
              falls back to the standard areas (Exterior, Interior, Engine, …). --}}

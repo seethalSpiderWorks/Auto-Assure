@@ -124,12 +124,14 @@ class InspectionTypeController extends Controller
             'is_active' => ['nullable', 'boolean'],
             'has_diagnostic_media' => ['nullable', 'boolean'],
             'has_calculated_verdict' => ['nullable', 'boolean'],
+            'show_name_in_report' => ['nullable', 'boolean'],
         ]) + [
             // Unchecked switches are absent from the POST body, so read them
             // off the request rather than trusting the validated array.
             'is_active' => $request->boolean('is_active'),
             'has_diagnostic_media' => $request->boolean('has_diagnostic_media'),
             'has_calculated_verdict' => $request->boolean('has_calculated_verdict'),
+            'show_name_in_report' => $request->boolean('show_name_in_report'),
         ];
 
         // "Name[ar]الاسم" typed into the English box fills the Arabic one, the

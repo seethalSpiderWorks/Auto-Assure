@@ -256,15 +256,20 @@
 
     // Quick / Fleet templates print the basic report the client specified:
     // cover + Vehicle Summary, Inspection Summary, Vehicle Photos and Paint
-    // Inspection Images. The checklist, diagnostic media, EV & PHEV, technical
-    // measurements and signature pages are left out. Every other template is
-    // unaffected.
+    // Inspection Images, plus the answered checklist sections. Diagnostic media,
+    // EV & PHEV, technical measurements and signature pages are left out.
+    // Every other template is unaffected.
     $basicReport = (bool) $inspection->type?->isBasicReport();
     // On the Arabic edition the cover carries the template's own Arabic name
     // (الفحص المتميز), falling back to the English kind when none is set.
     $reportKind  = $isAr
         ? ($inspection->type?->name_ar ?: ($inspection->type?->reportKind() ?: 'Comprehensive'))
         : ($inspection->type?->reportKind() ?: 'Comprehensive');
+    // Templates with "Show the template name in the report title" off print
+    // plain "Inspection Report".
+    if ($inspection->type && ! ($inspection->type->show_name_in_report ?? true)) {
+        $reportKind = '';
+    }
 
     $makeHeading = $val($inspection->car_make);
     $ck = fn ($on) => $on ? '<span class="on">&#9746;</span>' : '<span class="off">&#9744;</span>';
@@ -827,11 +832,9 @@
                 <div class="rc-head">
                     <div class="rc-head__logo">
                         <img src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                        <div class="rc-head__tag">INSPECT &nbsp;•&nbsp; VERIFY &nbsp;•&nbsp; DRIVE WITH CONFIDENCE</div>
                     </div>
                     <div class="rc-head__title">
-                        <h1><span class="g">{{ $reportKind }}</span> {{ $L('Inspection Report') }}</h1>
-                        <div class="sub">{{ $L('Inspection Checklist for Used Imported Vehicle') }}</div>
+                        <h1>@if ($reportKind !== '')<span class="g">{{ $reportKind }}</span> @endif{{ $L('Inspection Report') }}</h1>
                     </div>
                 </div>
 
@@ -962,7 +965,7 @@
                 <tr><td>
                     <div class="page-header">
                         <img class="brand-logo" src="{{ asset('img/pdf_design/auto-logo.svg') }}" alt="Auto Assure">
-                        <span class="doc-tag">{{ $reportKind }} {{ $L('Inspection Report') }}</span>
+                        <span class="doc-tag">{{ trim($reportKind.' '.$L('Inspection Report')) }}</span>
                     </div>
                 </td></tr>
             </thead>
@@ -1204,12 +1207,22 @@
         @endif
 @endunless
 
-@unless ($basicReport)   {{-- the checklist pages — left out of the basic report --}}
 {{-- ============================== DETAILED CHECKLIST — card grid per section ============================== --}}
+@php
+    // Only the template sections with a question the technician actually
+    // answered are printed — no empty headings — and when there are none the
+    // checklist page is left out altogether.
+    $hasReportableStep = fn ($section) => $section->steps->contains(fn ($s) => Inspection::isReportable($answers->get($s->id)));
+    $showChecklist = $inspection->type->sections->contains(
+        fn ($section) => ! in_array($section->section_name, $skip, true) && $hasReportableStep($section)
+    );
+@endphp
+@if ($showChecklist)
         <div class="page">
             @php $lastGroup = null; $shownGroupBanners = []; @endphp
             @foreach ($inspection->type->sections as $section)
                 @continue(in_array($section->section_name, $skip, true))
+                @continue(! $hasReportableStep($section))
                 @php
                     [$sNum, $sTitle] = $splitNum($pick($section->section_name, $section->section_name_ar));
                     $steps = $section->steps;
@@ -1239,7 +1252,9 @@
                     // screen. Deliberately NOT Inspection::sectionRating(), which
                     // falls back to a score derived from the answers — that printed
                     // stars nobody had assessed. No rating given = no stars shown.
-                    $secRating = (float) (optional($secMeta)->rating ?: 0);
+                    // Stars also need a weight on the template's section — an
+                    // unweighted section plays no part in the verdict, so no stars.
+                    $secRating = $section->weight !== null ? (float) (optional($secMeta)->rating ?: 0) : 0;
                     // 4.0 prints as "4", 4.6 stays "4.6".
                     $secRatingLbl = rtrim(rtrim(number_format($secRating, 1), '0'), '.');
                 @endphp
@@ -1283,7 +1298,7 @@
                 </div>
             @endforeach
         </div>
-@endunless
+@endif
 
 {{-- ============================== DAMAGE POINTS ============================== --}}
         {{-- The marked-up body diagrams from the inspection screen, printed after the

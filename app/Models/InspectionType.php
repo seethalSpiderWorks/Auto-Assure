@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class InspectionType extends Model
 {
-    protected $fillable = ['name', 'name_ar', 'description', 'description_ar', 'is_active', 'sequence', 'has_diagnostic_media', 'has_calculated_verdict'];
+    protected $fillable = ['name', 'name_ar', 'description', 'description_ar', 'is_active', 'sequence', 'has_diagnostic_media', 'has_calculated_verdict', 'show_name_in_report'];
 
     /**
      * Templates whose report prints the basic format the client asked for —
      * cover / Vehicle Summary, Inspection Summary, Vehicle Photos and Paint
-     * Inspection Images only. Everything else (checklist pages, diagnostic
-     * media, EV & PHEV, technical measurements, signatures) is left out.
+     * Inspection Images, plus the answered checklist sections. Everything else
+     * (diagnostic media, EV & PHEV, technical measurements, signatures) is left out.
      *
      * Kept as a list of names rather than a column so no schema change is
      * needed; add a template here to give it the basic report.
@@ -62,7 +62,7 @@ class InspectionType extends Model
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean', 'has_diagnostic_media' => 'boolean', 'has_calculated_verdict' => 'boolean'];
+        return ['is_active' => 'boolean', 'has_diagnostic_media' => 'boolean', 'has_calculated_verdict' => 'boolean', 'show_name_in_report' => 'boolean'];
     }
 
     public function sections(): HasMany
