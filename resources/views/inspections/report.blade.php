@@ -619,7 +619,7 @@
         /* No gauge: Vehicle Summary card on the left, vehicle image on the right,
            both the same height. row-reverse keeps the markup order (hero, cards). */
         .rc-top--split{ display:flex; flex-direction:row-reverse; align-items:stretch; gap:20px; padding:24px 34px 16px; }
-        .rc-top--split .rc-hero{ flex:0 0 42%; max-width:42%; padding:0; }
+        .rc-top--split .rc-hero{ flex:0 0 50%; max-width:50%; padding:0; }
         .rc-top--split .rc-hero__car{ width:100%; height:100%; max-width:none; margin:0; }
         .rc-top--split .rc-hero__car > img{ height:100%; min-height:260px; max-height:none; }
         .rc-top--split .rc-cards{ flex:1 1 auto; min-width:0; padding:0; }
@@ -676,10 +676,12 @@
             color:#fff; font-size:10.5px; font-weight:600; line-height:1.25; text-align:left; }
         .rc-feature + .rc-feature{ border-left:1px solid rgba(255,255,255,.12); }
         .rc-feature .ic{ flex:0 0 auto; color:#5ab84d; display:flex; }
-        .rc-foot{ display:flex; align-items:center; justify-content:center; padding:13px 34px; color:#fff;
+        .rc-foot{ display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 34px; color:#fff;
             background:linear-gradient(90deg,#0a1f33 0%,#0a1f33 46%,#1f8f4a 74%,#2fa84f 100%); }
-        .rc-foot .tag{ font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; letter-spacing:1px; font-size:12px;
+        .rc-foot .tag{ font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; letter-spacing:1px; font-size:10px;
             text-align:center; line-height:1.5; }
+        .rc-foot .tag--left{ text-align:left; }
+        .rc-foot .tag--right{ text-align:right; }
         /* .cover is a flex column and .rc fills it, so auto margin drops the green bar
            to the very bottom of the cover sheet whatever the content above it is. */
         .cover .rc-foot{ margin-top:auto; }
@@ -954,10 +956,13 @@
 
                 {{-- ---------- footer bar ---------- --}}
                 <div class="rc-foot">
-                    <div class="tag">
+                    <div class="tag tag--left">
                         <div>Auto Assure – Technical Inspection Services</div>
                         <div>Shop 4, Zone 91, Street 7009, Ezdan Oasis, Al Wukhair, State of Qatar</div>
-                        <div>Website: www.auto-assure.com | Email: info@auto-assure.com</div>
+                    </div>
+                    <div class="tag tag--right">
+                        <div>Website: www.auto-assure.com</div>
+                        <div>Email: info@auto-assure.com</div>
                     </div>
                 </div>
             </div>
@@ -968,10 +973,13 @@
              of all sheets. The <tfoot> spacer reserves its height so content never
              overlaps. Print-only; hidden on screen where the page isn't paginated. --}}
         <div class="rc-foot print-footer">
-            <div class="tag">
+            <div class="tag tag--left">
                         <div>Auto Assure – Technical Inspection Services</div>
                         <div>Shop 4, Zone 91, Street 7009, Ezdan Oasis, Al Wukhair, State of Qatar</div>
-                        <div>Website: www.auto-assure.com | Email: info@auto-assure.com</div>
+                    </div>
+            <div class="tag tag--right">
+                        <div>Website: www.auto-assure.com</div>
+                        <div>Email: info@auto-assure.com</div>
                     </div>
         </div>
 
@@ -1442,9 +1450,8 @@
         </table>
 
     </div>
-    {{-- The report is only ever opened to be printed/saved, so the dialog opens
-         on load. (This used to be gated behind ?download=1, dropped so the link
-         we share with the customer stays clean.) --}}
+    {{-- The print/save dialog opens only when the user clicks the "Print / Save PDF"
+         button in the toolbar, not automatically on load. --}}
     {{-- Fancybox init for the General Photos gallery (on-screen viewing only). --}}
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
     <script>
@@ -1453,7 +1460,6 @@
                 Fancybox.bind('[data-fancybox="general-photos"]', {});
                 Fancybox.bind('[data-fancybox="diagnostic-photos"]', {});
             }
-            setTimeout(function () { window.print(); }, 350);
         });
     </script>
 </body>
