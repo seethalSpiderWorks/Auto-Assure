@@ -293,8 +293,12 @@ class InspectionController extends Controller
             return $cancelled;
         }
 
+        // Answers are required only when the template has questions. Templates
+        // with no checklist (Quick, Fleet) save sections / damage diagrams alone.
+        $hasSteps = (bool) $inspection->type?->steps()->exists();
+
         $validator = Validator::make($request->all(), [
-            'answers' => ['required', 'array', 'min:1'],
+            'answers' => $hasSteps ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
             'answers.*.step_id' => ['required', 'integer'],
             'answers.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'answers.*.choice' => ['nullable', 'string', 'max:255'],
@@ -343,7 +347,7 @@ class InspectionController extends Controller
         $validated = $validator->validated();
         $validSteps = $inspection->type->steps()->pluck('inspection_steps.id')->all();
 
-        foreach ($validated['answers'] as $a) {
+        foreach ($validated['answers'] ?? [] as $a) {
             $stepId = (int) $a['step_id'];
             if (! in_array($stepId, $validSteps, true)) {
                 continue;

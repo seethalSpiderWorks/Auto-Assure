@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class DamageDiagram extends Model
 {
-    protected $fillable = ['name', 'key', 'inspection_section_id', 'image', 'sequence', 'is_active'];
+    protected $fillable = ['name', 'key', 'image', 'sequence', 'is_active'];
 
     protected function casts(): array
     {
@@ -33,14 +33,13 @@ class DamageDiagram extends Model
         return $query->orderBy('sequence')->orderBy('id');
     }
 
-    public function section(): BelongsTo
+    /**
+     * The sections this diagram is drawn in — at most one per template, so the
+     * same body view can appear in Comprehensive, Premium, Fleet, … at once.
+     */
+    public function sections(): BelongsToMany
     {
-        return $this->belongsTo(InspectionSection::class, 'inspection_section_id');
-    }
-
-    public function scopeForSection($query, int $sectionId)
-    {
-        return $query->where('inspection_section_id', $sectionId);
+        return $this->belongsToMany(InspectionSection::class, 'damage_diagram_section')->withTimestamps();
     }
 
     public function colours(): HasMany

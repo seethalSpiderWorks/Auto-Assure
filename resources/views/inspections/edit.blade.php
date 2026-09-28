@@ -1348,8 +1348,10 @@
                                         </div>
                                     @endif
 
-                                    {{-- No checklist on summary-only templates (Quick, Fleet) — nothing to track. --}}
-                                    <div @if (empty($sectionProgress)) style="display:none;" @endif>
+                                    {{-- Only sections with questions are tracked; with none (Quick,
+                                         Fleet) the whole block is hidden — nothing to track. --}}
+                                    @php($questionSections = collect($sectionProgress)->filter(fn ($sp) => ($sp['total'] ?? 0) > 0))
+                                    <div @if ($questionSections->isEmpty()) style="display:none;" @endif>
                                     <hr class="detail-sep">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <h6 class="mb-0"><i class="bx bx-list-check text-success"></i> Completion Status</h6>
@@ -1360,7 +1362,7 @@
                                     </div>
                                     <p class="text-muted font-size-12 mb-3">Every section must be fully answered before the inspection can be completed. Tap a section to jump to it.</p>
                                     <div class="secstat-grid">
-                                        @foreach ($sectionProgress as $sp)
+                                        @foreach ($questionSections as $sp)
                                             @php($isDone = ($sp['total'] ?? 0) > 0 && ($sp['answered'] ?? 0) >= $sp['total'])
                                             <button type="button" class="secstat {{ $isDone ? 'is-done' : (($sp['answered'] ?? 0) > 0 ? 'is-partial' : 'is-empty') }}"
                                                     data-status-sec="{{ $sp['id'] }}" data-goto-section="{{ $sp['id'] }}">

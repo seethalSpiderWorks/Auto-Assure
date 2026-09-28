@@ -616,6 +616,13 @@
            the whole band, so it gets a fixed banner height instead of the 40/60 split. */
         .rc-hero--nogauge .rc-hero__car{ min-height:0; }
         .rc-hero--nogauge .rc-hero__car > img{ height:300px; max-height:300px; object-position:center; }
+        /* No gauge: Vehicle Summary card on the left, vehicle image on the right,
+           both the same height. row-reverse keeps the markup order (hero, cards). */
+        .rc-top--split{ display:flex; flex-direction:row-reverse; align-items:stretch; gap:20px; padding:24px 34px 16px; }
+        .rc-top--split .rc-hero{ flex:0 0 42%; max-width:42%; padding:0; }
+        .rc-top--split .rc-hero__car{ width:100%; height:100%; max-width:none; margin:0; }
+        .rc-top--split .rc-hero__car > img{ height:100%; min-height:260px; max-height:none; }
+        .rc-top--split .rc-cards{ flex:1 1 auto; min-width:0; padding:0; }
         .rc-inspected{ position:absolute; top:14px; right:14px; display:inline-flex; align-items:center; gap:6px;
             background:#2fa84f; color:#fff; font-weight:700; font-size:11px; letter-spacing:.4px; padding:6px 13px; border-radius:20px; }
         .rc-hero__tagline{ position:absolute; right:18px; bottom:14px; text-align:right; color:#fff;
@@ -671,7 +678,8 @@
         .rc-feature .ic{ flex:0 0 auto; color:#5ab84d; display:flex; }
         .rc-foot{ display:flex; align-items:center; justify-content:center; padding:13px 34px; color:#fff;
             background:linear-gradient(90deg,#0a1f33 0%,#0a1f33 46%,#1f8f4a 74%,#2fa84f 100%); }
-        .rc-foot .tag{ font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; letter-spacing:1px; font-size:12px; }
+        .rc-foot .tag{ font-family:'Quicksand',sans-serif; font-style:italic; font-weight:700; letter-spacing:1px; font-size:12px;
+            text-align:center; line-height:1.5; }
         /* .cover is a flex column and .rc fills it, so auto margin drops the green bar
            to the very bottom of the cover sheet whatever the content above it is. */
         .cover .rc-foot{ margin-top:auto; }
@@ -685,6 +693,9 @@
             .rc-hero__car{ flex:1 1 auto; width:100%; }
             .rc-hero--nogauge .rc-hero__car > img{ height:200px; max-height:200px; }
             .rc-cards{ flex-direction:column; }
+            .rc-top--split{ flex-direction:column; padding:20px 16px 14px; }
+            .rc-top--split .rc-hero{ flex:1 1 auto; max-width:100%; width:100%; }
+            .rc-top--split .rc-hero__car > img{ height:200px; min-height:0; }
             {{-- The three data columns get too narrow on tablets — wrap them so each
                  key/value table keeps at least ~45% of the card width (2-up). --}}
             .rc-card__cols{ flex-wrap:wrap; }
@@ -751,7 +762,7 @@
                  The cover's own inline footer is hidden here — the fixed bar already
                  sits at the same spot on page 1, so keeping both would double it up. --}}
             .rc-foot.print-footer{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:10; }
-            .foot-space{ height:46px; }
+            .foot-space{ height:82px; }
             .cover .rc-foot{ display:none; }
         }
     </style>
@@ -811,16 +822,16 @@
                 ];
                 // Make, Model, Year, Region and Plate No are already shown in the Vehicle Summary card.
                 $detailSpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Region', 'Plate No'], true)));
-                // All the card data (summary rows + detail specs) laid out in three even,
-                // side-by-side columns. ceil(count/3) as the chunk size fills the columns
-                // left-to-right and always yields at most three columns.
+                // All the card data (summary rows + detail specs) laid out in even,
+                // side-by-side columns: three across the full width, or two when the
+                // card shares the hero band with the vehicle image (no gauge).
+                // ceil(count/n) as the chunk size fills the columns left-to-right.
                 $dataRows = array_merge($summaryRows, $detailSpecs);
-                $dataPer  = max(1, (int) ceil(count($dataRows) / 3));
-                $dataCols = [
-                    array_slice($dataRows, 0, $dataPer),
-                    array_slice($dataRows, $dataPer, $dataPer),
-                    array_slice($dataRows, $dataPer * 2),
-                ];
+                $dataColCount = $usesCalculated ? 3 : 2;
+                $dataPer  = max(1, (int) ceil(count($dataRows) / $dataColCount));
+                $dataCols = array_values(array_filter(
+                    array_map(fn ($i) => array_slice($dataRows, $dataPer * $i, $dataPer), range(0, $dataColCount - 1))
+                ));
                 $detailTitle = ($makeHeading === 'N/A' ? 'Vehicle' : $makeHeading) . ' Details';
 
                 $coverSummary = $val($inspection->summary) === 'N/A' ? null : $pick($inspection->summary, $inspection->summary_ar);
@@ -838,9 +849,11 @@
                     </div>
                 </div>
 
-                {{-- ---------- hero band: gauge + vehicle ---------- --}}
+                {{-- ---------- hero band: gauge + vehicle, then the info cards ---------- --}}
                 {{-- The gauge is the Calculated Overall Verdict; templates with that
-                     switch off score nothing, so the vehicle image takes the whole band. --}}
+                     switch off score nothing, so the Vehicle Summary card moves up beside
+                     the vehicle image instead (card left, image right — row-reverse). --}}
+                <div class="rc-top{{ $usesCalculated ? '' : ' rc-top--split' }}">
                 <div class="rc-hero{{ $usesCalculated ? '' : ' rc-hero--nogauge' }}">
                     @if ($usesCalculated)
                     <div class="rc-hero__gauge">
@@ -879,7 +892,6 @@
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                             INSPECTED
                         </span>
-                        <div class="rc-hero__tagline">Quality Vehicles<br>Safer Journeys</div>
                     </div>
                 </div>
 
@@ -903,6 +915,7 @@
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 {{-- ---------- rating + recommendation ---------- --}}
@@ -941,7 +954,11 @@
 
                 {{-- ---------- footer bar ---------- --}}
                 <div class="rc-foot">
-                    <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
+                    <div class="tag">
+                        <div>Auto Assure – Technical Inspection Services</div>
+                        <div>Shop 4, Zone 91, Street 7009, Ezdan Oasis, Al Wukhair, State of Qatar</div>
+                        <div>Website: www.auto-assure.com | Email: info@auto-assure.com</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -951,7 +968,11 @@
              of all sheets. The <tfoot> spacer reserves its height so content never
              overlaps. Print-only; hidden on screen where the page isn't paginated. --}}
         <div class="rc-foot print-footer">
-            <span class="tag">A SAFER RIDE BEGINS WITH A BETTER INSPECTION</span>
+            <div class="tag">
+                        <div>Auto Assure – Technical Inspection Services</div>
+                        <div>Shop 4, Zone 91, Street 7009, Ezdan Oasis, Al Wukhair, State of Qatar</div>
+                        <div>Website: www.auto-assure.com | Email: info@auto-assure.com</div>
+                    </div>
         </div>
 
         {{-- ==============================================================
@@ -1315,10 +1336,13 @@
             $damageNames = [];
             $damageKeys = [];
             $damageSection = [];
-            foreach (\App\Models\DamageDiagram::with('section')->ordered()->get() as $dgm) {
+            // The section a diagram sits in depends on the template, so read it
+            // off this inspection's own template.
+            $inspectionTypeId = $inspection->inspection_type_id;
+            foreach (\App\Models\DamageDiagram::with('sections')->ordered()->get() as $dgm) {
                 $damageNames[$dgm->key] = $dgm->name;
                 $damageKeys[$dgm->key] = \App\Models\DamageColour::forDiagram($dgm->id)->ordered()->get();
-                $damageSection[$dgm->key] = optional($dgm->section)->section_name;
+                $damageSection[$dgm->key] = optional($dgm->sections->firstWhere('inspection_type_id', $inspectionTypeId))->section_name;
             }
 
             $damageDiagrams = [];

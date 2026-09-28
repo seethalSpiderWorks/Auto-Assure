@@ -100,7 +100,8 @@
                                 </div>
                                 @endif
                                 {{-- Damage diagrams drawn inside this step. A diagram belongs to one
-                                     section, so ticking it here takes it off whichever section had it.
+                                     section per template, so ticking it here takes it off this
+                                     template's other sections; other templates keep theirs.
                                      Tiles rather than checkboxes: the thumbnail is what an admin
                                      recognises, and it says where each one currently sits. --}}
                                 <div class="w-100 border-top pt-3 mt-2">
@@ -112,8 +113,8 @@
                                     @else
                                         <div class="dg-grid">
                                             @foreach ($damageDiagrams as $dg)
-                                                @php($here = $dg->inspection_section_id === $section->id)
-                                                @php($elsewhere = $dg->inspection_section_id && ! $here)
+                                                @php($here = $section->damageDiagrams->contains('id', $dg->id))
+                                                @php($elsewhere = $here ? null : $dg->sections->first(fn ($s) => $s->inspection_type_id === $type->id))
                                                 <label class="dg-tile">
                                                     <input type="checkbox" name="damage_diagrams[]" value="{{ $dg->id }}" @checked($here)>
                                                     <span class="dg-tile__inner">
@@ -130,7 +131,7 @@
                                                                 @if ($here)
                                                                     In this section
                                                                 @elseif ($elsewhere)
-                                                                    Currently in {{ optional($dg->section)->section_name }}
+                                                                    Currently in {{ $elsewhere->section_name }}
                                                                 @else
                                                                     Not assigned
                                                                 @endif
@@ -142,7 +143,7 @@
                                             @endforeach
                                         </div>
                                         <small class="text-muted font-size-11 d-block mt-1">
-                                            A diagram sits in one section — ticking it here moves it.
+                                            A diagram sits in one section per template — ticking it here moves it off this template's other sections. Other templates are not affected.
                                         </small>
                                     @endif
                                     {{-- Present even when nothing is ticked, so unticking everything is

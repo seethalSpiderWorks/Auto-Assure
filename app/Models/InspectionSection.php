@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InspectionSection extends Model
@@ -31,9 +32,10 @@ class InspectionSection extends Model
      * Damage diagrams marked up inside this section's step. Ordered the same way
      * they are listed in Damage Setup.
      */
-    public function damageDiagrams(): HasMany
+    public function damageDiagrams(): BelongsToMany
     {
-        return $this->hasMany(DamageDiagram::class, 'inspection_section_id')
-            ->orderBy('sequence')->orderBy('id');
+        return $this->belongsToMany(DamageDiagram::class, 'damage_diagram_section')
+            ->withTimestamps()
+            ->orderBy('damage_diagrams.sequence')->orderBy('damage_diagrams.id');
     }
 }

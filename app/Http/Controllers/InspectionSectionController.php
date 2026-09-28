@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DamageDiagram;
 use App\Models\InspectionSection;
 use App\Models\InspectionType;
 use Illuminate\Http\RedirectResponse;
 use App\Support\BilingualText;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InspectionSectionController extends Controller
 {
@@ -30,9 +30,10 @@ class InspectionSectionController extends Controller
     }
 
     /**
-     * Point the chosen damage diagrams at this section and release the ones that
-     * were deselected. A diagram belongs to one section, so assigning it here
-     * moves it off whichever section had it before.
+     * Attach the chosen damage diagrams to this section and detach the ones that
+     * were deselected. A diagram sits in at most one section per template, so
+     * ticking it here moves it off the template's other sections — sections of
+     * other templates keep theirs.
      */
     private function syncDamageDiagrams(Request $request, InspectionSection $section): void
     {
@@ -51,13 +52,18 @@ class InspectionSectionController extends Controller
 
         $chosen = array_map('intval', $ids);
 
-        DamageDiagram::where('inspection_section_id', $section->id)
-            ->whereNotIn('id', $chosen ?: [0])
-            ->update(['inspection_section_id' => null]);
-
         if ($chosen) {
-            DamageDiagram::whereIn('id', $chosen)->update(['inspection_section_id' => $section->id]);
+            $siblings = InspectionSection::where('inspection_type_id', $section->inspection_type_id)
+                ->whereKeyNot($section->id)
+                ->pluck('id');
+
+            DB::table('damage_diagram_section')
+                ->whereIn('inspection_section_id', $siblings)
+                ->whereIn('damage_diagram_id', $chosen)
+                ->delete();
         }
+
+        $section->damageDiagrams()->sync($chosen);
     }
 
     public function destroy(InspectionSection $section): RedirectResponse

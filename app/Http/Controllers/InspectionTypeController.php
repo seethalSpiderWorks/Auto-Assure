@@ -40,7 +40,7 @@ class InspectionTypeController extends Controller
         return view('templates.show', [
             'type' => $template,
             // Every diagram, so a section's editor can offer the unassigned ones too.
-            'damageDiagrams' => \App\Models\DamageDiagram::ordered()->get(),
+            'damageDiagrams' => \App\Models\DamageDiagram::with('sections')->ordered()->get(),
         ]);
     }
 
