@@ -334,7 +334,7 @@
         .group-lead .make-h{ margin-bottom:2px; }
 
         /* ---- cards ---- */
-        .card{ background:var(--card); border-radius:8px; padding:20px 22px; box-shadow:0 6px 18px rgba(24,33,54,.06); margin-bottom:16px; }
+        .card{ background:var(--card); border-radius:8px; padding:10px; box-shadow:0 6px 18px rgba(24,33,54,.06); margin-bottom:16px; }
         .card.tight{ padding:16px 18px; }
         .grid2{ display:flex; flex-wrap:wrap; gap:10px; }
         .grid2 > .item-card{ flex:1 1 calc(50% - 8px); min-width:calc(50% - 8px); margin-bottom:0; }
@@ -575,6 +575,13 @@
 
             /* damage diagrams use the full width on a phone */
             .card img[style*="width:80%"]{ width:100% !important; }
+
+            /* footer: the left/right split is too cramped on a phone, so stack the
+               company/address over the website/email and centre both. !important
+               because the base .tag--left/right rules appear later in the source. */
+            .rc-foot{ flex-direction:column; gap:6px; text-align:center; padding:14px 18px; }
+            .rc-foot .tag--left,
+            .rc-foot .tag--right{ text-align:center !important; }
         }
 
         @media screen and (max-width:420px){
@@ -643,7 +650,7 @@
         .rc-card__head{ display:flex; align-items:center; gap:10px; background:#0f2d43; color:#fff; padding:11px 18px; }
         .rc-card__head .ic{ flex:0 0 auto; display:flex; }
         .rc-card__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
-        .rc-card__body{ padding:6px 18px 12px; }
+        .rc-card__body{ padding:10px; }
         .rc-card__cols{ display:flex; gap:18px; }
         .rc-card__cols > .rc-kv{ flex:1 1 0; min-width:0; }
         .rc-kv{ width:100%; border-collapse:collapse; }
@@ -655,7 +662,7 @@
         /* ---- rating + recommendation strip ---- */
         .rc-verdict{ display:flex; margin:0 34px 16px; background:#fff; border-radius:12px; overflow:hidden;
             box-shadow:0 8px 22px rgba(0,0,0,.22); }
-        .rc-verdict > div{ flex:1 1 0; padding:15px 24px; }
+        .rc-verdict > div{ flex:1 1 0; padding:10px; }
         .rc-verdict > div + div{ border-left:1px solid #eef0f4; }
         .rc-verdict .lbl{ font-size:13px; color:#5b6472; font-weight:600; }
         .rc-verdict .stars{ display:flex; align-items:center; gap:8px; margin-top:6px; }
@@ -667,7 +674,7 @@
             box-shadow:0 8px 22px rgba(0,0,0,.22); }
         .rc-comment__head{ display:flex; align-items:center; gap:10px; background:#0f2d43; color:#fff; padding:11px 18px; }
         .rc-comment__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
-        .rc-comment__body{ padding:15px 20px; font-size:12px; line-height:1.7; color:#2b3340; white-space:pre-line; }
+        .rc-comment__body{ padding:10px; font-size:12px; line-height:1.7; color:#2b3340; white-space:pre-line; }
 
         /* ---- feature strip + footer (pinned to sheet bottom) ---- */
         .rc-features{ margin-top:auto; display:flex; justify-content:space-between; gap:6px;
