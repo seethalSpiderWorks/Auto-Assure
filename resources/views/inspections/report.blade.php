@@ -336,7 +336,7 @@
         /* ---- cards ---- */
         .card{ background:var(--card); border-radius:8px; padding:20px 22px; box-shadow:0 6px 18px rgba(24,33,54,.06); margin-bottom:16px; }
         .card.tight{ padding:16px 18px; }
-        .grid2{ display:flex; flex-wrap:wrap; gap:16px; }
+        .grid2{ display:flex; flex-wrap:wrap; gap:10px; }
         .grid2 > .item-card{ flex:1 1 calc(50% - 8px); min-width:calc(50% - 8px); margin-bottom:0; }
 
         /* ---- item (check) card ---- */
