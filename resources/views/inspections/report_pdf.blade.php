@@ -136,6 +136,9 @@
     }
     $docTag = trim($reportKind.' '.$L('Inspection Report'));
     $basicReport = (bool) $inspection->type?->isBasicReport();
+    // Quick / Fleet print Damage Points straight after the photos. Matched on the
+    // name's first word so a renamed template ("Fleet") still qualifies.
+    $quickOrFleet = $basicReport || (bool) preg_match('/^\s*(quick|fleet)\b/i', (string) $inspection->type?->name);
 
     // ---- vehicle summary rows (same order as the cover card) ----
     $rows = [
@@ -639,6 +642,12 @@
     </div>
 @endif
 
+{{-- Quick / Fleet: Damage Points follow the photos directly, so the short
+     report doesn't leave a gap before them at the end. --}}
+@if ($quickOrFleet && ! empty($damageDiagrams))
+    @include('inspections._report_pdf_damage', ['splitDamage' => true])
+@endif
+
 {{-- ============================== EV & TECHNICAL (full report only) ============================== --}}
 @unless ($basicReport)
     @if ($hasEv)
@@ -724,27 +733,9 @@
 @endforeach
 
 {{-- ============================== DAMAGE DIAGRAMS (both on one page) ============================== --}}
-@if (! empty($damageDiagrams))
-    <div class="avoid">
-        <div class="sec-bar">{{ $L($basicReport ? 'Paint Inspection Images' : 'Damage Points') }}</div>
-        <div class="card">
-            @foreach ($damageDiagrams as $d)
-                <div class="avoid" style="margin-bottom:{{ $loop->last ? '0' : '12px' }};">
-                    <div style="font-family:{!! $fBody !!};font-weight:bold;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#3b4655;margin-bottom:5px;">
-                        {{ $d['label'] }}@if($d['section']) — {{ $d['section'] }}@endif
-                    </div>
-                    @if ($d['key']->isNotEmpty())
-                        <div style="margin-bottom:6px;font-size:10px;color:#3b4655;">
-                            @foreach ($d['key'] as $kc)
-                                <span style="margin-{{ $end }}:12px;"><span class="dot" style="background:{{ $kc->colour }};"></span> <strong>{{ $kc->label }}</strong>@if($kc->description)<span style="color:#6b7280;"> — {{ $kc->description }}</span>@endif</span>
-                            @endforeach
-                        </div>
-                    @endif
-                    <div style="text-align:center;"><img src="{{ $d['file'] }}" alt="" style="max-width:80%;max-height:270px;"></div>
-                </div>
-            @endforeach
-        </div>
-    </div>
+{{-- Quick / Fleet print these straight after the photos instead. --}}
+@if (! $quickOrFleet && ! empty($damageDiagrams))
+    @include('inspections._report_pdf_damage')
 @endif
 
 {{-- ============================== SIGNATURES ============================== --}}
