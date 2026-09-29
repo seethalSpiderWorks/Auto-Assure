@@ -651,6 +651,14 @@
         .rc-card__head .ic{ flex:0 0 auto; display:flex; }
         .rc-card__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
         .rc-card__body{ padding:10px; }
+        .rc-kvgrid{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); column-gap:18px; }
+        /* Label on the left, value on the right; the value keeps at least 55% of
+           the row, so a long label wraps before the value is squeezed. */
+        .rc-kvi{ display:grid; grid-template-columns:minmax(0, max-content) minmax(55%, 1fr); align-items:center; gap:8px; padding:6.5px 2px;
+            border-bottom:1px solid #eef0f4; font-size:11px; }
+        .rc-kvi.is-last{ border-bottom:none; }
+        .rc-kvi .k{ color:#5b6472; font-weight:500; }
+        .rc-kvi .v{ text-align:right; font-weight:700; color:#0f2d43; overflow-wrap:anywhere; }
         .rc-card__cols{ display:flex; gap:18px; }
         .rc-card__cols > .rc-kv{ flex:1 1 0; min-width:0; }
         .rc-kv{ width:100%; border-collapse:collapse; }
@@ -723,6 +731,14 @@
         }
 
   
+
+        {{-- Tablets and phones: the Vehicle Summary grid becomes one list, in the
+             same order as the columns read on a wide screen. --}}
+        @media screen and (max-width:768px){
+            .rc-kvgrid{ grid-auto-flow:row; grid-template-rows:none !important; grid-template-columns:1fr; }
+            .rc-kvi.is-last{ border-bottom:1px solid #eef0f4; }
+            .rc-kvi:last-child{ border-bottom:none; }
+        }
 
         {{-- On phones the data columns stack into a single readable list. --}}
         @media screen and (max-width:480px){
@@ -918,13 +934,14 @@
                         </div>
 
                         <div class="rc-card__body">
-                            <div class="rc-card__cols">
-                                @foreach ($dataCols as $col)
-                                    <table class="rc-kv">
-                                        @foreach ($col as $sp)
-                                            <tr><td class="k">{{ $L($sp[0]) }}</td><td class="v"><bdi>{{ $sp[1] }}</bdi></td></tr>
-                                        @endforeach
-                                    </table>
+                            {{-- One grid, filled column by column: rows are shared across the
+                                 columns, so a value that wraps on one side keeps the rows level
+                                 on the other. Stacks into a single list on small screens. --}}
+                            <div class="rc-kvgrid" style="grid-template-rows:repeat({{ $dataPer }}, auto);">
+                                @foreach ($dataRows as $sp)
+                                    <div class="rc-kvi{{ ($loop->iteration % $dataPer === 0 || $loop->last) ? ' is-last' : '' }}">
+                                        <span class="k">{{ $L($sp[0]) }}</span><span class="v"><bdi>{{ $sp[1] }}</bdi></span>
+                                    </div>
                                 @endforeach
                             </div>
                         </div>

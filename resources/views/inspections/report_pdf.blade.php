@@ -385,6 +385,9 @@
     .rc-card__body { padding: 6px 18px 10px; }
     .rc-kv td { padding: 6px 2px; border-bottom: 1px solid #eef0f4; font-size: 10.5px; vertical-align: middle; }
     .rc-kv tr.last td { border-bottom: none; }
+    /* Half-width card beside the photo: tighter text so the two columns fit. */
+    .rc-card--narrow .rc-card__body { padding: 4px 12px 8px; }
+    .rc-card--narrow .rc-kv td { font-size: 9.5px; padding: 5px 2px; }
     /* Labels stay on one line; long values wrap instead. */
     .rc-kv .k { color: #5b6472; white-space: nowrap; }
     .rc-kv .v { text-align: {{ $end }}; font-family: {!! $fBody !!}; font-weight: bold; color: #0f2d43; padding-{{ $start }}: 6px; }
@@ -472,7 +475,7 @@
     </div>
 
     <div class="rc-hero">
-        <table><tr>
+        <table @unless ($usesCalculated) style="table-layout:fixed;" @endunless><tr>
             @if ($usesCalculated)
                 {{-- Gauge (Calculated Overall Verdict) + vehicle image --}}
                 <td style="width:42%;vertical-align:middle;padding-{{ $end }}:20px;">
@@ -494,7 +497,9 @@
                 </td>
             @else
                 {{-- No gauge: Vehicle Summary on the left, vehicle image on the right --}}
-                <td style="vertical-align:top;padding-{{ $end }}:20px;">
+                {{-- 50 / 50, as on the screen report; fixed so the card's content
+                     can't claim the photo's half. --}}
+                <td style="width:50%;vertical-align:top;padding-{{ $end }}:20px;">
                     @include('inspections._report_pdf_summary')
                 </td>
                 @if ($coverImg)
@@ -502,7 +507,7 @@
                          as tall as the Vehicle Summary card beside it, so the image fills
                          that height and is cropped to fit — the screen report's
                          object-fit: cover, which an <img> cannot do in dompdf. --}}
-                    <td style="width:42%;vertical-align:top;border-radius:14px;background:#0c2136 url('{{ $coverImg }}') no-repeat center center;background-size:cover;">
+                    <td style="width:50%;vertical-align:top;border-radius:14px;background:#0c2136 url('{{ $coverImg }}') no-repeat center center;background-size:cover;">
                         <div style="padding:12px;"><div style="float:{{ $end }};background:#2fa84f;color:#fff;font-family:{!! $fSemi !!};font-size:10px;letter-spacing:.4px;padding:4px 12px;border-radius:12px;"><span style="font-family:'DejaVu Sans';">&#10003;</span> INSPECTED</div></div>
                     </td>
                 @endif
