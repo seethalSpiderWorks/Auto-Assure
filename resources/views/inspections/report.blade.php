@@ -777,7 +777,14 @@
     </style>
 </head>
 <body @if($isAr) dir="rtl" lang="ar" @endif>
-    <div class="toolbar"><button class="btn" onclick="window.print()">🖨 Print / Save PDF</button></div>
+    {{-- Download, not print: the PDF is built on the server (App\Support\ReportPdf)
+         and arrives as a normal file download. Left out of the PDF itself. --}}
+    @unless ($pdfMode ?? false)
+    <div class="toolbar">
+        <a class="btn" id="download-pdf"
+           href="{{ route($isAr ? 'inspections.report.ar.pdf' : 'inspections.report.pdf', $inspection->report_unique_id_random) }}">⬇ Download PDF</a>
+    </div>
+    @endunless
     <div class="sheet">
 
         {{-- ============================== COVER ============================== --}}
@@ -1377,9 +1384,11 @@
         @if (! empty($damageDiagrams))
         <div class="page">
             <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Paint Inspection Images' : 'Damage Points') }}</span></div>
-            <div class="card">
+            {{-- Diagrams are capped in height so the body and the under-body views
+                 share one printed page instead of taking a page each. --}}
+            <div class="card" style="break-inside:avoid;">
                 @foreach ($damageDiagrams as $d)
-                    <div style="margin-bottom:{{ $loop->last ? '0' : '18px' }};break-inside:avoid;">
+                    <div style="margin-bottom:{{ $loop->last ? '0' : '14px' }};break-inside:avoid;">
                         <div style="font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#3b4655;font-weight:700;margin-bottom:6px;">
                             {{ $d['label'] }}@if($d['section'])<span > — {{ $d['section'] }}</span>@endif
                         </div>
@@ -1393,7 +1402,7 @@
                                 @endforeach
                             </div>
                         @endif
-                        <img src="{{ $d['url'] }}" alt="{{ $d['label'] }} damage diagram " style="display:block;width:80%;height:auto;margin:0 auto;">
+                        <img src="{{ $d['url'] }}" alt="{{ $d['label'] }} damage diagram " style="display:block;max-width:80%;max-height:300px;width:auto;height:auto;margin:0 auto;">
                     </div>
                 @endforeach
             </div>
@@ -1462,6 +1471,18 @@
     {{-- Fancybox init for the General Photos gallery (on-screen viewing only). --}}
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
     <script>
+        // Building the PDF takes a few seconds — show that the click registered.
+        (function () {
+            var btn = document.getElementById('download-pdf');
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                var label = btn.textContent;
+                btn.textContent = 'Preparing PDF…';
+                btn.style.pointerEvents = 'none';
+                btn.style.opacity = '.7';
+                setTimeout(function () { btn.textContent = label; btn.style.pointerEvents = ''; btn.style.opacity = ''; }, 8000);
+            });
+        })();
         window.addEventListener('load', function () {
             if (window.Fancybox) {
                 Fancybox.bind('[data-fancybox="general-photos"]', {});

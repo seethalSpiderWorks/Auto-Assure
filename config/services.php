@@ -44,4 +44,11 @@ return [
         'credentials' => env('FCM_CREDENTIALS') ?: storage_path('app/firebase/service-account.json'),
     ],
 
+    // Headless Chrome used to print the inspection report as a downloadable PDF
+    // (App\Support\ReportPdf). Leave CHROME_PATH unset to use the usual install
+    // locations (macOS Chrome, /usr/bin/google-chrome, chromium, …).
+    'chrome' => [
+        'path' => env('CHROME_PATH'),
+    ],
+
 ];

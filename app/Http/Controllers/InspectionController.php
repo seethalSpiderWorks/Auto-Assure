@@ -12,11 +12,13 @@ use App\Models\InspectionStep;
 use App\Models\InspectionSummary;
 use App\Models\Lead;
 use App\Support\DamageDiagramWriter;
+use App\Support\ReportPdf;
 use App\Support\VehicleLookups;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -277,6 +279,54 @@ class InspectionController extends Controller
         }
 
         return $this->renderReport($inspection, 'ar');
+    }
+
+    /**
+     * The report as a downloaded PDF — the English or Arabic edition, same token
+     * and same access rules as the on-screen report.
+     */
+    public function reportPdf(string $token): Response|RedirectResponse
+    {
+        return $this->downloadReport($token, 'en');
+    }
+
+    public function reportArabicPdf(string $token): Response|RedirectResponse
+    {
+        return $this->downloadReport($token, 'ar');
+    }
+
+    private function downloadReport(string $token, string $lang): Response|RedirectResponse
+    {
+        $inspection = Inspection::fromReportToken($token);
+
+        abort_if(! $inspection, 404);
+
+        if (request()->user()) {
+            $this->authorizeInspection($inspection);
+        }
+
+        if ($inspection->isCancelled()) {
+            abort_unless(request()->user(), 404);
+
+            return back()->with('error', 'This inspection is cancelled — no report is available for it.');
+        }
+
+        $html = $this->renderReport($inspection, $lang)->with('pdfMode', true)->render();
+
+        try {
+            $pdf = ReportPdf::fromHtml($html);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'The PDF could not be created. Please try again.');
+        }
+
+        $name = 'Inspection Report - '.preg_replace('/[^A-Za-z0-9_-]/', '', (string) $inspection->reference).($lang === 'ar' ? ' (AR)' : '').'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$name.'"',
+        ]);
     }
 
     /**
