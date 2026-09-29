@@ -737,17 +737,22 @@
 {{-- Signatures and Terms & Conditions are one unbreakable block, so they always
      share a page. --}}
 <div class="avoid">
-@unless ($basicReport)
+    {{-- On every report, basic (Quick / Fleet) included. --}}
     <div>
         <div class="sec-bar">{{ $L('Signatures') }}</div>
         <div class="card">
             <table class="sign"><tr>
-                <td><div class="slot"></div><div class="sl">Inspector — Sign &amp; Date</div></td>
-                <td><div class="slot"></div><div class="sl">Technical Manager — Sign &amp; Date</div></td>
+                <td>
+                    <div style="font-family:{!! $fBody !!};font-weight:bold;font-size:12px;margin-bottom:6px;">{{ $val(optional($inspection->technician)->name) }}</div>
+                    <div class="slot"></div><div class="sl">Inspector — Sign &amp; Date</div>
+                </td>
+                <td>
+                    <div style="font-size:12px;margin-bottom:6px;">&nbsp;</div>
+                    <div class="slot"></div><div class="sl">Technical Manager — Sign &amp; Date</div>
+                </td>
             </tr></table>
         </div>
     </div>
-@endunless
 
 {{-- ============================== TERMS & CONDITIONS ============================== --}}
 <div>

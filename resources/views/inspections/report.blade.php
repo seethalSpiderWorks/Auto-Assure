@@ -257,7 +257,7 @@
     // Quick / Fleet templates print the basic report the client specified:
     // cover + Vehicle Summary, Inspection Summary, Vehicle Photos and Paint
     // Inspection Images, plus the answered checklist sections. Diagnostic media,
-    // EV & PHEV, technical measurements and signature pages are left out.
+    // EV & PHEV and technical measurements are left out (signatures are kept).
     // Every other template is unaffected.
     $basicReport = (bool) $inspection->type?->isBasicReport();
     // On the Arabic edition the cover carries the template's own Arabic name
@@ -1414,8 +1414,8 @@
              right after the cover). Its markup + $areaNotes/$areaSvg computation now
              live at the top of the body table. --}}
 
-        @unless ($basicReport)   {{-- left out of the basic report --}}
 {{-- ============================== SIGNATURES ============================== --}}
+        {{-- Printed on every report, basic (Quick / Fleet) included. --}}
         {{-- Inspector Comment now lives on the cover only (client request); the
              signatures and terms are short and share the same closing sheet. --}}
         <div class="page">
@@ -1435,7 +1435,6 @@
                 </div>
             </div>
         </div>
-@endunless
 
 {{-- ============================== TERMS & CONDITIONS ============================== --}}
         <div class="page">
