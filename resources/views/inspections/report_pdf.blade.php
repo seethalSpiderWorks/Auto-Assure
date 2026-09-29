@@ -645,7 +645,7 @@
 {{-- Quick / Fleet: Damage Points follow the photos directly, so the short
      report doesn't leave a gap before them at the end. --}}
 @if ($quickOrFleet && ! empty($damageDiagrams))
-    @include('inspections._report_pdf_damage', ['splitDamage' => true])
+    @include('inspections._report_pdf_damage')
 @endif
 
 {{-- ============================== EV & TECHNICAL (full report only) ============================== --}}
@@ -732,7 +732,7 @@
     @endif
 @endforeach
 
-{{-- ============================== DAMAGE DIAGRAMS (both on one page) ============================== --}}
+{{-- ============================== DAMAGE DIAGRAMS ============================== --}}
 {{-- Quick / Fleet print these straight after the photos instead. --}}
 @if (! $quickOrFleet && ! empty($damageDiagrams))
     @include('inspections._report_pdf_damage')

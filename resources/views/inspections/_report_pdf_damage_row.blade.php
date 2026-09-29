@@ -1,5 +1,5 @@
 {{-- One damage diagram: label, colour key and the marked-up image. --}}
-<div class="avoid" style="margin-bottom:{{ $last ? '0' : '12px' }};">
+<div class="avoid">
     <div style="font-family:{!! $fBody !!};font-weight:bold;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#3b4655;margin-bottom:5px;">
         {{ $d['label'] }}@if($d['section']) — {{ $d['section'] }}@endif
     </div>
