@@ -316,7 +316,7 @@ class InspectionController extends Controller
             // render the screen report's flexbox. Images are read from public/.
             $pdf = Pdf::loadHTML($this->renderReport($inspection, $lang, 'inspections.report_pdf')->render())
                 ->setPaper('a4')
-                ->setOption(['chroot' => [public_path(), storage_path('app/public')], 'isRemoteEnabled' => false])
+                ->setOption(['chroot' => [public_path(), storage_path('app/public'), resource_path('fonts')], 'isRemoteEnabled' => false])
                 ->output();
         } catch (\Throwable $e) {
             report($e);
