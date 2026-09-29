@@ -777,14 +777,12 @@
     </style>
 </head>
 <body @if($isAr) dir="rtl" lang="ar" @endif>
-    {{-- Download, not print: the PDF is built on the server (App\Support\ReportPdf)
-         and arrives as a normal file download. Left out of the PDF itself. --}}
-    @unless ($pdfMode ?? false)
+    {{-- Download, not print: the PDF is built on the server by dompdf from its own
+         template (inspections/report_pdf) and arrives as a normal file download. --}}
     <div class="toolbar">
         <a class="btn" id="download-pdf"
            href="{{ route($isAr ? 'inspections.report.ar.pdf' : 'inspections.report.pdf', $inspection->report_unique_id_random) }}">⬇ Download PDF</a>
     </div>
-    @endunless
     <div class="sheet">
 
         {{-- ============================== COVER ============================== --}}

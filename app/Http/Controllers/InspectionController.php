@@ -12,8 +12,8 @@ use App\Models\InspectionStep;
 use App\Models\InspectionSummary;
 use App\Models\Lead;
 use App\Support\DamageDiagramWriter;
-use App\Support\ReportPdf;
 use App\Support\VehicleLookups;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -311,14 +311,29 @@ class InspectionController extends Controller
             return back()->with('error', 'This inspection is cancelled — no report is available for it.');
         }
 
-        $html = $this->renderReport($inspection, $lang)->with('pdfMode', true)->render();
-
         try {
-            $pdf = ReportPdf::fromHtml($html);
+            // dompdf needs its own table-based layout (report_pdf) — it cannot
+            // render the screen report's flexbox. Images are read from public/.
+            $pdf = Pdf::loadHTML($this->renderReport($inspection, $lang, 'inspections.report_pdf')->render())
+                ->setPaper('a4')
+                ->setOption(['chroot' => [public_path(), storage_path('app/public')], 'isRemoteEnabled' => false])
+                ->output();
         } catch (\Throwable $e) {
             report($e);
 
-            return back()->with('error', 'The PDF could not be created. Please try again.');
+            // Not back(): the report page has no flash area, so a redirect looked
+            // like a plain reload. Say what happened; staff also see the reason
+            // (e.g. Chrome missing on the server), customers a plain message.
+            $reason = request()->user() ? '<p style="color:#b42318;">'.e($e->getMessage()).'</p>' : '';
+            $backUrl = e(url()->previous());
+
+            return response(
+                '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                .'<title>PDF unavailable</title><body style="font-family:sans-serif;max-width:560px;margin:60px auto;padding:0 16px;">'
+                .'<h2>The PDF could not be created</h2><p>Please try again in a moment.</p>'.$reason
+                .'<p><a href="'.$backUrl.'">Back to the report</a></p></body>',
+                500
+            );
         }
 
         $name = 'Inspection Report - '.preg_replace('/[^A-Za-z0-9_-]/', '', (string) $inspection->reference).($lang === 'ar' ? ' (AR)' : '').'.pdf';
@@ -332,7 +347,7 @@ class InspectionController extends Controller
     /**
      * Loads everything the report view needs.
      */
-    private function renderReport(Inspection $inspection, string $lang = 'en'): View
+    private function renderReport(Inspection $inspection, string $lang = 'en', string $view = 'inspections.report'): View
     {
         $inspection->load([
             'lead', 'technician', 'branch',
@@ -357,7 +372,7 @@ class InspectionController extends Controller
             $summaries = array_replace($summaries, array_filter($inspection->summaryNotes('summary_ar'), 'filled'));
         }
 
-        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries', 'lang'));
+        return view($view, compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries', 'lang'));
     }
 
     /**
