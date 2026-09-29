@@ -8,7 +8,7 @@
                 <td style="width:{{ round(100 / count($rowCols), 2) }}%;padding:0 {{ $ci < count($rowCols) - 1 ? '9px' : '0' }} 0 {{ $ci > 0 ? '9px' : '0' }};">
                     <table class="rc-kv">
                         @foreach ($col as $r)
-                            <tr class="{{ $loop->last ? 'last' : '' }}"><td class="k">{{ $L($r[0]) }}</td><td class="v">{{ $r[1] }}</td></tr>
+                            <tr class="{{ $loop->last ? 'last' : '' }}"><td class="k">{{ $L($r[0]) }}</td><td class="v" @if (mb_strlen((string) $r[1]) <= 12) style="white-space:nowrap;" @endif>{{ $r[1] }}</td></tr>
                         @endforeach
                     </table>
                 </td>

@@ -381,7 +381,8 @@
     .rc-card__body { padding: 6px 18px 10px; }
     .rc-kv td { padding: 6px 2px; border-bottom: 1px solid #eef0f4; font-size: 10.5px; vertical-align: middle; }
     .rc-kv tr.last td { border-bottom: none; }
-    .rc-kv .k { color: #5b6472; }
+    /* Labels stay on one line; long values wrap instead. */
+    .rc-kv .k { color: #5b6472; white-space: nowrap; }
     .rc-kv .v { text-align: {{ $end }}; font-family: {!! $fBody !!}; font-weight: bold; color: #0f2d43; padding-{{ $start }}: 6px; }
     .rc-verdict td { background: #fff; padding: 14px 22px; }
     .rc-verdict .lbl { font-family: {!! $fSemi !!}; font-size: 12px; color: #5b6472; }
@@ -409,7 +410,7 @@
     .badge { font-family: 'DejaVu Sans'; font-weight: bold; color: #fff; font-size: 11px; padding: 1px 5px; border-radius: 4px; }
     .b-pass { background: #35a44d; } .b-fail { background: #e02424; } .b-na { background: #f5a623; }
     .item-title { font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; color: #1c2431; }
-    .item-note { margin-top: 6px; font-family: {!! $fSemi !!}; font-size: 11px; color: #3b4453; }
+    .item-note { margin-top: 6px; line-height: 1.05; font-family: {!! $fSemi !!}; font-size: 11px; color: #3b4453; }
     .area-ico { width: 32px; height: 32px; background: #e8f7f1; border: 1px solid #cdeee1; border-radius: 9px; text-align: center; }
     .area-ico img { width: 20px; height: 20px; margin-top: 5px; }
     .area-name { font-family: {!! $fHead !!}; font-weight: bold; font-size: 13px; color: #1c2431; padding-{{ $start }}: 10px; vertical-align: middle; }
@@ -493,8 +494,12 @@
                     @include('inspections._report_pdf_summary')
                 </td>
                 @if ($coverImg)
-                    <td style="width:42%;vertical-align:top;">
-                        <div class="car"><img class="photo" src="{{ $coverImg }}" alt="" style="height:300px;"><span class="inspected"><span style="font-family:'DejaVu Sans';">&#10003;</span> INSPECTED</span></div>
+                    {{-- The photo is the cell's background, sized to cover: the cell is
+                         as tall as the Vehicle Summary card beside it, so the image fills
+                         that height and is cropped to fit — the screen report's
+                         object-fit: cover, which an <img> cannot do in dompdf. --}}
+                    <td style="width:42%;vertical-align:top;border-radius:14px;background:#0c2136 url('{{ $coverImg }}') no-repeat center center;background-size:cover;">
+                        <div style="padding:12px;"><div style="float:{{ $end }};background:#2fa84f;color:#fff;font-family:{!! $fSemi !!};font-size:10px;letter-spacing:.4px;padding:4px 12px;border-radius:12px;"><span style="font-family:'DejaVu Sans';">&#10003;</span> INSPECTED</div></div>
                     </td>
                 @endif
             @endif
