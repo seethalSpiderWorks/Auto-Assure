@@ -358,6 +358,10 @@
     /* ---- cover ---- */
     /* position + z-index lift the cover over the running header on page 1. */
     .cover { position: relative; z-index: 10; margin-top: -78px; height: 1062px; background: #00263d url('{{ $coverBg }}') no-repeat; page-break-after: always; overflow: hidden; }
+    /* Without the gauge (Quick / Fleet) the cover is short: it ends after the
+       Inspector Comment and the report carries on below on the same page,
+       instead of leaving the rest of a full navy page empty. */
+    .cover--short { height: auto; padding-bottom: 8px; page-break-after: auto; margin-bottom: 18px; }
     .rc-head { background: #fff; padding: 18px 34px; border-bottom: 2px solid #2fa84f; }
     .rc-head img { height: 46px; }
     .rc-head h1 { margin: 0; font-family: {!! $fHead !!}; font-weight: bold; font-size: 26px; color: #0f2d43; text-align: {{ $end }}; }
@@ -457,7 +461,7 @@
 </div>
 
 {{-- ============================== COVER ============================== --}}
-<div class="cover">
+<div class="cover{{ $usesCalculated ? '' : ' cover--short' }}">
     <div class="rc-head">
         <table><tr>
             <td style="vertical-align:middle;width:40%;"><img src="{{ $logo }}" alt="Auto Assure"></td>
