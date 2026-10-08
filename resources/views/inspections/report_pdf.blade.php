@@ -258,6 +258,8 @@
             'banner'   => $banner($section->section_name),
             'rating'   => $section->weight !== null ? (float) (optional($meta)->rating ?: 0) : 0,
             'steps'    => $steps,
+            // Checklist sections are laid out three cards per row.
+            'cols'     => 3,
         ];
     }
 
@@ -705,9 +707,9 @@
 @endunless
 
 {{-- ============================== CHECKLIST ============================== --}}
-{{-- One row of two item cards. --}}
+{{-- One row of item cards (two, or three for Performance). --}}
 @php
-    $itemRow = function ($pair) use ($answers, $badge, $pick) {
+    $itemRow = function ($pair, int $cols = 2) use ($answers, $badge, $pick) {
         $html = '<tr class="avoid">';
         foreach ($pair->values() as $i => $step) {
             $d = $answers->get($step->id);
@@ -716,14 +718,16 @@
             $html .= '<td class="cell">'.$badge(Inspection::choiceState($d)).'&nbsp;&nbsp;<span class="item-title">'.e($pick($step->question, $step->question_ar)).'</span>'
                 .($note ? '<div class="item-note">'.e($note).'</div>' : '').'</td>';
         }
-        if ($pair->count() === 1) $html .= '<td class="gap"></td><td class="blank"></td>';
+        for ($i = $pair->count(); $i < $cols; $i++) $html .= '<td class="gap"></td><td class="blank"></td>';
         return $html.'</tr>';
     };
     $lastGroup = null; $shownGroupBanners = [];
 @endphp
 @foreach ($checklist as $sec)
     @php
-        $rows = $sec['steps']->chunk(2)->values();
+        $cols = $sec['cols'];
+        $rows = $sec['steps']->chunk($cols)->values();
+        $gridAttr = $cols === 3 ? 'class="grid2 grid3" style="table-layout:fixed;"' : 'class="grid2"';
         $newGroup = $sec['groupKey'] && $sec['groupKey'] !== $lastGroup;
         $gBanner = null;
         if ($newGroup) {
@@ -745,11 +749,11 @@
             @if ($sec['rating'] > 0)<span class="rate">{!! $stars($sec['rating'], '#4a6278', 13) !!} {{ $fmtRating($sec['rating']) }}/5</span>@endif
         </div>
         @if ($sec['banner'])<img class="sec-banner" src="{{ $sec['banner'] }}" alt="">@endif
-        <table class="grid2">{!! $itemRow($rows[0]) !!}</table>
+        <table {!! $gridAttr !!}>{!! $itemRow($rows[0], $cols) !!}</table>
     </div>
     @if ($rows->count() > 1)
-        <table class="grid2">
-            @foreach ($rows->slice(1) as $pair){!! $itemRow($pair) !!}@endforeach
+        <table {!! $gridAttr !!}>
+            @foreach ($rows->slice(1) as $pair){!! $itemRow($pair, $cols) !!}@endforeach
         </table>
     @endif
 @endforeach

@@ -1412,7 +1412,8 @@
                     $stateRank = ['pass' => 0, 'na' => 1, 'fail' => 2];
                     $steps = $steps->sortBy(fn ($s) => $stateRank[$rowState($s)] ?? 1)->values();
                 @endphp
-                <div class="grid2">
+                {{-- Checklist sections are laid out three cards per row. --}}
+                <div class="grid2 grid3">
                     @foreach ($steps as $step)
                         @php
                             $state = $rowState($step);
