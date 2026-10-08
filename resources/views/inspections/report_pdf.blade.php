@@ -141,15 +141,13 @@
     $quickOrFleet = $basicReport || (bool) preg_match('/^\s*(quick|fleet)\b/i', (string) $inspection->type?->name);
 
     // ---- vehicle summary rows (same order as the cover card) ----
+    // Reference No, Customer Name, Date of Inspection and Plate No are shown in
+    // the meta strip above the hero vehicle image, so they are left out here.
     $rows = [
         ['Make', $val($inspection->car_make)],
         ['Model', $val($inspection->car_model)],
         ['Year', $val($inspection->car_year)],
         ['Region', $val($inspection->region)],
-        ['Customer Name', $val($inspection->customer_name)],
-        ['Reference', $val($reportNo)],
-        ['Inspection Date', $val($inspDt)],
-        ['Plate No', $val($inspection->plate_no)],
         ['VIN / Chassis No', $val($inspection->vin)],
         ['Odometer', $val($inspection->odometer)],
         ['Exterior Colour', $val($inspection->exterior_color)],
@@ -369,9 +367,16 @@
     .rc-head img { height: 46px; }
     .rc-head h1 { margin: 0; font-family: {!! $fHead !!}; font-weight: bold; font-size: 26px; color: #0f2d43; text-align: {{ $end }}; }
     .rc-head h1 .g { color: #2fa84f; }
-    .rc-hero { padding: 24px 34px 18px; }
-    .car { position: relative; }
-    .car img.photo { width: 100%; height: 250px; border-radius: 14px; }
+    .rc-hero { padding: 10px 34px 18px; }
+    /* vehicle meta strip (Reference / Customer / Date / Plate) above the image */
+    .rc-photo-meta-wrap{padding: 16px 34px 14px;}
+    .rc-photo-meta {  background: #0c2136; border: 1px solid #2b4760; border-radius: 12px; }
+    .rc-photo-meta td { padding: 9px 16px; vertical-align: top; }
+    .rc-photo-meta td + td { border-{{ $start }}: 1px solid #2b4760; }
+    .rc-photo-meta .k { font-family: {!! $fSemi !!}; font-size: 8.5px; letter-spacing: .6px; color: #9fb0c0; text-transform: uppercase; }
+    .rc-photo-meta .v { font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; color: #fff; margin-top: 3px; }
+    .car { position: relative;border-radius: 14px;overflow: hidden;min-height: 180px;max-width: 350px;margin: 0 auto;}
+    .car img.photo { width: 100%; height: 220px; border-radius: 14px; }
     .inspected { position: absolute; top: 12px; {{ $end }}: 12px; background: #2fa84f; color: #fff; font-family: {!! $fSemi !!};
         font-size: 10px; letter-spacing: .4px; padding: 4px 12px; border-radius: 12px; }
     .gauge-score { font-family: 'Poppins ExtraBold', {!! $fBody !!}; font-size: 30px; color: #fff; text-align: center; margin-top: -40px; }
@@ -429,6 +434,9 @@
     /* gallery */
     .gal { border-collapse: separate; border-spacing: 6px 6px; width: 100%; }
     .gal td { width: 33.33%; text-align: center; }
+    /* General Photos: four across */
+    .gal-4 td { width: 25%; }
+    .gal-4 img { height: 95px; }
     .gal img { width: 100%; height: 120px; border-radius: 10px; border: 1px solid #e7eaef; }
     .gal .cap { font-size: 10px; color: #8b93a1; margin-top: 4px; }
     .doc-btn { background: #0b8a68; border-radius: 8px; padding: 8px 14px; color: #fff; font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; }
@@ -476,12 +484,20 @@
             </td>
         </tr></table>
     </div>
+<div class="rc-photo-meta-wrap">
+    <table class="rc-photo-meta" style="table-layout:fixed;"><tr>
+        <td><div class="k">Reference No</div><div class="v">{{ $val($reportNo) }}</div></td>
+        <td><div class="k">{{ $L('Customer Name') }}</div><div class="v">{{ $val($inspection->customer_name) }}</div></td>
+        <td><div class="k">{{ $L('Inspection Date') }}</div><div class="v">{{ $val($inspDt) }}</div></td>
+        <td><div class="k">{{ $L('Plate No') }}</div><div class="v">{{ $val($inspection->plate_no) }}</div></td>
+    </tr></table>
+    </div>
 
     <div class="rc-hero">
         <table @unless ($usesCalculated) style="table-layout:fixed;" @endunless><tr>
             @if ($usesCalculated)
                 {{-- Gauge (Calculated Overall Verdict) + vehicle image --}}
-                <td style="width:42%;vertical-align:middle;padding-{{ $end }}:20px;">
+                <td style="width:40%;vertical-align:middle;padding-{{ $end }}:20px;">
                     <img src="{{ $gauge }}" alt="" style="width:100%;">
                     <div class="gauge-score">{{ $fmtRating($scoreF) }}<span> / 100</span></div>
                     <div class="gauge-pill"><span style="color:{{ $condColor }};border-color:{{ $condColor }};">{{ $L($condition) }}</span></div>
@@ -629,13 +645,13 @@
 @if (! empty($photos))
     <div class="sec-bar">{{ $L($basicReport ? 'Vehicle Photos' : 'General Photos') }}</div>
     <div class="card">
-        <table class="gal">
-            @foreach (array_chunk($photos, 3) as $three)
+        <table class="gal gal-4">
+            @foreach (array_chunk($photos, 4) as $four)
                 <tr class="avoid">
-                    @foreach ($three as $p)
+                    @foreach ($four as $p)
                         <td><img src="{{ $p['file'] }}" alt=""><div class="cap">{{ $p['caption'] }}</div></td>
                     @endforeach
-                    @for ($i = count($three); $i < 3; $i++)<td></td>@endfor
+                    @for ($i = count($four); $i < 4; $i++)<td></td>@endfor
                 </tr>
             @endforeach
         </table>

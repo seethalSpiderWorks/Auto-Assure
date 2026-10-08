@@ -623,7 +623,8 @@
         .rc-head__title .sub{ margin-top:5px; font-size:11.5px; color:#8b93a1; font-weight:500; }
 
         /* ---- vehicle meta strip (above the hero vehicle image) ---- */
-        .rc-photo-meta{ display:flex; flex-wrap:wrap; margin:16px 34px 0; background:rgba(255,255,255,.06);
+        .rc-photo-meta-wrap{padding:16px 34px 0;}
+        .rc-photo-meta{ display:flex; flex-wrap:wrap;  background:rgba(255,255,255,.06);
             border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden; }
         .rc-photo-meta .cell{ flex:1 1 0; min-width:140px; padding:10px 16px; }
         .rc-photo-meta .cell + .cell{ border-left:1px solid rgba(255,255,255,.12); }
@@ -934,12 +935,14 @@
                 {{-- The gauge is the Calculated Overall Verdict; templates with that
                      switch off score nothing, so the Vehicle Summary card moves up beside
                      the vehicle image instead (card left, image right — row-reverse). --}}
-                <div class="rc-photo-meta">
+                <div class="rc-photo-meta-wrap">
+                     <div class="rc-photo-meta">
                     <div class="cell"><div class="k">Reference No</div><div class="v"><bdi>{{ $val($reportNo) }}</bdi></div></div>
                     <div class="cell"><div class="k">Customer Name</div><div class="v"><bdi>{{ $val($inspection->customer_name) }}</bdi></div></div>
                     <div class="cell"><div class="k">Date of Inspection</div><div class="v"><bdi>{{ $val($inspDt) }}</bdi></div></div>
                     <div class="cell"><div class="k">Plate Number</div><div class="v"><bdi>{{ $val($inspection->plate_no) }}</bdi></div></div>
                 </div>
+                 </div>
                 <div class="rc-top{{ $usesCalculated ? '' : ' rc-top--split' }}">
                 <div class="rc-hero{{ $usesCalculated ? '' : ' rc-hero--nogauge' }}">
                     @if ($usesCalculated)
