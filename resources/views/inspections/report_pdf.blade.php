@@ -401,6 +401,10 @@
     /* Labels stay on one line; long values wrap instead. */
     .rc-kv .k { color: #5b6472; white-space: nowrap; }
     .rc-kv .v { text-align: {{ $end }}; font-family: {!! $fBody !!}; font-weight: bold; color: #0f2d43; padding-{{ $start }}: 6px; }
+    /* Second column shaded light green, as on the screen report. */
+    .rc-kv td.alt { background: #e6f6ea; border-bottom-color: #c9e6d2; }
+    .rc-kv td.k.alt { padding-{{ $start }}: 8px; }
+    .rc-kv td.v.alt { padding-{{ $end }}: 8px; }
     .rc-verdict td { background: #fff; padding: 14px 22px; }
     .rc-verdict .lbl { font-family: {!! $fSemi !!}; font-size: 12px; color: #5b6472; }
     .rc-verdict .num { font-family: {!! $fHead !!}; font-weight: bold; font-size: 20px; color: #0f2d43; }

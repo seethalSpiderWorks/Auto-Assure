@@ -38,12 +38,12 @@
                 <tr class="{{ $r === $lineN - 1 ? 'last' : '' }}">
                     @foreach ($rowCols as $ci => $col)
                         @if ($ci > 0)<td class="gap" style="{{ $narrow ? '' : 'width:18px;' }}border-bottom:none;"></td>@endif
-                        @php $item = $col[$r] ?? null; @endphp
+                        @php $item = $col[$r] ?? null; $alt = $ci === 1 ? ' alt' : ''; @endphp
                         @if ($item)
-                            <td class="k" @if ($narrow) style="white-space:normal;" @endif>{{ $L($item[0]) }}</td>
-                            <td class="v" @if (! $narrow && mb_strlen((string) $item[1]) <= 12) style="white-space:nowrap;" @endif>{!! $fmtVal($item[1]) !!}</td>
+                            <td class="k{{ $alt }}" @if ($narrow) style="white-space:normal;" @endif>{{ $L($item[0]) }}</td>
+                            <td class="v{{ $alt }}" @if (! $narrow && mb_strlen((string) $item[1]) <= 12) style="white-space:nowrap;" @endif>{!! $fmtVal($item[1]) !!}</td>
                         @else
-                            <td class="k" style="border-bottom:none;"></td><td class="v" style="border-bottom:none;"></td>
+                            <td class="k{{ $alt }}" style="border-bottom:none;"></td><td class="v{{ $alt }}" style="border-bottom:none;"></td>
                         @endif
                     @endforeach
                 </tr>
