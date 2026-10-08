@@ -765,6 +765,11 @@
             .rc-kvgrid{ grid-auto-flow:row; grid-template-rows:none !important; grid-template-columns:1fr; }
             .rc-kvi.is-last{ border-bottom:1px solid #eef0f4; }
             .rc-kvi:last-child{ border-bottom:none; }
+            /* One list on mobile: no green shading on the second column. */
+            .rc-kvi.is-alt,
+            .rc-kvi.is-alt.is-first,
+            .rc-kvi.is-alt.is-last{ background:none; padding-left:2px; padding-right:2px; border-bottom-color:#eef0f4; border-radius:0; }
+            .rc-kvi.is-alt:last-child{ border-bottom:none; }
 
             /* Meta strip: a 2 x 2 grid, cells split by thin dotted lines. */
             .rc-photo-meta{ display:grid; grid-template-columns:1fr 1fr; border-color:rgba(255,255,255,.35); }
