@@ -13,10 +13,12 @@ use App\Models\InspectionSummary;
 use App\Models\Lead;
 use App\Support\DamageDiagramWriter;
 use App\Support\VehicleLookups;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -280,9 +282,72 @@ class InspectionController extends Controller
     }
 
     /**
+     * The report as a downloaded PDF — the English or Arabic edition, same token
+     * and same access rules as the on-screen report.
+     */
+    public function reportPdf(string $token): Response|RedirectResponse
+    {
+        return $this->downloadReport($token, 'en');
+    }
+
+    public function reportArabicPdf(string $token): Response|RedirectResponse
+    {
+        return $this->downloadReport($token, 'ar');
+    }
+
+    private function downloadReport(string $token, string $lang): Response|RedirectResponse
+    {
+        $inspection = Inspection::fromReportToken($token);
+
+        abort_if(! $inspection, 404);
+
+        if (request()->user()) {
+            $this->authorizeInspection($inspection);
+        }
+
+        if ($inspection->isCancelled()) {
+            abort_unless(request()->user(), 404);
+
+            return back()->with('error', 'This inspection is cancelled — no report is available for it.');
+        }
+
+        try {
+            // dompdf needs its own table-based layout (report_pdf) — it cannot
+            // render the screen report's flexbox. Images are read from public/.
+            $pdf = Pdf::loadHTML($this->renderReport($inspection, $lang, 'inspections.report_pdf')->render())
+                ->setPaper('a4')
+                ->setOption(['chroot' => [public_path(), storage_path('app/public'), resource_path('fonts')], 'isRemoteEnabled' => false])
+                ->output();
+        } catch (\Throwable $e) {
+            report($e);
+
+            // Not back(): the report page has no flash area, so a redirect looked
+            // like a plain reload. Say what happened; staff also see the reason
+            // (e.g. Chrome missing on the server), customers a plain message.
+            $reason = request()->user() ? '<p style="color:#b42318;">'.e($e->getMessage()).'</p>' : '';
+            $backUrl = e(url()->previous());
+
+            return response(
+                '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                .'<title>PDF unavailable</title><body style="font-family:sans-serif;max-width:560px;margin:60px auto;padding:0 16px;">'
+                .'<h2>The PDF could not be created</h2><p>Please try again in a moment.</p>'.$reason
+                .'<p><a href="'.$backUrl.'">Back to the report</a></p></body>',
+                500
+            );
+        }
+
+        $name = 'Inspection Report - '.preg_replace('/[^A-Za-z0-9_-]/', '', (string) $inspection->reference).($lang === 'ar' ? ' (AR)' : '').'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$name.'"',
+        ]);
+    }
+
+    /**
      * Loads everything the report view needs.
      */
-    private function renderReport(Inspection $inspection, string $lang = 'en'): View
+    private function renderReport(Inspection $inspection, string $lang = 'en', string $view = 'inspections.report'): View
     {
         $inspection->load([
             'lead', 'technician', 'branch',
@@ -307,7 +372,7 @@ class InspectionController extends Controller
             $summaries = array_replace($summaries, array_filter($inspection->summaryNotes('summary_ar'), 'filled'));
         }
 
-        return view('inspections.report', compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries', 'lang'));
+        return view($view, compact('inspection', 'answers', 'sectionSummaries', 'summaryTypes', 'summaries', 'lang'));
     }
 
     /**

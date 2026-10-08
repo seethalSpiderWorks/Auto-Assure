@@ -1,0 +1,25 @@
+{
+    "poppins": {
+        "normal": "\/Applications\/MAMP\/htdocs\/Auto-Assure\/storage\/fonts\/poppins_normal_607b25aa960ba7248410717f8477aeb2",
+        "bold": "poppins_bold_1f36b5beb08511a5fdf4966635114d54"
+    },
+    "poppins semibold": {
+        "normal": "poppins_semibold_normal_de058acfd64a64e534d41864bdac9ee9"
+    },
+    "poppins extrabold": {
+        "normal": "poppins_extrabold_normal_e083974dcc77e6939ced5c52f5990bee"
+    },
+    "poppins italic": {
+        "normal": "poppins_italic_normal_105c156249ef25fc1b668c2a76393c96"
+    },
+    "quicksand": {
+        "normal": "\/Applications\/MAMP\/htdocs\/Auto-Assure\/storage\/fonts\/quicksand_normal_1f43b62614a75a9f6c0ee8416c75e580",
+        "bold": "quicksand_bold_1f43b62614a75a9f6c0ee8416c75e580"
+    },
+    "quicksand semibold": {
+        "normal": "quicksand_semibold_normal_c58e4f5009e479e81e30173ac68cd3c6"
+    },
+    "p": {
+        "normal": "p_normal_607b25aa960ba7248410717f8477aeb2"
+    }
+}

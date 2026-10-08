@@ -64,6 +64,14 @@ Route::get('report/inspection-ar/{token}', [InspectionController::class, 'report
     ->where('token', '[A-Za-z0-9]{10}')
     ->name('inspections.report.ar');
 
+// The same two reports as a downloaded PDF (printed server-side by headless Chrome).
+Route::get('report/inspection/{token}/pdf', [InspectionController::class, 'reportPdf'])
+    ->where('token', '[A-Za-z0-9]{10}')
+    ->name('inspections.report.pdf');
+Route::get('report/inspection-ar/{token}/pdf', [InspectionController::class, 'reportArabicPdf'])
+    ->where('token', '[A-Za-z0-9]{10}')
+    ->name('inspections.report.ar.pdf');
+
 Route::group(['middleware' => 'auth'], function () {
     Route::get('inspections', [InspectionController::class, 'index'])->name('inspections.index');
     Route::get('inspections/{inspection}/edit', [InspectionController::class, 'edit'])->name('inspections.edit');

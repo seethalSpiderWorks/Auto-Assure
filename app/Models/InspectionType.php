@@ -14,7 +14,7 @@ class InspectionType extends Model
      * Templates whose report prints the basic format the client asked for —
      * cover / Vehicle Summary, Inspection Summary, Vehicle Photos and Paint
      * Inspection Images, plus the answered checklist sections. Everything else
-     * (diagnostic media, EV & PHEV, technical measurements, signatures) is left out.
+     * (diagnostic media, EV & PHEV, technical measurements) is left out.
      *
      * Kept as a list of names rather than a column so no schema change is
      * needed; add a template here to give it the basic report.
