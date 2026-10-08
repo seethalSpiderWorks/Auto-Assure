@@ -325,7 +325,7 @@
         .doc-tag{ color:#aab0bb; font-family:'Quicksand',sans-serif; font-weight:500; font-size:12px; }
 
         /* ---- dark section bar (navy w/ emerald accent edge) ---- */
-        .sec-bar{ background:var(--bar); color:#fff; border-radius:10px; padding:10px; margin:0 0 18px;
+        .sec-bar{ background:var(--brand); color:#fff; border-radius:10px; padding:10px; margin:0 0 18px;
             box-shadow:inset 5px 0 0 var(--brand-2); display:flex; align-items:center; justify-content:space-between; }
         .sec-bar .en{ font-family:'Quicksand',sans-serif; font-weight:600; font-size:16px; }
         .sec-bar .ar{ font-size:14px; color:#cfd4dc; font-weight:400; }
@@ -342,6 +342,8 @@
         .card.tight{ padding:16px 18px; }
         .grid2{ display:flex; flex-wrap:wrap; gap:10px; }
         .grid2 > .item-card{ flex:1 1 calc(50% - 8px); min-width:calc(50% - 8px); margin-bottom:0; }
+        /* Inspection Summary: three cards per row (stacks on phones, below). */
+        .grid3 > .item-card{ flex:0 0 calc((100% - 20px) / 3); min-width:calc((100% - 20px) / 3); }
 
         /* ---- item (check) card ---- */
         .item-card{ background:var(--card); border-radius:10px; padding:10px; box-shadow:0 6px 18px rgba(24,33,54,.06);
@@ -356,14 +358,14 @@
         .doc-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
         .doc-row{ display:flex; min-width:0; }
         .doc-row__ico{ flex:0 0 auto; }
-        .doc-row__name{ font-weight:700; font-size:13px; color:#fff; overflow:hidden;
+        .doc-row__name{ font-weight:700; font-size:13px; color:var(--brand); overflow:hidden;
              text-overflow:ellipsis; white-space:nowrap; }
         /* The URL is long and must stay inside the page in print, hence the break. */
         .doc-row__link{ display:block; margin-top:3px; font-size:11px; color:#0b8a68; text-decoration:none;
              word-break:break-all; }
         /* Button wrapping the file icon + name for each diagnostic media link. */
         .doc-row__btn{ display:flex; align-items:center; gap:10px; width:100%; min-width:0; padding:8px 16px;
-             background:#0b8a68; border-radius:8px; text-decoration:none; }
+             background:#fff; border:1.5px solid var(--brand); color:var(--brand); border-radius:8px; text-decoration:none; }
 
         .thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
         .thumb{ width:96px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
@@ -624,13 +626,13 @@
 
         /* ---- vehicle meta strip (above the hero vehicle image) ---- */
         .rc-photo-meta-wrap{padding:16px 34px 0;}
-        .rc-photo-meta{ display:flex; flex-wrap:wrap;  background:rgba(255,255,255,.06);
-            border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden; }
+        .rc-photo-meta{ display:flex; flex-wrap:wrap;  background:var(--brand);
+            border:1px solid rgba(255,255,255,.18); border-radius:12px; overflow:hidden; }
         .rc-photo-meta .cell{ flex:1 1 0; min-width:140px; padding:10px 16px; }
-        .rc-photo-meta .cell + .cell{ border-left:1px solid rgba(255,255,255,.12); }
-        .rc-photo-meta .k{ font-size:9.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:#9fb0c0; }
+        .rc-photo-meta .cell + .cell{ border-left:1px solid rgba(255,255,255,.22); }
+        .rc-photo-meta .k{ font-size:9.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:#cdeedb; }
         .rc-photo-meta .v{ font-size:13.5px; font-weight:700; color:#fff; margin-top:3px; word-break:break-word; }
-        [dir="rtl"] .rc-photo-meta .cell + .cell{ border-left:0; border-right:1px solid rgba(255,255,255,.12); }
+        [dir="rtl"] .rc-photo-meta .cell + .cell{ border-left:0; border-right:1px solid rgba(255,255,255,.22); }
 
         /* ---- hero band (navy — sits directly on the cover canvas) ---- */
         .rc-hero{ display:flex; align-items:center; gap:24px; padding:24px 34px 22px; }
@@ -666,8 +668,8 @@
         /* ---- info cards (Vehicle Summary + <Make> Details) ---- */
         .rc-cards{ display:flex; gap:16px; padding:2px 34px 16px; align-items:stretch; }
         .rc-card{ flex:1 1 0; min-width:0; background:#fff; border-radius:12px; overflow:hidden;
-            box-shadow:0 8px 22px rgba(0,0,0,.22); }
-        .rc-card__head{ display:flex; align-items:center; gap:10px; background:#0f2d43; color:#fff; padding:11px 18px; }
+            border:2px solid var(--brand-2); box-shadow:0 8px 22px rgba(0,0,0,.22); }
+        .rc-card__head{ display:flex; align-items:center; gap:10px; background:var(--brand); color:#fff; padding:11px 18px; }
         .rc-card__head .ic{ flex:0 0 auto; display:flex; }
         .rc-card__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
         .rc-card__body{ padding:10px; }
@@ -676,6 +678,10 @@
            the row, so a long label wraps before the value is squeezed. */
         .rc-kvi{ display:grid; grid-template-columns:minmax(0, max-content) minmax(55%, 1fr); align-items:center; gap:8px; padding:6.5px 2px;
             border-bottom:1px solid #eef0f4; font-size:11px; }
+        /* Second column of the Vehicle Summary shaded light green. */
+        .rc-kvi.is-alt{ background:#e6f6ea; padding-left:10px; padding-right:10px; border-bottom-color:#c9e6d2; }
+        .rc-kvi.is-alt.is-first{ border-radius:8px 8px 0 0; }
+        .rc-kvi.is-alt.is-last{ border-radius:0 0 8px 8px; }
         .rc-kvi.is-last{ border-bottom:none; }
         .rc-kvi .k{ color:#5b6472; font-weight:500; }
         .rc-kvi .v{ text-align:right; font-weight:700; color:#0f2d43; overflow-wrap:anywhere; }
@@ -699,8 +705,8 @@
 
         /* ---- inspector comment ---- */
         .rc-comment{ margin:0 34px 18px; background:#fff; border-radius:12px; overflow:hidden;
-            box-shadow:0 8px 22px rgba(0,0,0,.22); }
-        .rc-comment__head{ display:flex; align-items:center; gap:10px; background:#0f2d43; color:#fff; padding:11px 18px; }
+            border:2px solid var(--brand-2); box-shadow:0 8px 22px rgba(0,0,0,.22); }
+        .rc-comment__head{ display:flex; align-items:center; gap:10px; background:var(--brand); color:#fff; padding:11px 18px; }
         .rc-comment__head .t{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:15px; }
         .rc-comment__body{ padding:10px; font-size:12px; line-height:1.7; color:#2b3340; white-space:pre-line; }
 
@@ -999,7 +1005,7 @@
                                  on the other. Stacks into a single list on small screens. --}}
                             <div class="rc-kvgrid" style="grid-template-rows:repeat({{ $dataPer }}, auto);">
                                 @foreach ($dataRows as $sp)
-                                    <div class="rc-kvi{{ ($loop->iteration % $dataPer === 0 || $loop->last) ? ' is-last' : '' }}">
+                                    <div class="rc-kvi{{ ($loop->iteration % $dataPer === 0 || $loop->last) ? ' is-last' : '' }}{{ $loop->index % $dataPer === 0 ? ' is-first' : '' }}{{ intdiv($loop->index, $dataPer) === 1 ? ' is-alt' : '' }}">
                                         <span class="k">{{ $L($sp[0]) }}</span><span class="v"><bdi>{{ $sp[1] }}</bdi></span>
                                     </div>
                                 @endforeach
@@ -1051,7 +1057,7 @@
                         <span class="t">{{ $L('Inspection Summary') }}</span>
                     </div>
                     <div class="rc-comment__body" style="white-space:normal;">
-                        <div class="grid2">
+                        <div class="grid2 grid3">
                             @foreach ($areaNotes as $an)
                                 <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);box-shadow:none;">
                                     <div style="display:flex;align-items:center;gap:10px;">
@@ -1130,7 +1136,7 @@
         <div class="page">
             <div class="sec-bar"><span class="en">{{ $L('Inspection Summary') }}</span></div>
 
-            <div class="grid2">
+            <div class="grid2 grid3">
                 @foreach ($areaNotes as $an)
                     <div class="item-card" style="margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
                         <div style="display:flex;align-items:center;gap:10px;">
@@ -1172,7 +1178,7 @@
                 @foreach ($diagnosticDocs as $doc)
                     <div class="doc-row">
                         <a class="doc-row__btn" @if ($doc->url) href="{{ $doc->url }}" target="_blank" rel="noopener" @endif>
-                            <svg class="doc-row__ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <svg class="doc-row__ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1.5a1.5 1.5 0 0 0 0-3H9v6M14 18v-6h1.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5H14"/>
                             </svg>
                             <span class="doc-row__name">{{ $doc->label ?: ($doc->original_name ?: 'Document') }}</span>

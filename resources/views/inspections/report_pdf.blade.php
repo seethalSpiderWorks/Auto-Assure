@@ -370,10 +370,12 @@
     .rc-hero { padding: 10px 34px 18px; }
     /* vehicle meta strip (Reference / Customer / Date / Plate) above the image */
     .rc-photo-meta-wrap{padding: 16px 34px 14px;}
-    .rc-photo-meta {  background: #0c2136; border: 1px solid #2b4760; border-radius: 12px; }
+    /* Box (green + rounded border) on a div: dompdf cannot round a table's border. */
+    .rc-photo-meta {  background: #0c7a50; border: 1px solid #3d9573; border-radius: 12px; }
+    .rc-photo-meta table { width: 100%; table-layout: fixed; }
     .rc-photo-meta td { padding: 9px 16px; vertical-align: top; }
-    .rc-photo-meta td + td { border-{{ $start }}: 1px solid #2b4760; }
-    .rc-photo-meta .k { font-family: {!! $fSemi !!}; font-size: 8.5px; letter-spacing: .6px; color: #9fb0c0; text-transform: uppercase; }
+    .rc-photo-meta td + td { border-{{ $start }}: 1px solid #449a79; }
+    .rc-photo-meta .k { font-family: {!! $fSemi !!}; font-size: 8.5px; letter-spacing: .6px; color: #cdeedb; text-transform: uppercase; }
     .rc-photo-meta .v { font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; color: #fff; margin-top: 3px; }
     .car { position: relative;border-radius: 14px;overflow: hidden;min-height: 180px;max-width: 350px;margin: 0 auto;}
     .car img.photo { width: 100%; height: 220px; border-radius: 14px; }
@@ -388,7 +390,7 @@
     .gauge-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 4px; margin-{{ $end }}: 4px; }
 
     .rc-card { background: #fff; border-radius: 12px; }
-    .rc-card__head { background: #0f2d43; color: #fff; padding: 10px 18px; border-radius: 12px 12px 0 0;
+    .rc-card__head { background: #0c7a50; color: #fff; padding: 10px 18px; border-radius: 12px 12px 0 0;
         font-family: {!! $fHead !!}; font-weight: bold; font-size: 15px; }
     .rc-card__body { padding: 6px 18px 10px; }
     .rc-kv td { padding: 6px 2px; border-bottom: 1px solid #eef0f4; font-size: 10.5px; vertical-align: middle; }
@@ -409,7 +411,7 @@
 
     /* ---- content pages ---- */
     .content { padding: 0 24px 10px; }
-    .sec-bar { background: #00263d; color: #fff; border-radius: 10px; border-{{ $start }}: 5px solid #12a150;
+    .sec-bar { background: #0c7a50; color: #fff; border-radius: 10px; border-{{ $start }}: 5px solid #12a150;
         padding: 10px 12px; margin: 14px 0 14px; font-family: {!! $fHeadSemi !!}; font-size: 16px; page-break-after: avoid; page-break-inside: avoid; }
     .sec-bar .rate { float: {{ $end }}; font-size: 12px; color: #cfd4dc; }
     .make-h { font-family: {!! $fHead !!}; font-weight: bold; font-size: 20px; color: #1c2431; margin: 18px 2px 2px; page-break-after: avoid; }
@@ -422,6 +424,8 @@
     .grid2 td.cell { width: 49%; background: #fff; border: 1px solid #e7eaef; border-radius: 10px; padding: 10px; }
     .grid2 td.gap { width: 2%; }
     .grid2 td.blank { width: 49%; }
+    /* Inspection Summary: three cards per row. */
+    .grid2.grid3 td.cell, .grid2.grid3 td.blank { width: 32%; }
     .badge { font-family: 'DejaVu Sans'; font-weight: bold; color: #fff; font-size: 11px; padding: 1px 5px; border-radius: 4px; }
     .b-pass { background: #35a44d; } .b-fail { background: #e02424; } .b-na { background: #f5a623; }
     .item-title { font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; color: #1c2431; }
@@ -439,7 +443,7 @@
     .gal-4 img { height: 95px; }
     .gal img { width: 100%; height: 120px; border-radius: 10px; border: 1px solid #e7eaef; }
     .gal .cap { font-size: 10px; color: #8b93a1; margin-top: 4px; }
-    .doc-btn { background: #0b8a68; border-radius: 8px; padding: 8px 14px; color: #fff; font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; }
+    .doc-btn { background: #fff; border: 1.5px solid #0c7a50; border-radius: 8px; padding: 8px 14px; color: #0c7a50; font-family: {!! $fBody !!}; font-weight: bold; font-size: 12px; }
 
     /* EV / technical tables */
     .dt { border: 1px solid #e7eaef; border-radius: 10px; background: #fff; }
@@ -485,12 +489,12 @@
         </tr></table>
     </div>
 <div class="rc-photo-meta-wrap">
-    <table class="rc-photo-meta" style="table-layout:fixed;"><tr>
+    <div class="rc-photo-meta"><table><tr>
         <td><div class="k">Reference No</div><div class="v">{{ $val($reportNo) }}</div></td>
         <td><div class="k">{{ $L('Customer Name') }}</div><div class="v">{{ $val($inspection->customer_name) }}</div></td>
         <td><div class="k">{{ $L('Inspection Date') }}</div><div class="v">{{ $val($inspDt) }}</div></td>
         <td><div class="k">{{ $L('Plate No') }}</div><div class="v">{{ $val($inspection->plate_no) }}</div></td>
-    </tr></table>
+    </tr></table></div>
     </div>
 
     <div class="rc-hero">
@@ -580,8 +584,8 @@
 {{-- ============================== INSPECTION SUMMARY ============================== --}}
 @if (! empty($areaNotes))
     <div class="sec-bar">{{ $L('Inspection Summary') }}</div>
-    <table class="grid2">
-        @foreach (array_chunk($areaNotes, 2) as $pair)
+    <table class="grid2 grid3" style="table-layout:fixed;">
+        @foreach (array_chunk($areaNotes, 3) as $pair)
             <tr class="avoid">
                 @foreach ($pair as $an)
                     <td class="cell">
@@ -593,7 +597,7 @@
                     </td>
                     @if (! $loop->last)<td class="gap"></td>@endif
                 @endforeach
-                @if (count($pair) === 1)<td class="gap"></td><td class="blank"></td>@endif
+                @for ($i = count($pair); $i < 3; $i++)<td class="gap"></td><td class="blank"></td>@endfor
             </tr>
         @endforeach
     </table>
