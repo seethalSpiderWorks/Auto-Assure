@@ -506,7 +506,7 @@
                         <span><i style="background:#efb008"></i>{{ $L('Fair') }}</span>
                         <span><i style="background:#f2903f"></i>{{ $L('Good') }}</span>
                         <span><i style="background:#5ab84d"></i>{{ $L('Very Good') }}</span>
-                        <span><i style="background:#2fa84f"></i>{{ $L('Excellent') }}</span>
+                        <span><i style="background:#2fa84f"></i>{{ $L('Excellent') }}</span>   
                     </div>
                 </td>
                 <td style="vertical-align:middle;">
