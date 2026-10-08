@@ -424,6 +424,8 @@
         /* ---- gallery ---- */
         .gal{ display:flex; flex-wrap:wrap; gap:12px; }
         .gal figure{ margin:0; width:calc(33.333% - 8px); }
+        /* General Photos gallery: 4 across on desktop (see media queries for mobile) */
+        .gal--4 figure{ width:calc(25% - 9px); }
         .gal a{ display:block; cursor:zoom-in; }
         .gal img{ width:100%; height:120px; object-fit:cover; border-radius:10px; border:1px solid var(--line); display:block; }
         .gal figcaption{ text-align:center; font-size:10.5px; color:var(--muted); margin-top:5px; }
@@ -564,6 +566,7 @@
 
             /* galleries: two across instead of three */
             .gal figure{ width:calc(50% - 6px); }
+            .gal--4 figure{ width:calc(50% - 6px); }
             .gal img{ height:140px; }
 
             /* diagnostic doc buttons stack one per row */
@@ -586,6 +589,8 @@
 
         @media screen and (max-width:420px){
             .gal figure{ width:100%; }
+            /* General Photos stays 2-up on phones (client request) */
+            .gal--4 figure{ width:calc(50% - 6px); }
             .cover .vcard__tiles,
             .cover .vcard--noimg .vcard__tiles{ grid-template-columns:1fr; }
             .sign .col{ flex:1 1 100%; min-width:0; }
@@ -613,22 +618,32 @@
         .rc-head__title h1 .g{ color:#2fa84f; }
         .rc-head__title .sub{ margin-top:5px; font-size:11.5px; color:#8b93a1; font-weight:500; }
 
+        /* ---- vehicle meta strip (above the hero vehicle image) ---- */
+        .rc-photo-meta{ display:flex; flex-wrap:wrap; margin:16px 34px 0; background:rgba(255,255,255,.06);
+            border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden; }
+        .rc-photo-meta .cell{ flex:1 1 0; min-width:140px; padding:10px 16px; }
+        .rc-photo-meta .cell + .cell{ border-left:1px solid rgba(255,255,255,.12); }
+        .rc-photo-meta .k{ font-size:9.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:#9fb0c0; }
+        .rc-photo-meta .v{ font-size:13.5px; font-weight:700; color:#fff; margin-top:3px; word-break:break-word; }
+        [dir="rtl"] .rc-photo-meta .cell + .cell{ border-left:0; border-right:1px solid rgba(255,255,255,.12); }
+
         /* ---- hero band (navy — sits directly on the cover canvas) ---- */
         .rc-hero{ display:flex; align-items:center; gap:24px; padding:24px 34px 22px; }
-        .rc-hero__gauge{ flex:0 0 40%; max-width:40%; text-align:center; }
+        .rc-hero__gauge{ flex:0 0 34%; max-width:34%; text-align:center; }
+        .rc-hero__gauge .cover-gauge{ max-width:260px; }
         .rc-hero__car{ flex:1 1 auto; position:relative; border-radius:14px; overflow:hidden;
-            background:#0c2136; min-height:220px; max-width:500px; margin:0 auto; }
-        .rc-hero__car > img{ width:100%; height:100%; max-height:280px; object-fit:cover; display:block; }
+            background:#0c2136; min-height:180px; max-width:350px; margin:0 auto; }
+        .rc-hero__car > img{ width:100%; height:100%; max-height:220px; object-fit:cover; display:block; }
         /* Gauge off (template without the Calculated Overall Verdict): the image is
            the whole band, so it gets a fixed banner height instead of the 40/60 split. */
         .rc-hero--nogauge .rc-hero__car{ min-height:0; }
-        .rc-hero--nogauge .rc-hero__car > img{ height:300px; max-height:300px; object-position:center; }
+        .rc-hero--nogauge .rc-hero__car > img{ height:240px; max-height:240px; object-position:center; }
         /* No gauge: Vehicle Summary card on the left, vehicle image on the right,
            both the same height. row-reverse keeps the markup order (hero, cards). */
         .rc-top--split{ display:flex; flex-direction:row-reverse; align-items:stretch; gap:20px; padding:24px 34px 16px; }
         .rc-top--split .rc-hero{ flex:0 0 50%; max-width:50%; padding:0; }
         .rc-top--split .rc-hero__car{ width:100%; height:100%; max-width:none; margin:0; }
-        .rc-top--split .rc-hero__car > img{ height:100%; min-height:260px; max-height:none; }
+        .rc-top--split .rc-hero__car > img{ height:100%; min-height:210px; max-height:none; }
         .rc-top--split .rc-cards{ flex:1 1 auto; min-width:0; padding:0; }
         .rc-inspected{ position:absolute; top:14px; right:14px; display:inline-flex; align-items:center; gap:6px;
             background:#2fa84f; color:#fff; font-weight:700; font-size:11px; letter-spacing:.4px; padding:6px 13px; border-radius:20px; }
@@ -640,7 +655,7 @@
         .rc-gauge-pill{ display:inline-block; margin-top:10px; padding:5px 22px; border-radius:999px;
             font-size:14px; font-weight:700; letter-spacing:.3px; border:1.5px solid; }
         .rc-gauge-legend{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px;
-            font-size:10.5px; font-weight:600; color:#c2cede; }
+            font-size:9px; font-weight:600; color:#c2cede; }
         .rc-gauge-legend i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 
         /* ---- info cards (Vehicle Summary + <Make> Details) ---- */
@@ -819,15 +834,14 @@
 
                 // Card data.
                 $specMap = collect($specs)->mapWithKeys(fn ($sp) => [$sp[0] => $sp[1]]);
+                // Reference No, Customer Name, Date of Inspection and Plate No are
+                // shown in the meta strip above the hero vehicle image, so they are
+                // left out of the Vehicle Summary card here.
                 $summaryRows = [
                     ['Make',  $specMap['Make']],
                     ['Model', $specMap['Model']],
                     ['Year',  $specMap['Year']],
                     ['Region', $specMap['Region']],
-                    ['Customer Name', $val($inspection->customer_name)],
-                    ['Reference', $val($reportNo)],
-                    ['Inspection Date', $val($inspDt)],
-                    ['Plate No', $specMap['Plate No']],
                 ];
                 // Make, Model, Year, Region and Plate No are already shown in the Vehicle Summary card.
                 $detailSpecs = array_values(array_filter($specs, fn ($sp) => ! in_array($sp[0], ['Make', 'Model', 'Year', 'Region', 'Plate No'], true)));
@@ -862,6 +876,12 @@
                 {{-- The gauge is the Calculated Overall Verdict; templates with that
                      switch off score nothing, so the Vehicle Summary card moves up beside
                      the vehicle image instead (card left, image right — row-reverse). --}}
+                <div class="rc-photo-meta">
+                    <div class="cell"><div class="k">Reference No</div><div class="v"><bdi>{{ $val($reportNo) }}</bdi></div></div>
+                    <div class="cell"><div class="k">Customer Name</div><div class="v"><bdi>{{ $val($inspection->customer_name) }}</bdi></div></div>
+                    <div class="cell"><div class="k">Date of Inspection</div><div class="v"><bdi>{{ $val($inspDt) }}</bdi></div></div>
+                    <div class="cell"><div class="k">Plate Number</div><div class="v"><bdi>{{ $val($inspection->plate_no) }}</bdi></div></div>
+                </div>
                 <div class="rc-top{{ $usesCalculated ? '' : ' rc-top--split' }}">
                 <div class="rc-hero{{ $usesCalculated ? '' : ' rc-hero--nogauge' }}">
                     @if ($usesCalculated)
@@ -1114,7 +1134,7 @@
         <div class="page">
             <div class="sec-bar"><span class="en">{{ $L($basicReport ? 'Vehicle Photos' : 'General Photos') }}</span></div>
             <div class="card photos">
-                <div class="gal">
+                <div class="gal gal--4">
                     @foreach ($reportPhotos as $p)
                         <figure>
                             <a href="{{ $p['media']->url }}" data-fancybox="general-photos" data-caption="{{ $p['caption'] }}">
