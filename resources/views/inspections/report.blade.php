@@ -645,12 +645,13 @@
            the whole band, so it gets a fixed banner height instead of the 40/60 split. */
         .rc-hero--nogauge .rc-hero__car{ min-height:0; }
         .rc-hero--nogauge .rc-hero__car > img{ height:240px; max-height:240px; object-position:center; }
-        /* No gauge: Vehicle Summary card on the left, vehicle image on the right,
-           both the same height. row-reverse keeps the markup order (hero, cards). */
+        /* No gauge: Vehicle Summary card on the left, vehicle image on the right.
+           row-reverse keeps the markup order (hero, cards). */
         .rc-top--split{ display:flex; flex-direction:row-reverse; align-items:stretch; gap:20px; padding:24px 34px 16px; }
         .rc-top--split .rc-hero{ flex:0 0 50%; max-width:50%; padding:0; }
-        .rc-top--split .rc-hero__car{ width:100%; height:100%; max-width:none; margin:0; }
-        .rc-top--split .rc-hero__car > img{ height:100%; min-height:210px; max-height:none; }
+        /* Same image size as the gauge layout (Comprehensive): at most 350 x 220, centred in its half. */
+        .rc-top--split .rc-hero__car{ width:100%; max-width:350px; margin:0 auto; }
+        .rc-top--split .rc-hero__car > img{ height:auto; max-height:220px; }
         .rc-top--split .rc-cards{ flex:1 1 auto; min-width:0; padding:0; }
         .rc-inspected{ position:absolute; top:14px; right:14px; display:inline-flex; align-items:center; gap:6px;
             background:#2fa84f; color:#fff; font-weight:700; font-size:11px; letter-spacing:.4px; padding:6px 13px; border-radius:20px; }
@@ -764,6 +765,15 @@
             .rc-kvgrid{ grid-auto-flow:row; grid-template-rows:none !important; grid-template-columns:1fr; }
             .rc-kvi.is-last{ border-bottom:1px solid #eef0f4; }
             .rc-kvi:last-child{ border-bottom:none; }
+
+            /* Meta strip: a 2 x 2 grid, cells split by thin dotted lines. */
+            .rc-photo-meta{ display:grid; grid-template-columns:1fr 1fr; border-color:rgba(255,255,255,.35); }
+            .rc-photo-meta .cell{ min-width:0; }
+            .rc-photo-meta .cell + .cell,
+            [dir="rtl"] .rc-photo-meta .cell + .cell{ border-left:0; border-right:0; }
+            .rc-photo-meta .cell:nth-child(odd),
+            [dir="rtl"] .rc-photo-meta .cell:nth-child(odd){ border-inline-end:1px dotted rgba(255,255,255,.45); }
+            .rc-photo-meta .cell:nth-child(n+3){ border-top:1px dotted rgba(255,255,255,.45); }
         }
 
         {{-- On phones the data columns stack into a single readable list. --}}

@@ -526,12 +526,10 @@
                     @include('inspections._report_pdf_summary')
                 </td>
                 @if ($coverImg)
-                    {{-- The photo is the cell's background, sized to cover: the cell is
-                         as tall as the Vehicle Summary card beside it, so the image fills
-                         that height and is cropped to fit — the screen report's
-                         object-fit: cover, which an <img> cannot do in dompdf. --}}
-                    <td style="width:50%;vertical-align:top;border-radius:14px;background:#0c2136 url('{{ $coverImg }}') no-repeat center center;background-size:cover;">
-                        <div style="padding:12px;"><div style="float:{{ $end }};background:#2fa84f;color:#fff;font-family:{!! $fSemi !!};font-size:10px;letter-spacing:.4px;padding:4px 12px;border-radius:12px;"><span style="font-family:'DejaVu Sans';">&#10003;</span> INSPECTED</div></div>
+                    {{-- Same image box as the gauge layout (Comprehensive): at most
+                         350 x 220, centred in its half. --}}
+                    <td style="width:50%;vertical-align:middle;">
+                        <div class="car"><img class="photo" src="{{ $coverImg }}" alt=""><span class="inspected"><span style="font-family:'DejaVu Sans';">&#10003;</span> INSPECTED</span></div>
                     </td>
                 @endif
             @endif
