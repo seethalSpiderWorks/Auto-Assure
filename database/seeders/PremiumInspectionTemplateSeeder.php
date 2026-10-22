@@ -70,8 +70,11 @@ class PremiumInspectionTemplateSeeder extends Seeder
                 'Power Locks', 'Power Mirrors', 'Power Folding Mirrors', 'Sunroof', 'Panoramic Roof',
                 'Leather Seats', 'Front Fog Lights', 'Halogen Headlight',
             ],
+            // Not from the reference report: the same items as Comprehensive's
+            // After Market, at the client's request.
             'Aftermarket Added Accessories' => [
-                'Fire Extinguisher',
+                'Winch', 'Body Kit', 'Lift Kit', 'Leather Seats', 'Rear Seat Entertain. Sys',
+                'Parking Sensors', 'Rear View Camera', 'Navigation', 'Fire Extinguisher',
             ],
         ],
 
