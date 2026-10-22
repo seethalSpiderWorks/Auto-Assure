@@ -10,5 +10,5 @@
             @endforeach
         </div>
     @endif
-    <div style="text-align:center;"><img src="{{ $d['file'] }}" alt="" style="max-width:80%;max-height:270px;"></div>
+    <div style="text-align:center;"><img src="{{ $d['file'] }}" alt="" style="max-width:80%;max-height:150px;"></div>
 </div>
