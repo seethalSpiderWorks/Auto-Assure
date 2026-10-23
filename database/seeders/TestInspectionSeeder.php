@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * One finished inspection per newly added template — Premium, Quick and Fleet —
+ * One finished inspection per template — Comprehensive, Premium, Quick and Fleet —
  * so each can be opened, printed and shared without waiting for a real job.
  *
  * Each is filled the way a technician would leave it: every question answered
@@ -23,13 +23,18 @@ use Illuminate\Support\Str;
  * damage diagrams, a few photos and a report link.
  *
  * Test rows are recognised by their plate (TEST-<id>), so re-running refreshes
- * the same three inspections instead of piling up new ones. Nothing else in the
+ * the same inspections instead of piling up new ones. Nothing else in the
  * database is touched.
  */
 class TestInspectionSeeder extends Seeder
 {
     /** template name => [plate, vehicle, customer] */
     private const CASES = [
+        'Comprehensive Vehicle Inspection' => [
+            'plate' => 'TEST-CMP',
+            'car' => ['Toyota', 'Land Cruiser', 2020, 2020, 'JTMHV05J804123456', 'Black', 97350],
+            'customer' => ['Ahmed Al Kuwari', 'أحمد الكواري', 'ahmed.alkuwari@example.test', '+974 33 777 888'],
+        ],
         'Premium Inspection' => [
             'plate' => 'TEST-PRM',
             'car' => ['Lexus', 'RX 350', 2021, 2021, 'JTJBZMCA2N2041881', 'Pearl White', 68420],
@@ -248,25 +253,60 @@ class TestInspectionSeeder extends Seeder
                 continue;
             }
 
-            $path = "inspections/{$inspection->id}/damage/{$diagram->key}-test.png";
-
-            if (! Storage::disk('public')->exists($path)) {
-                Storage::disk('public')->put($path, Storage::disk('public')->get($diagram->image));
+            $base = imagecreatefromstring(Storage::disk('public')->get($diagram->image));
+            if (! $base) {
+                continue;
             }
+            $w = imagesx($base);
+            $h = imagesy($base);
 
+            // Dots placed as fractions of the diagram, so they land on the car
+            // whatever size the base image is. Coordinates are canvas pixels,
+            // the same as the edit screen stores.
             $palette = $diagram->palette();
-            $images[$diagram->key] = $path;
-            $marks[$diagram->key] = collect([[320, 280], [520, 350], [740, 470], [940, 300]])
+            $diagramMarks = collect([[0.24, 0.36], [0.39, 0.45], [0.55, 0.6], [0.7, 0.38], [0.47, 0.25]])
                 ->map(fn ($xy, $i) => [
-                    'x' => $xy[0],
-                    'y' => $xy[1],
+                    'x' => (int) round($xy[0] * $w),
+                    'y' => (int) round($xy[1] * $h),
                     'c' => optional($palette->get($i % max($palette->count(), 1)))->colour ?? '#f44336',
                 ])->all();
+
+            $path = "inspections/{$inspection->id}/damage/{$diagram->key}-test.png";
+            Storage::disk('public')->put($path, $this->drawMarks($base, $diagramMarks));
+
+            $images[$diagram->key] = $path;
+            $marks[$diagram->key] = $diagramMarks;
         }
 
         if ($images) {
             $inspection->forceFill(['damage_images' => $images, 'damage_marks' => $marks])->save();
         }
+    }
+
+    /**
+     * The diagram with its dots drawn on, as PNG bytes — the same marker the
+     * edit screen paints (radius 0.8% of the width, at least 5px, dark ring), so
+     * the report shows what a technician's save would.
+     *
+     * @param  array<int, array{x: int, y: int, c: string}>  $marks
+     */
+    private function drawMarks(\GdImage $img, array $marks): string
+    {
+        $r = max(5, (int) round(imagesx($img) * 0.008));
+        $ring = imagecolorallocate($img, 28, 36, 48);
+        $ringWidth = max(1, (int) round($r * 0.25));
+
+        foreach ($marks as $m) {
+            [$red, $green, $blue] = sscanf(ltrim($m['c'], '#'), '%02x%02x%02x');
+            imagefilledellipse($img, $m['x'], $m['y'], ($r + $ringWidth) * 2, ($r + $ringWidth) * 2, $ring);
+            imagefilledellipse($img, $m['x'], $m['y'], $r * 2, $r * 2, imagecolorallocate($img, $red, $green, $blue));
+        }
+
+        ob_start();
+        imagepng($img);
+        imagedestroy($img);
+
+        return (string) ob_get_clean();
     }
 
     /**

@@ -495,13 +495,15 @@
         'cancelled'   => 'badge-soft-danger',
     ];
 
-    // Build the wizard step list: Details → each checklist section → Verdict.
+    // Build the wizard step list: Details → each checklist section →
+    // Additional Damage Photos → Verdict.
     // No type when the template was deleted — only Details/Verdict show until one is picked.
     $sections = $inspection->type?->sections ?? collect();
     $wsteps = [['type' => 'details', 'name' => 'Customer & Vehicle']];
     foreach ($sections as $s) {
         $wsteps[] = ['type' => 'section', 'name' => $s->sequence . '. ' . $s->section_name, 'section' => $s];
     }
+    $wsteps[] = ['type' => 'damage', 'name' => 'Additional Damage Photos'];
     $wsteps[] = ['type' => 'verdict', 'name' => 'Verdict & Complete'];
     $totalW = count($wsteps);
     $sectionProgress = $inspection->sectionProgress();
@@ -587,6 +589,7 @@
              data-customer-url="{{ route('inspections.autosave.customer', $inspection) }}"
              data-media-url="{{ route('inspections.media.upload', $inspection) }}"
              data-extra-media-url="{{ route('inspections.extra-media.upload', $inspection) }}"
+             data-damage-photos-url="{{ route('inspections.damage-photos.upload', $inspection) }}"
              data-vehicle-image-url="{{ route('inspections.vehicle-image.upload', $inspection) }}"
              data-damage-diagrams-url="{{ route('inspections.damage-diagrams.save', $inspection) }}"
              data-section-media-base="{{ url("inspections/".$inspection->id."/sections") }}"
@@ -1196,6 +1199,49 @@
                                 </div>
                             </div>
 
+                        {{-- ======================= ADDITIONAL DAMAGE PHOTOS STEP =======================
+                             Optional photos of damage not covered by a question, uploaded
+                             instantly to their own bucket and printed under Damage Photos
+                             in the report. --}}
+                        @elseif ($ws['type'] === 'damage')
+                            <div class="card">
+                                <div class="card-header bg-transparent d-flex align-items-center" style="gap:.7rem;">
+                                    <span class="sec-head-icon"><i class="bx bx-camera"></i></span>
+                                    <div>
+                                        <h5 class="mb-0">Additional Damage Photos</h5>
+                                        <small class="text-muted">Photos of any damage not covered by the questions — optional, uploaded instantly</small>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    @unless ($isLocked)
+                                        <label class="upload-drop">
+                                            <input type="file" accept="image/*" multiple class="d-none" onchange="AA.uploadDamage(this)">
+                                            <i class="bx bx-image-add"></i>
+                                            <span>Add damage photos <small class="text-muted">(select multiple)</small></span>
+                                        </label>
+                                    @endunless
+                                    <div class="d-flex flex-wrap mt-2" style="gap:.75rem;" id="media-damage">
+                                        @forelse ($damageMedia as $m)
+                                            <div class="extra-item" data-media="{{ $m->id }}">
+                                                <div class="extra-item__thumb">
+                                                    <img src="{{ $m->url }}">
+                                                    @unless ($isLocked)
+                                                        <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
+                                                            class="btn btn-danger btn-sm position-absolute p-0"
+                                                            style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>
+                                                    @endunless
+                                                </div>
+                                                <input type="text" class="form-control form-control-sm extra-item__label" maxlength="255"
+                                                    placeholder="Add a label…" value="{{ $m->label }}" @if($isLocked) disabled @endif
+                                                    oninput="AA.debounceLabel({{ $m->id }}, this.value)" onblur="AA.saveLabel({{ $m->id }}, this.value)">
+                                            </div>
+                                        @empty
+                                            <span class="text-muted font-size-12" id="damage-empty">No damage photos yet.</span>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            </div>
+
                         {{-- ============================ VERDICT STEP ============================ --}}
                         @else
                             <div class="card">
@@ -1520,6 +1566,7 @@
         customer: root.dataset.customerUrl,
         media: root.dataset.mediaUrl,
         extraMedia: root.dataset.extraMediaUrl,
+        damagePhotos: root.dataset.damagePhotosUrl,
         vehicleImage: root.dataset.vehicleImageUrl,
         damageDiagrams: root.dataset.damageDiagramsUrl,
         sectionMediaBase: root.dataset.sectionMediaBase,
@@ -1902,9 +1949,33 @@
                 }
             }
         },
-        addExtraThumb(m) {
-            const box = document.getElementById('media-extra');
-            const empty = document.getElementById('extra-empty');
+        async uploadDamage(input) {
+            const files = Array.from(input.files || []);
+            input.value = '';
+            const MAX_BYTES = 100 * 1024 * 1024;
+            for (const file of files) {
+                if (file.size > MAX_BYTES) {
+                    failed();
+                    AA.tooLarge(file, 'The limit is 100 MB.');
+                    continue;
+                }
+                saving();
+                const fd = new FormData();
+                fd.append('file', file);
+                try {
+                    const m = await post(urls.damagePhotos, fd);
+                    AA.addExtraThumb(m, 'media-damage', 'damage-empty');
+                    saved();
+                    recompute();
+                } catch (e) {
+                    failed();
+                    AA.uploadFailed(file, e);
+                }
+            }
+        },
+        addExtraThumb(m, boxId = 'media-extra', emptyId = 'extra-empty') {
+            const box = document.getElementById(boxId);
+            const empty = document.getElementById(emptyId);
             if (empty) empty.remove();
             const wrap = document.createElement('div');
             wrap.className = 'extra-item';
@@ -1969,6 +2040,7 @@
                 const node = root.querySelector('[data-media="' + id + '"]');
                 if (node) node.remove();
                 saved();
+                recompute();
             } catch (e) { failed(); }
         },
     };
@@ -2340,9 +2412,9 @@
             });
         }
 
-        // Small marker: about half the legacy r=5-on-512px weight, scaled to
-        // the diagram's width so it reads the same on every canvas size.
-        function dotRadius(cv) { return Math.max(3, Math.round(cv.width * 0.005)); }
+        // Marker a little under the legacy r=5-on-512px weight, scaled to the
+        // diagram's width so it reads the same on every canvas size.
+        function dotRadius(cv) { return Math.max(5, Math.round(cv.width * 0.008)); }
 
         function render(cv) {
             const img = bases[cv.dataset.damageView];
@@ -2715,6 +2787,11 @@
             const c = verdictCounts();
             if (c.total === 0) return 'empty';
             return c.filled >= c.total ? 'done' : (c.filled > 0 ? 'partial' : 'empty');
+        }
+
+        // Damage photos are optional: the step reads done once one is uploaded.
+        if (p.dataset.wtype === 'damage') {
+            return p.querySelector('#media-damage [data-media]') ? 'done' : 'empty';
         }
 
         const req = p.querySelector('[data-wreq]');

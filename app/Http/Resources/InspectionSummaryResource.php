@@ -32,9 +32,10 @@ class InspectionSummaryResource extends JsonResource
             ->mapWithKeys(fn ($d) => [$d->inspection_section_id => $this->mediaItems($d)]);
 
         // Media with neither a step nor a section — the "extra"/additional bucket.
-        $extraMedia = $this->mediaItems(
-            $this->details->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id))
-        );
+        $extraDetail = $this->details->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
+        // Damage photos share that bucket; they are listed on their own.
+        $extraMedia = array_values(array_filter($this->mediaItems($extraDetail), fn ($m) => ! $m['is_damage']));
+        $damagePhotos = array_values(array_filter($this->mediaItems($extraDetail), fn ($m) => $m['is_damage']));
 
         // section id => per-section summary + rating
         $summaryBySection = $this->relationLoaded('sectionSummaries')
@@ -290,6 +291,9 @@ class InspectionSummaryResource extends JsonResource
             // bucket — a detail row with both ids null).
             'extra_media' => $extraMedia,
 
+            // Photos from the Additional Damage Photos step.
+            'damage_photos' => $damagePhotos,
+
             // Every photo/video on the inspection in one flat list, so the app
             // can show a gallery without walking sections and steps.
             'media' => $this->details->flatMap(fn ($d) => $this->mediaItems($d))->values(),
@@ -315,6 +319,7 @@ class InspectionSummaryResource extends JsonResource
             'label'         => $m->label,
             'original_name' => $m->original_name,
             'size'          => $m->size,
+            'is_damage'     => (bool) $m->is_damage,
         ])->values()->all();
     }
 }

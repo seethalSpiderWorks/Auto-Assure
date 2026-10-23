@@ -49,7 +49,7 @@
             'Vehicle Photos' => 'صور المركبة', 'Vehicle Summary' => 'بيانات المركبة', 'Make' => 'الشركة المصنعة',
             'Model' => 'الطراز', 'Year' => 'السنة', 'Vehicle Condition' => 'حالة المركبة', 'Fuel Type' => 'نوع الوقود',
             'Odometer' => 'عداد المسافة', 'Exterior Colour' => 'اللون الخارجي', 'Customer Name' => 'اسم العميل',
-            'Damage Points' => 'مواضع الأضرار', 'Paint Inspection Images' => 'صور فحص الطلاء', 'Signatures' => 'التواقيع',
+            'Damage Points' => 'مواضع الأضرار', 'Damage Photos' => 'صور الأضرار', 'Paint Inspection Images' => 'صور فحص الطلاء', 'Signatures' => 'التواقيع',
             'Terms & Conditions' => 'الشروط والأحكام', 'Overall Rating' => 'التقييم العام', 'Recommendation' => 'التوصية',
             'Excellent' => 'ممتاز', 'Very Good' => 'جيد جداً', 'Good' => 'جيد', 'Fair' => 'مقبول', 'Poor' => 'ضعيف', 'Critical' => 'حرج',
         ][$key] ?? null;
@@ -177,13 +177,20 @@
         if ($isGlobal && ! $wantsDiagnostic) continue;
         $isCategory = is_null($d->inspection_step_id) && ! is_null($d->inspection_section_id);
         $sec = $isCategory ? ($sectionById[$d->inspection_section_id] ?? null) : ($stepSection[$d->inspection_step_id] ?? null);
-        foreach ($d->media->where('type', 'photo') as $m) {
+        // Additional Damage Photos print in their own section.
+        foreach ($d->media->where('type', 'photo')->where('is_damage', false) as $m) {
             $file = $local($m->thumbUrl(480)) ?: $local($m->url);
             if (! $file) continue;
             if ($isGlobal) { $diagnosticPhotos[] = ['file' => $file, 'caption' => $m->label ?: '']; continue; }
             $caption = $isCategory ? ($sec?->section_name ?? '') : ($m->label ?: ($sec?->section_name ?? ''));
             $photos[] = ['file' => $file, 'caption' => $caption];
         }
+    }
+    // Photos from the Additional Damage Photos step.
+    $damagePhotos = [];
+    foreach ($inspection->damagePhotos() as $m) {
+        $file = $local($m->thumbUrl(480)) ?: $local($m->url);
+        if ($file) { $damagePhotos[] = ['file' => $file, 'caption' => $m->label ?: '']; }
     }
     $diagnosticDocs = ! $wantsDiagnostic ? collect() : (optional($inspection->details
         ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id)))
@@ -288,7 +295,7 @@
             'label'   => $dg?->name ?? Str::headline($key),
             'section' => optional($dg?->sections->firstWhere('inspection_type_id', $typeId))->section_name,
             'file'    => Storage::disk('public')->path($path),
-            'key'     => $dg ? \App\Models\DamageColour::forDiagram($dg->id)->ordered()->get() : collect(),
+            'key'     => $dg ? $inspection->damageKey($dg) : collect(),
         ];
     }
 
@@ -671,6 +678,9 @@
 @if ($quickOrFleet && ! empty($damageDiagrams))
     @include('inspections._report_pdf_damage')
 @endif
+@if ($quickOrFleet)
+    @include('inspections._report_pdf_damage_photos')
+@endif
 
 {{-- ============================== EV & TECHNICAL (full report only) ============================== --}}
 @unless ($basicReport)
@@ -762,6 +772,9 @@
 {{-- Quick / Fleet print these straight after the photos instead. --}}
 @if (! $quickOrFleet && ! empty($damageDiagrams))
     @include('inspections._report_pdf_damage')
+@endif
+@if (! $quickOrFleet)
+    @include('inspections._report_pdf_damage_photos')
 @endif
 
 {{-- ============================== SIGNATURES ============================== --}}

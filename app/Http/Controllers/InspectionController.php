@@ -123,7 +123,11 @@ class InspectionController extends Controller
         // null step id, so it must be excluded here or its photos leak into this list.
         $extraDetail = $inspection->details
             ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id));
-        $extraMedia = $extraDetail ? $extraDetail->media : collect();
+        // Damage photos share the bucket but have their own step.
+        $extraMedia = $extraDetail ? $extraDetail->media->where('is_damage', false)->values() : collect();
+
+        // Photos from the Additional Damage Photos step.
+        $damageMedia = $inspection->damagePhotos();
 
         // Per-category media, keyed by section id, for the section cards.
         $sectionMedia = $inspection->details
@@ -157,7 +161,7 @@ class InspectionController extends Controller
         $summariesAr = $inspection->summaryNotes('summary_ar');
         $summaryTypesAr = $inspection->summaryAreas(true);
 
-        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'sectionMedia', 'lookups', 'summaryTypes', 'summaries', 'summariesAr', 'summaryTypesAr'));
+        return view('inspections.edit', compact('inspection', 'answers', 'sectionSummaries', 'technicians', 'inspectionTypes', 'extraMedia', 'damageMedia', 'sectionMedia', 'lookups', 'summaryTypes', 'summaries', 'summariesAr', 'summaryTypesAr'));
     }
 
     /**
@@ -934,6 +938,54 @@ class InspectionController extends Controller
 
         $media = $detail->media()->create([
             'type' => $data['type'],
+            'disk' => 'public',
+            'path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+        ]);
+
+        $this->markStarted($inspection);
+        $inspection->save();
+
+        return response()->json(['id' => $media->id, 'type' => $media->type, 'url' => $media->url, 'label' => $media->label, 'original_name' => $media->original_name]);
+    }
+
+    /**
+     * Upload one photo to the Additional Damage Photos step (AJAX). Stored in
+     * the inspection's step-less, section-less media bucket with is_damage set,
+     * which keeps it out of Diagnostic Media. The browser sends one request per file.
+     */
+    public function uploadDamagePhoto(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeInspection($inspection);
+
+        if ($cancelled = $this->cancelledResponse($inspection)) {
+            return $cancelled;
+        }
+
+        if (! $request->hasFile('file') && $this->uploadExceededPhpLimit($request)) {
+            return response()->json([
+                'message' => 'That file is larger than the server allows ('.ini_get('upload_max_filesize').' per file, '.ini_get('post_max_size').' per request). Ask your administrator to raise upload_max_filesize and post_max_size.',
+            ], 422);
+        }
+
+        $request->validate([
+            'file' => ['required', 'image', 'max:102400'],
+        ]);
+
+        $detail = InspectionDetail::firstOrCreate([
+            'inspection_id' => $inspection->id,
+            'inspection_step_id' => null,
+            'inspection_section_id' => null,
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store("inspections/{$inspection->id}/damage/photos", 'public');
+
+        $media = $detail->media()->create([
+            'type' => 'photo',
+            'is_damage' => true,
             'disk' => 'public',
             'path' => $path,
             'original_name' => $file->getClientOriginalName(),

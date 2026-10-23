@@ -131,7 +131,8 @@
             ? ($sectionById[$d->inspection_section_id] ?? null)
             : ($stepSection[$d->inspection_step_id] ?? null);
 
-        foreach ($d->media->where('type', 'photo') as $m) {
+        // Additional Damage Photos print in their own section.
+        foreach ($d->media->where('type', 'photo')->where('is_damage', false) as $m) {
             try {
                 if (! $m->path || ! Storage::disk($m->disk ?: 'public')->exists($m->path)) continue;
             } catch (\Throwable $e) { continue; }
@@ -804,6 +805,29 @@
                         <figure>
                             <img src="{{ $p['media']->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
                             <figcaption>{{ $p['caption'] }}</figcaption>
+                        </figure>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- ============================== DAMAGE PHOTOS ============================== --}}
+        @php
+            $damagePhotos = $inspection->damagePhotos()->filter(function ($m) {
+                try { return $m->path && Storage::disk($m->disk ?: 'public')->exists($m->path); }
+                catch (\Throwable $e) { return false; }
+            });
+        @endphp
+        @if ($damagePhotos->isNotEmpty())
+        <div class="page">
+            <div class="sec-bar"><span class="en">Damage Photos</span><span class="ar">صور الأضرار</span></div>
+            <div class="card photos">
+                <div class="gal">
+                    @foreach ($damagePhotos as $m)
+                        <figure>
+                            <img src="{{ $m->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            @if (filled($m->label))<figcaption>{{ $m->label }}</figcaption>@endif
                         </figure>
                     @endforeach
                 </div>

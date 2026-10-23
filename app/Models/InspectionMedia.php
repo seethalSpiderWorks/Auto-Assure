@@ -11,10 +11,12 @@ class InspectionMedia extends Model
     protected $table = 'inspection_media';
 
     protected $fillable = [
-        'inspection_detail_id', 'type', 'disk', 'path', 'original_name', 'label', 'mime_type', 'size',
+        'inspection_detail_id', 'type', 'is_damage', 'disk', 'path', 'original_name', 'label', 'mime_type', 'size',
     ];
 
     protected $appends = ['url'];
+
+    protected $casts = ['is_damage' => 'boolean'];
 
     public function detail(): BelongsTo
     {

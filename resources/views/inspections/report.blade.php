@@ -146,7 +146,8 @@
             ? ($sectionById[$d->inspection_section_id] ?? null)
             : ($stepSection[$d->inspection_step_id] ?? null);
 
-        foreach ($d->media->where('type', 'photo') as $m) {
+        // Additional Damage Photos print in their own section.
+        foreach ($d->media->where('type', 'photo')->where('is_damage', false) as $m) {
             try {
                 if (! $m->path || ! Storage::disk($m->disk ?: 'public')->exists($m->path)) continue;
             } catch (\Throwable $e) { continue; }
@@ -227,6 +228,7 @@
             'Exterior Colour' => 'اللون الخارجي',
             'Customer Name' => 'اسم العميل',
             'Damage Points' => 'مواضع الأضرار',
+            'Damage Photos' => 'صور الأضرار',
             'Paint Inspection Images' => 'صور فحص الطلاء',
             'Signatures' => 'التواقيع',
             'Terms & Conditions' => 'الشروط والأحكام',
@@ -1455,7 +1457,7 @@
             $inspectionTypeId = $inspection->inspection_type_id;
             foreach (\App\Models\DamageDiagram::with('sections')->ordered()->get() as $dgm) {
                 $damageNames[$dgm->key] = $dgm->name;
-                $damageKeys[$dgm->key] = \App\Models\DamageColour::forDiagram($dgm->id)->ordered()->get();
+                $damageKeys[$dgm->key] = $inspection->damageKey($dgm);
                 $damageSection[$dgm->key] = optional($dgm->sections->firstWhere('inspection_type_id', $inspectionTypeId))->section_name;
             }
 
@@ -1497,6 +1499,32 @@
                         <img src="{{ $d['url'] }}" alt="{{ $d['label'] }} damage diagram " style="display:block;max-width:80%;max-height:300px;width:auto;height:auto;margin:0 auto;">
                     </div>
                 @endforeach
+            </div>
+        </div>
+        @endif
+
+{{-- ============================== DAMAGE PHOTOS ============================== --}}
+        {{-- Photos from the Additional Damage Photos step, after the diagrams. --}}
+        @php
+            $damagePhotos = $inspection->damagePhotos()->filter(function ($m) {
+                try { return $m->path && Storage::disk($m->disk ?: 'public')->exists($m->path); }
+                catch (\Throwable $e) { return false; }
+            });
+        @endphp
+        @if ($damagePhotos->isNotEmpty())
+        <div class="page">
+            <div class="sec-bar"><span class="en">{{ $L('Damage Photos') }}</span></div>
+            <div class="card photos">
+                <div class="gal gal--4">
+                    @foreach ($damagePhotos as $m)
+                        <figure>
+                            <a href="{{ $m->url }}" data-fancybox="damage-photos" data-caption="{{ $m->label }}">
+                                <img src="{{ $m->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            </a>
+                            @if (filled($m->label))<figcaption>{{ $m->label }}</figcaption>@endif
+                        </figure>
+                    @endforeach
+                </div>
             </div>
         </div>
         @endif

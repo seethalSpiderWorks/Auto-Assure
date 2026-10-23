@@ -118,11 +118,18 @@
         ? $inspection->details
             ->first(fn ($d) => is_null($d->inspection_step_id) && is_null($d->inspection_section_id))
         : null;
-    $extraMedia = $extraDetail ? $extraDetail->media : collect();
+    // Damage photos share the bucket but have their own card below.
+    $extraMedia = $extraDetail ? $extraDetail->media->where('is_damage', false)->values() : collect();
     foreach ($extraMedia as $gm) {
         // Documents (PDFs) open in a new tab, never in the image/video lightbox.
         if ($gm->isDocument()) { continue; }
         $gallery[] = ['id' => $gm->id, 'type' => $gm->isVideo() ? 'video' : 'photo', 'url' => $gm->url, 'caption' => $gm->label ?: 'Additional media'];
+    }
+
+    // Photos from the Additional Damage Photos step.
+    $damageMedia = $inspection->damagePhotos();
+    foreach ($damageMedia as $gm) {
+        $gallery[] = ['id' => $gm->id, 'type' => 'photo', 'url' => $gm->url, 'caption' => $gm->label ?: 'Damage photo'];
     }
 
     $mediaIndex = [];
@@ -343,6 +350,23 @@
                                 </a>
                             @endif
                             <span class="idet-extra__label" title="{{ $m->label ?: $m->original_name }}">{{ $m->label ?: ($m->isDocument() ? ($m->original_name ?: 'Document') : '—') }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- ===== Additional damage photos ===== --}}
+        @if($damageMedia->count())
+            <div class="idet-card mt-3">
+                <div class="idet-card__title"><i class="bx bx-camera"></i> Additional Damage Photos <span class="idet-chip" style="margin-left:6px;background:#eef3f8;color:#04B084;">{{ $damageMedia->count() }}</span></div>
+                <div class="idet-extra">
+                    @foreach($damageMedia as $m)
+                        <div class="idet-extra__item">
+                            <a href="{{ $m->url }}" target="_blank" rel="noopener" class="idet-media__item" data-idx="{{ $mediaIndex[$m->id] ?? 0 }}">
+                                <img src="{{ $m->url }}" alt="" loading="lazy">
+                            </a>
+                            <span class="idet-extra__label" title="{{ $m->label }}">{{ $m->label ?: '—' }}</span>
                         </div>
                     @endforeach
                 </div>

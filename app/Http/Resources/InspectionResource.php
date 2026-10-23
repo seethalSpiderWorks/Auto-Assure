@@ -231,7 +231,7 @@ class InspectionResource extends JsonResource
                     return [];
                 }
 
-                return $extra->media->map(fn ($m) => [
+                return $extra->media->where('is_damage', false)->map(fn ($m) => [
                     'id'            => $m->id,
                     'type'          => $m->type,
                     'url'           => $m->url,
@@ -240,6 +240,14 @@ class InspectionResource extends JsonResource
                     'size'          => $m->size,
                 ])->values();
             }),
+
+            // Additional Damage Photos — is_damage media in the additional bucket.
+            'damage_photos' => $this->whenLoaded('details', fn () => $this->damagePhotos()->map(fn ($m) => [
+                'id'    => $m->id,
+                'type'  => $m->type,
+                'url'   => $m->url,
+                'label' => $m->label,
+            ])->values()),
 
             'type'    => new InspectionTypeResource($this->whenLoaded('type')),
             'details' => $this->whenLoaded('details', fn () => $this->details->map(fn ($detail) => [

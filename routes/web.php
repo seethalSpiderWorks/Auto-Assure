@@ -89,6 +89,7 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('inspections/{inspection}/autosave-customer', [InspectionController::class, 'autosaveCustomer'])->name('inspections.autosave.customer');
     Route::post('inspections/{inspection}/media', [InspectionController::class, 'uploadMedia'])->name('inspections.media.upload');
     Route::post('inspections/{inspection}/extra-media', [InspectionController::class, 'uploadExtraMedia'])->name('inspections.extra-media.upload');
+    Route::post('inspections/{inspection}/damage-photos', [InspectionController::class, 'uploadDamagePhoto'])->name('inspections.damage-photos.upload');
     // Primary vehicle photo on the "Customer & Vehicle" step.
     Route::post('inspections/{inspection}/vehicle-image', [InspectionController::class, 'uploadVehicleImage'])->name('inspections.vehicle-image.upload');
     Route::delete('inspections/{inspection}/vehicle-image', [InspectionController::class, 'deleteVehicleImage'])->name('inspections.vehicle-image.destroy');

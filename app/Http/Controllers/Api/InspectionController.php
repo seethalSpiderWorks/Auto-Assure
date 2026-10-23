@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use App\Http\Resources\InspectionHistoryResource;
 
 class InspectionController extends Controller
@@ -327,7 +328,26 @@ class InspectionController extends Controller
             'damage.marks.*.*.x' => ['required', 'numeric', 'min:0', 'max:20000'],
             'damage.marks.*.*.y' => ['required', 'numeric', 'min:0', 'max:20000'],
             'damage.marks.*.*.c' => ['required', 'string'],
+            // Optional Additional Damage Photos. Each item is either an uploaded
+            // image (multipart) or an image data URL (JSON), the same way the
+            // diagrams above arrive; labels pair with photos by index.
+            'damage_photos' => ['nullable', 'array', 'max:20'],
+            'damage_photos.*' => ['required'],
+            'damage_photo_labels' => ['nullable', 'array'],
+            'damage_photo_labels.*' => ['nullable', 'string', 'max:255'],
+            // Ids of this inspection's damage photos to delete.
+            'remove_damage_photo_ids' => ['nullable', 'array'],
+            'remove_damage_photo_ids.*' => ['integer', 'min:1'],
         ]);
+
+        // Each damage photo must be a real image, whichever form it came in.
+        $validator->after(function ($v) use ($request) {
+            foreach ((array) ($request->all()['damage_photos'] ?? []) as $i => $photo) {
+                if ($this->damagePhotoBinary($photo) === null) {
+                    $v->errors()->add("damage_photos.{$i}", 'Damage photo '.($i + 1).' must be a JPG, PNG, WEBP or GIF image, 100 MB or smaller.');
+                }
+            }
+        });
 
         // "damage.images.under_body" reads as "under_body damage image" in the
         // message, so a client can route it to the diagram it belongs to.
@@ -395,6 +415,44 @@ class InspectionController extends Controller
             $damageResult = $writer->apply($inspection, $damage['images'], $damage['marks'] ?? null);
         }
 
+        // Additional Damage Photos: removals first, then new uploads. They live
+        // in the additional-media bucket, flagged is_damage.
+        $touchedDamagePhotos = ! empty($validated['damage_photos']) || ! empty($validated['remove_damage_photo_ids']);
+
+        if (! empty($validated['remove_damage_photo_ids'])) {
+            $bucket = $this->extraMediaDetail($inspection);
+            $doomed = $bucket
+                ? $bucket->media()->where('is_damage', true)->whereIn('id', $validated['remove_damage_photo_ids'])->get()
+                : collect();
+
+            foreach ($doomed as $m) {
+                Storage::disk($m->disk)->delete($m->path);
+                $m->delete();
+            }
+        }
+
+        if (! empty($validated['damage_photos'])) {
+            $bucket = $this->extraMediaDetail($inspection, create: true);
+            $labels = $validated['damage_photo_labels'] ?? [];
+
+            foreach (array_values($request->all()['damage_photos']) as $i => $photo) {
+                [$binary, $mime, $ext, $name] = $this->damagePhotoBinary($photo);
+                $path = "inspections/{$inspection->id}/damage/photos/".Str::random(40).'.'.$ext;
+                Storage::disk('public')->put($path, $binary);
+
+                $bucket->media()->create([
+                    'type' => 'photo',
+                    'is_damage' => true,
+                    'disk' => 'public',
+                    'path' => $path,
+                    'original_name' => $name,
+                    'label' => filled($labels[$i] ?? null) ? trim($labels[$i]) : null,
+                    'mime_type' => $mime,
+                    'size' => strlen($binary),
+                ]);
+            }
+        }
+
         $this->markStarted($inspection);
         $inspection->save();
 
@@ -415,7 +473,47 @@ class InspectionController extends Controller
             // answers alone gets exactly the response it always got.
             'damage_urls' => $damageResult ? $writer->urls($inspection, $damageResult['views']) : null,
             'damage_pending' => $damagePending ?: null,
+            // Only present when damage photos were sent or removed: the full
+            // current list, so the app can replace its local copy.
+            'damage_photos' => $touchedDamagePhotos
+                ? $inspection->fresh()->damagePhotos()->map(fn ($m) => $this->mediaPayload($m))->values()->all()
+                : null,
         ], fn ($v) => $v !== null));
+    }
+
+    /**
+     * One damage photo as [bytes, mime, extension, original name], from either an
+     * uploaded file or an image data URL. Null when it is not an image we accept.
+     *
+     * @return array{0: string, 1: string, 2: string, 3: string}|null
+     */
+    private function damagePhotoBinary(mixed $photo): ?array
+    {
+        $types = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+
+        if ($photo instanceof \Illuminate\Http\UploadedFile) {
+            if (! $photo->isValid() || $photo->getSize() > 100 * 1024 * 1024) {
+                return null;
+            }
+            $binary = (string) file_get_contents($photo->getRealPath());
+            $name = $photo->getClientOriginalName();
+        } elseif (is_string($photo) && preg_match('/^data:image\/[a-z+.-]+;base64,/i', $photo)) {
+            $binary = base64_decode(substr($photo, strpos($photo, ',') + 1), true);
+            if ($binary === false || strlen($binary) > 100 * 1024 * 1024) {
+                return null;
+            }
+            $name = 'damage-photo';
+        } else {
+            return null;
+        }
+
+        // Trust the bytes, not the declared type.
+        $mime = @getimagesizefromstring($binary)['mime'] ?? null;
+        if (! isset($types[$mime])) {
+            return null;
+        }
+
+        return [$binary, $mime, $types[$mime], $name === 'damage-photo' ? $name.'.'.$types[$mime] : $name];
     }
 
     /**
@@ -847,7 +945,7 @@ class InspectionController extends Controller
 
         // The id must be one of THIS inspection's additional media — not another
         // inspection's, and not a step/section photo that happens to exist.
-        if (! $detail || (int) $media->inspection_detail_id !== (int) $detail->id) {
+        if (! $detail || (int) $media->inspection_detail_id !== (int) $detail->id || $media->is_damage) {
             return response()->json([
                 'message' => "Media does not belong to this inspection's additional media.",
             ], 404);
@@ -890,7 +988,7 @@ class InspectionController extends Controller
         $detail = $this->extraMediaDetail($inspection);
 
         $rows = $detail
-            ? $detail->media()->whereIn('id', $ids)->get()
+            ? $detail->media()->where('is_damage', false)->whereIn('id', $ids)->get()
             : collect();
 
         // Nothing matched: every id was for another inspection, another bucket, or
@@ -945,7 +1043,7 @@ class InspectionController extends Controller
         $detail = $this->extraMediaDetail($inspection);
 
         return $detail
-            ? $detail->media()->get()->map(fn ($m) => $this->mediaPayload($m))->values()->all()
+            ? $detail->media()->where('is_damage', false)->get()->map(fn ($m) => $this->mediaPayload($m))->values()->all()
             : [];
     }
 

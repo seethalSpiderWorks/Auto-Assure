@@ -930,6 +930,20 @@ class Inspection extends Model
         return array_filter($images);
     }
 
+    /**
+     * The colour key printed beside one diagram: the active options, plus any
+     * inactive one this inspection's dots still use — a retired option keeps
+     * its meaning on the reports it was used in, and drops off every other.
+     */
+    public function damageKey(DamageDiagram $diagram): \Illuminate\Support\Collection
+    {
+        $used = array_map(fn ($m) => strtolower((string) ($m['c'] ?? '')), $this->damageMarks($diagram->key));
+
+        return DamageColour::forDiagram($diagram->id)->ordered()->get()
+            ->filter(fn ($c) => $c->is_active || in_array(strtolower($c->colour), $used, true))
+            ->values();
+    }
+
     public function damageImagePath(string $view): ?string
     {
         return $this->damageImages()[$view] ?? null;
@@ -944,6 +958,21 @@ class Inspection extends Model
         $path = $this->damageImagePath($view);
 
         return $path ? url('storage/'.ltrim($path, '/')) : null;
+    }
+
+    /**
+     * Photos from the Additional Damage Photos step (is_damage media), in upload
+     * order. Reads the loaded details when they are there, so report views don't
+     * re-query.
+     */
+    public function damagePhotos(): \Illuminate\Support\Collection
+    {
+        $this->loadMissing('details.media');
+
+        return $this->details
+            ->flatMap(fn ($d) => $d->media)
+            ->filter(fn ($m) => $m->is_damage && $m->type === 'photo')
+            ->sortBy('id')->values();
     }
 
     public function isCancelled(): bool
