@@ -439,11 +439,15 @@
         .gal figcaption{ text-align:center; font-size:10.5px; color:var(--muted); margin-top:5px; }
 
         /* ---- signatures ---- */
-        .sign{ display:flex; gap:16px; flex-wrap:wrap; }
-        .sign .col{ flex:1 1 45%; min-width:220px; }
-        .sign .slot{ border-bottom:2px dashed #cfd4dc; height:34px; margin-bottom:6px; }
-        .sign .sl{ color:var(--muted); font-size:11px; font-weight:600; }
-        .sign .sl .ar{ float:right; }
+        /* Technical Manager sign-off: approval details beside the stamped signature. */
+        .sign{ display:flex; align-items:stretch; gap:24px; flex-wrap:wrap; }
+        .sign .info{ flex:1 1 300px; min-width:0; align-self:center; }
+        .sign .eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--brand); }
+        .sign .org{ font-family:'Quicksand',sans-serif; font-size:17px; font-weight:700; color:var(--ink); margin:4px 0 6px; }
+        .sign .note{ font-size:11.5px; color:#5b6472; line-height:1.55; margin:0; }
+        .sign .stamp{ flex:0 0 240px; text-align:center;
+            display:flex; flex-direction:column; justify-content:center; }
+        .sign .seal{ height:104px; width:auto; display:block; margin:0 auto; transform:rotate(-8deg); }
 
         /* ---- terms ---- */
         .terms .col{ flex:1 1 45%; min-width:240px; }
@@ -601,7 +605,7 @@
             .gal--4 figure{ width:calc(50% - 6px); }
             .cover .vcard__tiles,
             .cover .vcard--noimg .vcard__tiles{ grid-template-columns:1fr; }
-            .sign .col{ flex:1 1 100%; min-width:0; }
+            .sign .stamp{ flex:1 1 100%; }
         }
 
         /* ================= redesigned cover (report card) ================= */
@@ -1544,15 +1548,14 @@
             <div class="sec-bar"><span class="en">{{ $L('Signatures') }}</span></div>
             <div class="card">
                 <div class="sign">
-                    <div class="col">
-                        <div class="fv" style="font-weight:700;margin-bottom:6px">{{ $val(optional($inspection->technician)->name) }}</div>
-                        <div class="slot"></div>
-                        <div class="sl">Inspector — Sign &amp; Date</div>
+                    {{-- Technical Manager only — the inspector no longer signs (client request). --}}
+                    <div class="info">
+                        <div class="eyebrow">{{ $isAr ? 'معتمد من' : 'Certified by' }}</div>
+                        <div class="org">{{ $isAr ? 'أوتو اشور لخدمات الفحص الفني' : 'Auto Assure Technical Inspection Services' }}</div>
+                        <p class="note">{{ $isAr ? 'تمت مراجعة هذا التقرير واعتماده من قبل المدير الفني.' : 'This report has been reviewed and approved by the Technical Manager.' }}</p>
                     </div>
-                    <div class="col">
-                        <div class="fv" style="font-weight:700;margin-bottom:6px">&nbsp;</div>
-                        <div class="slot"></div>
-                        <div class="sl">Technical Manager — Sign &amp; Date</div>
+                    <div class="stamp">
+                        <img class="seal" src="{{ asset('img/pdf_design/company-seal.png') }}" alt="Auto Assure seal">
                     </div>
                 </div>
             </div>

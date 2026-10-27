@@ -91,6 +91,10 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/inspections/{inspection}/summary', [InspectionController::class, 'summary']);
 
+    // Damage diagrams from Damage Setup, typed full_body / under_body.
+    //   ?type=full_body | under_body  returns only that type.
+    Route::get('/inspections/{inspection}/body-diagrams', [InspectionController::class, 'bodyDiagrams']);
+
     // Vehicle lookup dropdowns (exterior colours, fuel types, gearboxes, steering sides, body types, regions).
     Route::get('/vehicle-lookups', [VehicleLookupController::class, 'index']);
     Route::get('/vehicle-lookups/{field}', [VehicleLookupController::class, 'show']);

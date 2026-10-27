@@ -312,11 +312,15 @@
         .gal figcaption{ text-align:center; font-size:10.5px; color:var(--muted); margin-top:5px; }
 
         /* ---- signatures ---- */
-        .sign{ display:flex; gap:16px; flex-wrap:wrap; }
-        .sign .col{ flex:1 1 45%; min-width:220px; }
-        .sign .slot{ border-bottom:2px dashed #cfd4dc; height:34px; margin-bottom:6px; }
-        .sign .sl{ color:var(--muted); font-size:11px; font-weight:600; }
-        .sign .sl .ar{ float:right; }
+        /* Technical Manager sign-off: approval details beside the stamped signature. */
+        .sign{ display:flex; align-items:stretch; gap:24px; flex-wrap:wrap; }
+        .sign .info{ flex:1 1 300px; min-width:0; align-self:center; }
+        .sign .eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--brand); }
+        .sign .org{ font-family:'Quicksand',sans-serif; font-size:17px; font-weight:700; color:var(--ink); margin:4px 0 6px; }
+        .sign .note{ font-size:11.5px; color:#5b6472; line-height:1.55; margin:0; }
+        .sign .stamp{ flex:0 0 240px; text-align:center;
+            display:flex; flex-direction:column; justify-content:center; }
+        .sign .seal{ height:104px; width:auto; display:block; margin:0 auto; transform:rotate(-8deg); }
 
         /* ---- terms ---- */
         .terms .col{ flex:1 1 45%; min-width:240px; }
@@ -876,15 +880,14 @@
             <div class="sec-bar" style="margin-top:6px"><span class="en">Signatures</span><span class="ar">التواقيع</span></div>
             <div class="card">
                 <div class="sign">
-                    <div class="col">
-                        <div class="fv" style="font-weight:700;margin-bottom:6px">{{ $val(optional($inspection->technician)->name) }}</div>
-                        <div class="slot"></div>
-                        <div class="sl">Inspector — Sign &amp; Date <span class="ar">المفتش — التوقيع والتاريخ</span></div>
+                    {{-- Technical Manager only — the inspector no longer signs (client request). --}}
+                    <div class="info">
+                        <div class="eyebrow">Certified by <span class="ar">معتمد من</span></div>
+                        <div class="org">Auto Assure Technical Inspection Services <span class="ar">أوتو اشور لخدمات الفحص الفني</span></div>
+                        <p class="note">This report has been reviewed and approved by the Technical Manager. <span class="ar">تمت مراجعة هذا التقرير واعتماده من قبل المدير الفني.</span></p>
                     </div>
-                    <div class="col">
-                        <div class="fv" style="font-weight:700;margin-bottom:6px">&nbsp;</div>
-                        <div class="slot"></div>
-                        <div class="sl">Technical Manager — Sign &amp; Date <span class="ar">المدير الفني — التوقيع والتاريخ</span></div>
+                    <div class="stamp">
+                        <img class="seal" src="{{ asset('img/pdf_design/company-seal.png') }}" alt="Auto Assure seal">
                     </div>
                 </div>
             </div>

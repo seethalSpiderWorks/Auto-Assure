@@ -51,7 +51,7 @@ class Inspection extends Model
         'odometer', 'overall_condition', 'overall_rating', 'summary', 'summary_ar', 'recommendation', 'estimated_repair_cost', 'currency',
         // Extended vehicle details (inspection edit page)
         'manufacturing_year', 'vehicle_condition', 'vin', 'plate_no',
-        'exterior_color', 'vehicle_image', 'damage_full_body', 'damage_under_body', 'damage_images', 'damage_marks', 'region',
+        'exterior_color', 'vehicle_image', 'damage_full_body', 'damage_under_body', 'damage_images', 'damage_marks', 'chassis_type', 'region',
         'fuel_type', 'gearbox', 'steering_side', 'body_type',
         'number_of_keys', 'with_service_history', 'last_service_date',
     ];
@@ -183,6 +183,15 @@ class Inspection extends Model
         $key = $this->summaryKey();
 
         return $this->summaries->whereNotNull($key)->pluck($field, $key)->all();
+    }
+
+    /**
+     * Whether every summary area needs a note. Quick Inspection leaves them
+     * optional; a blank area is simply left off the report.
+     */
+    public function summaryNotesRequired(): bool
+    {
+        return ! preg_match('/^\s*quick\b/i', (string) $this->type?->name);
     }
 
     /**
@@ -592,14 +601,18 @@ class Inspection extends Model
                 continue;
             }
 
-            foreach ($section->damageDiagrams as $diagram) {
-                if (! $diagram->is_active || ! $diagram->imageExists() || $diagram->palette()->isEmpty()) {
-                    continue;
-                }
+            $offered = $section->damageDiagrams
+                ->filter(fn ($d) => $d->is_active && $d->imageExists() && $d->palette()->isNotEmpty());
 
-                if (blank($saved[$diagram->key] ?? null)) {
-                    $missing[] = $section->section_name.' — '.$diagram->name;
-                }
+            // A section with several canvases (Underbody: Body-on-Frame or
+            // Unibody) is done once any one of them is saved — the technician
+            // marks the one that matches the vehicle.
+            if ($offered->contains(fn ($d) => filled($saved[$d->key] ?? null))) {
+                continue;
+            }
+
+            foreach ($offered as $diagram) {
+                $missing[] = $section->section_name.' — '.$diagram->name;
             }
         }
 
@@ -901,6 +914,33 @@ class Inspection extends Model
         'full_body' => 'damage_full_body',
         'under_body' => 'damage_under_body',
     ];
+
+    /** Chassis Type options in the Underbody section: value => label. */
+    public const CHASSIS_TYPES = [
+        'unibody' => 'Unibody',
+        'body_on_frame' => 'Body-on-Frame',
+    ];
+
+    /** The under-body diagram (DamageDiagram::key) each chassis type marks. */
+    public const CHASSIS_DIAGRAMS = [
+        'unibody' => 'under_body_unibody',
+        'body_on_frame' => 'under_body_frame',
+    ];
+
+    /**
+     * The chosen Chassis Type, or — for an inspection marked before the choice
+     * was stored — the one whose diagram was saved. Null when neither.
+     */
+    public function chassisType(): ?string
+    {
+        if (isset(self::CHASSIS_DIAGRAMS[$this->chassis_type])) {
+            return $this->chassis_type;
+        }
+
+        $saved = $this->damageImages();
+
+        return collect(self::CHASSIS_DIAGRAMS)->search(fn ($key) => filled($saved[$key] ?? null)) ?: null;
+    }
 
     /**
      * The stored dots for one diagram, as a plain list of {x, y, c}. Empty when

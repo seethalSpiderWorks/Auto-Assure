@@ -323,6 +323,7 @@
     $commentOnCover = $comment !== null && mb_strlen($comment) + 90 * substr_count($comment, "\n") <= $commentRoom;
 
     $logo = public_path('img/pdf_design/auto-logo.png');
+    $seal = public_path('img/pdf_design/company-seal.png');
     $coverBg = public_path('img/pdf_design/cover-bg.png');
     $footBg = public_path('img/pdf_design/footer-gradient.png');
 @endphp
@@ -465,9 +466,13 @@
     .dt .lbl { background: #f7f9fb; font-family: {!! $fSemi !!}; }
     .dt .c { text-align: center; }
 
-    .sign td { width: 50%; padding: 6px 10px; }
-    .sign .slot { border-bottom: 2px dashed #cfd4dc; height: 34px; margin-bottom: 6px; }
-    .sign .sl { color: #8b93a1; font-family: {!! $fSemi !!}; font-size: 10.5px; }
+    .sign { width: 100%; border-collapse: collapse; }
+    .sign td { vertical-align: middle; padding: 6px 10px; }
+    .sign .eyebrow { font-family: {!! $fSemi !!}; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: #0c7a50; }
+    .sign .org { font-family: {!! $fHeadSemi !!}; font-size: 14px; color: #1c2430; margin: 3px 0 5px; }
+    .sign .note { font-size: 10px; color: #5b6472; margin: 0; }
+    .sign .stamp { width: 200px; text-align: center; }
+    .sign .seal { height: 92px; width: auto; }
     .terms p { margin: 0; font-size: 11px; line-height: 1.05; color: #3b4453; }
     .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; border: 1px solid #8a94a3; }
     .avoid { page-break-inside: avoid; }
@@ -785,14 +790,15 @@
     <div>
         <div class="sec-bar">{{ $L('Signatures') }}</div>
         <div class="card">
+            {{-- Technical Manager only — the inspector no longer signs (client request). --}}
             <table class="sign"><tr>
                 <td>
-                    <div style="font-family:{!! $fBody !!};font-weight:bold;font-size:12px;margin-bottom:6px;">{{ $val(optional($inspection->technician)->name) }}</div>
-                    <div class="slot"></div><div class="sl">Inspector — Sign &amp; Date</div>
+                    <div class="eyebrow">{{ $isAr ? 'معتمد من' : 'Certified by' }}</div>
+                    <div class="org">{{ $isAr ? 'أوتو اشور لخدمات الفحص الفني' : 'Auto Assure Technical Inspection Services' }}</div>
+                    <p class="note">{{ $isAr ? 'تمت مراجعة هذا التقرير واعتماده من قبل المدير الفني.' : 'This report has been reviewed and approved by the Technical Manager.' }}</p>
                 </td>
-                <td>
-                    <div style="font-size:12px;margin-bottom:6px;">&nbsp;</div>
-                    <div class="slot"></div><div class="sl">Technical Manager — Sign &amp; Date</div>
+                <td class="stamp">
+                    <img class="seal" src="{{ $seal }}" alt="Auto Assure seal">
                 </td>
             </tr></table>
         </div>

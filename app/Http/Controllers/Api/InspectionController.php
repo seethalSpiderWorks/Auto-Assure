@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\InspectionResource;
+use App\Models\DamageDiagram;
 use App\Models\Inspection;
 use App\Support\DamageDiagramWriter;
 use App\Models\InspectionDetail;
@@ -19,6 +20,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use App\Http\Resources\InspectionHistoryResource;
 
 class InspectionController extends Controller
@@ -284,6 +286,62 @@ class InspectionController extends Controller
     }
 
     /**
+     * Every damage diagram from Damage Setup, typed `full_body` or `under_body`,
+     * so the app needs no release when one is added, renamed or re-imaged.
+     * Under-body diagrams are one per Chassis Type; `is_selected` marks the
+     * inspection's choice — Unibody until one is saved.
+     *
+     * Query: type=full_body | under_body to get only that type's diagrams.
+     */
+    public function bodyDiagrams(Request $request, Inspection $inspection): JsonResponse
+    {
+        $this->authorizeTechnician($request, $inspection);
+
+        $validator = Validator::make($request->query(), [
+            'type' => ['nullable', Rule::in(['full_body', 'under_body'])],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $type = $request->query('type');
+
+        $chassisOf = array_flip(Inspection::CHASSIS_DIAGRAMS);
+        $diagrams = DamageDiagram::where('is_active', true)
+            ->orderBy('sequence')
+            ->get()
+            ->filter(fn ($d) => $d->imageExists());
+
+        // Unibody first (Chassis Type order), whatever the diagram sequence.
+        $offered = collect(Inspection::CHASSIS_DIAGRAMS)->filter(fn ($key) => $diagrams->contains('key', $key));
+        $selected = $inspection->chassisType() ?? $offered->keys()->first();
+        $diagrams = $diagrams->sortBy(fn ($d) => [isset($chassisOf[$d->key]) ? 1 : 0, $offered->values()->search($d->key)]);
+
+        if ($type) {
+            $diagrams = $diagrams->filter(fn ($d) => (isset($chassisOf[$d->key]) ? 'under_body' : 'full_body') === $type);
+        }
+
+        return response()->json([
+            'selected_chassis_type' => $selected,
+            'diagrams' => $diagrams->map(function ($d) use ($chassisOf, $selected) {
+                $chassis = $chassisOf[$d->key] ?? null;
+
+                return [
+                    'id' => $d->id,
+                    'key' => $d->key,
+                    'name' => $d->name,
+                    'type' => $chassis ? 'under_body' : 'full_body',
+                    'chassis_type' => $chassis,
+                    'chassis_label' => $chassis ? Inspection::CHASSIS_TYPES[$chassis] : null,
+                    'image_url' => $d->imageUrl(),
+                    'is_selected' => ! $chassis || $chassis === $selected,
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
      * Screen 4/5 — save a batch of step answers.
      */
     public function saveAnswers(Request $request, Inspection $inspection): JsonResponse
@@ -328,6 +386,10 @@ class InspectionController extends Controller
             'damage.marks.*.*.x' => ['required', 'numeric', 'min:0', 'max:20000'],
             'damage.marks.*.*.y' => ['required', 'numeric', 'min:0', 'max:20000'],
             'damage.marks.*.*.c' => ['required', 'string'],
+            // Chassis Type — which under-body diagram the technician picked
+            // (GET body-diagrams?type=under_body), sent with the diagram just as
+            // the inspection screen sends it, whichever section it sits in.
+            'damage.chassis_type' => ['nullable', 'string', Rule::in(array_keys(Inspection::CHASSIS_TYPES))],
             // Optional Additional Damage Photos. Each item is either an uploaded
             // image (multipart) or an image data URL (JSON), the same way the
             // diagrams above arrive; labels pair with photos by index.
@@ -342,6 +404,18 @@ class InspectionController extends Controller
 
         // Each damage photo must be a real image, whichever form it came in.
         $validator->after(function ($v) use ($request) {
+            $chassis = $request->input('damage.chassis_type');
+            $chassis = is_string($chassis) && isset(Inspection::CHASSIS_DIAGRAMS[$chassis]) ? $chassis : null;
+
+            // Only one under-body diagram per inspection, and it must be the
+            // chosen chassis type's.
+            $sent = array_values(array_intersect(Inspection::CHASSIS_DIAGRAMS, array_keys((array) $request->input('damage.images', []))));
+            if (count($sent) > 1) {
+                $v->errors()->add('damage.images', 'Send only one under-body diagram — the selected chassis type.');
+            } elseif ($sent && $chassis && Inspection::CHASSIS_DIAGRAMS[$chassis] !== $sent[0]) {
+                $v->errors()->add("damage.images.{$sent[0]}", 'This diagram does not match the selected chassis type ('.Inspection::CHASSIS_TYPES[$chassis].').');
+            }
+
             foreach ((array) ($request->all()['damage_photos'] ?? []) as $i => $photo) {
                 if ($this->damagePhotoBinary($photo) === null) {
                     $v->errors()->add("damage_photos.{$i}", 'Damage photo '.($i + 1).' must be a JPG, PNG, WEBP or GIF image, 100 MB or smaller.');
@@ -410,9 +484,21 @@ class InspectionController extends Controller
         $damage = $validated['damage'] ?? [];
         $damageResult = null;
 
-        if (! empty($damage['images'])) {
+        // Chassis Type: as sent, else the under-body diagram that was sent.
+        $chassis = ($damage['chassis_type'] ?? null)
+            ?? (array_search(
+                collect(array_keys($damage['images'] ?? []))->first(fn ($k) => in_array($k, Inspection::CHASSIS_DIAGRAMS, true)),
+                Inspection::CHASSIS_DIAGRAMS,
+                true
+            ) ?: null);
+
+        if (! empty($damage['images']) || $chassis) {
             $writer = new DamageDiagramWriter();
-            $damageResult = $writer->apply($inspection, $damage['images'], $damage['marks'] ?? null);
+            $damageResult = $writer->apply($inspection, $damage['images'] ?? [], $damage['marks'] ?? null);
+
+            if ($chassis) {
+                $damageResult['replaced'] += $writer->applyChassisType($inspection, $chassis);
+            }
         }
 
         // Additional Damage Photos: removals first, then new uploads. They live
@@ -469,6 +555,7 @@ class InspectionController extends Controller
         return response()->json(array_filter([
             'message' => 'Answers saved.',
             'progress' => $inspection->progress(),
+            'chassis_type' => $inspection->chassis_type,
             // Only present when diagrams were sent, so a client that posts
             // answers alone gets exactly the response it always got.
             'damage_urls' => $damageResult ? $writer->urls($inspection, $damageResult['views']) : null,
@@ -1233,9 +1320,12 @@ class InspectionController extends Controller
         $savedAr = $inspection->summaryNotes('summary_ar');
         $namesAr = $inspection->summaryAreaNamesAr();
 
+        $required = $inspection->summaryNotesRequired();
+
         $areas = collect($inspection->summaryAreas())
             ->map(fn ($name, $id) => [
                 'id' => (int) $id,
+                'is_required' => $required,
                 'summary_type_name' => $name,
                 'summary_type_name_ar' => $namesAr[$id] ?? null,
                 'summary' => $saved[$id] ?? null,
@@ -1243,12 +1333,13 @@ class InspectionController extends Controller
             ])
             ->values();
 
-        return response()->json(['summaries' => $areas]);
+        return response()->json(['is_required' => $required, 'summaries' => $areas]);
     }
 
     /**
      * Save the per-area summary notes. Every summary area is required — a note
-     * must be provided for each of the inspection's summary areas.
+     * must be provided for each of the inspection's summary areas — except on
+     * Quick Inspection, where any may be left blank (a blank one is removed).
      *
      * POST /api/inspections/{inspection}/summaries
      */
@@ -1265,10 +1356,11 @@ class InspectionController extends Controller
 
         // Build "required for every area" rules so a missing/blank note fails
         // with a clear, per-area validation error.
-        $rules = ['summaries' => ['required', 'array'], 'summaries_ar' => ['nullable', 'array']];
+        $required = $inspection->summaryNotesRequired();
+        $rules = ['summaries' => [$required ? 'required' : 'nullable', 'array'], 'summaries_ar' => ['nullable', 'array']];
         $attributes = [];
         foreach ($types as $id => $name) {
-            $rules["summaries.{$id}"] = ['required', 'string', 'max:5000'];
+            $rules["summaries.{$id}"] = [$required ? 'required' : 'nullable', 'string', 'max:5000'];
             $attributes["summaries.{$id}"] = $name;
             // Arabic is optional: the Arabic report falls back to the English
             // note wherever it was left empty.
@@ -1285,7 +1377,7 @@ class InspectionController extends Controller
         $validated = $validator->validated();
         $arabic = $validated['summaries_ar'] ?? [];
 
-        foreach ($validated['summaries'] as $typeId => $text) {
+        foreach ($validated['summaries'] ?? [] as $typeId => $text) {
             $note = $arabic[$typeId] ?? null;
 
             if (array_key_exists((int) $typeId, $types)) {

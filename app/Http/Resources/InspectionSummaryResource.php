@@ -146,11 +146,15 @@ class InspectionSummaryResource extends JsonResource
         // Damage diagrams — the same block GET /inspections/{inspection} returns,
         // so the app parses one shape either way: the blank body view, the
         // mark-up saved for this inspection, the dots behind it and the palette
-        // they were drawn from. Empty when the template carries no diagram.
+        // they were drawn from. Only diagrams with marks are listed, so it is
+        // empty when nothing was marked or the template carries no diagram.
         $damageDiagrams = collect($this->type?->sections ?? [])
             ->filter(fn ($section) => $section->relationLoaded('damageDiagrams'))
             ->flatMap(fn ($section) => $section->damageDiagrams
                 ->filter(fn ($d) => $d->is_active && $d->imageExists())
+                // History only shows diagrams the technician actually marked —
+                // one left untouched (or saved with no dots) is left out.
+                ->filter(fn ($d) => $this->damageMarks($d->key) !== [])
                 ->map(function ($d) use ($section) {
                     $palette = $d->palette();
 

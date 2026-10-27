@@ -277,6 +277,14 @@
     .paint-key__item:hover { border-color: #cfd6df; }
     .paint-key__item.is-active { border-color: var(--brand); background: #f2fbf8; color: var(--brand-dark);
         font-weight: 600; box-shadow: 0 2px 10px rgba(4,176,132,.22); }
+    /* Underbody Chassis Type: highlighted so the technician sets it before marking. */
+    .chassis-pick { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: .75rem 1rem;
+        background: #f2fbf8; border: 1px solid var(--brand); border-left-width: 4px; border-radius: 8px; }
+    .chassis-pick__label { margin: 0; font-weight: 700; color: var(--brand-dark); font-size: .9rem; }
+    .chassis-pick__label .bx { color: var(--brand); font-size: 1.1rem; vertical-align: -2px; }
+    .chassis-pick .form-select { max-width: 240px; font-weight: 600; color: var(--brand-dark); border-color: var(--brand); }
+    .chassis-pick .form-select:focus { box-shadow: 0 0 0 .2rem rgba(4,176,132,.25); }
+    .damage-block.no-view .paint-bar, .damage-block.no-view .paint-tools { display: none; }
     .paint-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin: .1rem 0 .9rem; }
 
     /* Diagnostic-media items with per-file labels */
@@ -1096,11 +1104,33 @@
                                     @php($secPalettes = $secDiagrams->mapWithKeys(fn ($d) => [$d->key => $d->palette()]))
                                     @php($secDiagrams = $secDiagrams->filter(fn ($d) => $secPalettes[$d->key]->isNotEmpty())->values())
                                     @if ($secDiagrams->isNotEmpty())
-                                    <div class="damage-block border-top pt-3 mt-2" data-damage-block="{{ $section->id }}">
+                                    {{-- Underbody carries one diagram per Chassis Type; only the chosen
+                                         one is shown and saved. Until a type is picked nothing is drawn. --}}
+                                    @php($chassisOf = array_flip(\App\Models\Inspection::CHASSIS_DIAGRAMS))
+                                    @php($hasChassis = $secDiagrams->contains(fn ($d) => isset($chassisOf[$d->key])))
+                                    @php($plainDiagrams = $secDiagrams->reject(fn ($d) => isset($chassisOf[$d->key]))->values())
+                                    {{-- Unibody unless the inspection already chose otherwise. --}}
+                                    @php($chassisDefault = collect(\App\Models\Inspection::CHASSIS_DIAGRAMS)->search(fn ($key) => $secDiagrams->contains('key', $key)) ?: null)
+                                    @php($chassis = $hasChassis ? ($inspection->chassisType() ?? $chassisDefault) : null)
+                                    @php($initialView = $chassis ? \App\Models\Inspection::CHASSIS_DIAGRAMS[$chassis] : optional($plainDiagrams->first())->key)
+                                    <div class="damage-block border-top pt-3 mt-2 {{ $initialView ? '' : 'no-view' }}" data-damage-block="{{ $section->id }}"
+                                         data-damage-initial="{{ $initialView }}" @if($hasChassis) data-chassis-block data-chassis="{{ $chassis }}" @endif>
+                                        @if ($hasChassis)
+                                            <div class="chassis-pick mb-3">
+                                                <label class="chassis-pick__label" for="chassis-{{ $section->id }}"><i class="bx bx-car"></i> Chassis Type</label>
+                                                <select class="form-select" id="chassis-{{ $section->id }}" data-chassis-select>
+                                                    @foreach (\App\Models\Inspection::CHASSIS_TYPES as $type => $label)
+                                                        @php($cKey = \App\Models\Inspection::CHASSIS_DIAGRAMS[$type])
+                                                        @continue(! $secDiagrams->contains('key', $cKey))
+                                                        <option value="{{ $type }}" data-diagram="{{ $cKey }}" @selected($chassis === $type)>{{ $label }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        @endif
                                         <div class="detail-group-title">Damage Diagram</div>
 
                                         @foreach ($secDiagrams as $vi => $dg)
-                                            <div class="paint-key" data-damage-palette="{{ $dg->key }}" @if($vi !== 0) hidden @endif>
+                                            <div class="paint-key" data-damage-palette="{{ $dg->key }}" @if($dg->key !== $initialView) hidden @endif>
                                                 @foreach ($secPalettes[$dg->key] as $i => $pc)
                                                     <button type="button" class="paint-key__item {{ $i === 0 ? 'is-active' : '' }}"
                                                             data-paint-colour="{{ $pc->colour }}" data-paint-view="{{ $dg->key }}"
@@ -1114,7 +1144,13 @@
                                         @endforeach
 
                                         <div class="paint-bar">
-                                            @if ($secDiagrams->count() > 1)
+                                            @if ($hasChassis)
+                                                @foreach ($plainDiagrams as $dg)
+                                                    <button type="button" data-damage-tab="{{ $dg->key }}"
+                                                            class="btn btn-sm {{ $dg->key === $initialView ? 'btn-success' : 'btn-outline-secondary' }}"
+                                                            aria-selected="{{ $dg->key === $initialView ? 'true' : 'false' }}">{{ $dg->name }}</button>
+                                                @endforeach
+                                            @elseif ($secDiagrams->count() > 1)
                                                 <div class="btn-group btn-group-sm paint-switch" role="tablist">
                                                     @foreach ($secDiagrams as $i => $dg)
                                                         <button type="button" data-damage-tab="{{ $dg->key }}"
@@ -1141,9 +1177,10 @@
                                         </div>
 
                                         @foreach ($secDiagrams as $i => $dg)
-                                            <div class="paint-diagram" data-damage-slide="{{ $dg->key }}" @if($i !== 0) hidden @endif>
+                                            <div class="paint-diagram" data-damage-slide="{{ $dg->key }}" @if($dg->key !== $initialView) hidden @endif>
                                                 <div class="paint-stage">
                                                     <canvas data-damage-view="{{ $dg->key }}"
+                                                            @isset($chassisOf[$dg->key]) data-chassis="{{ $chassisOf[$dg->key] }}" @endisset
                                                             data-base="{{ $dg->imageUrl() }}"
                                                             data-src="{{ $inspection->damageDiagramUrl($dg->key) }}"
                                                             data-marks="{{ json_encode($inspection->damageMarks($dg->key)) }}"
@@ -1370,19 +1407,20 @@
                                     {{-- Per-type summaries. Types come from tbl_summary_type, the same
                                          lookup the legacy /inspectionreport summary tab reads. --}}
                                     @if (!empty($summaryTypes))
+                                        @php($notesRequired = $inspection->summaryNotesRequired())
                                         <hr class="detail-sep">
-                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary <span class="text-danger">*</span></h6>
-                                        <p class="text-muted font-size-12 mb-3">A note per area — all are required and shown on the report.</p>
+                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary @if($notesRequired)<span class="text-danger">*</span>@endif</h6>
+                                        <p class="text-muted font-size-12 mb-3">{{ $notesRequired ? 'A note per area — all are required and shown on the report.' : 'A note per area — optional; areas left blank are not shown on the report.' }}</p>
                                         <div class="sum-grid">
                                             @foreach ($summaryTypes as $typeId => $typeName)
                                                 @php($hasNote = filled(old('summaries.'.$typeId, $summaries[$typeId] ?? '')))
                                                 <div class="sum-card {{ $hasNote ? 'is-filled' : '' }}" data-sum-card="{{ $typeId }}">
                                                     <div class="sum-card__head">
                                                         <span class="sum-card__icon"><i class="bx {{ $areaIcon($typeName) }}"></i></span>
-                                                        <span class="sum-card__title">{{ $typeName }} <span class="text-danger">*</span></span>
+                                                        <span class="sum-card__title">{{ $typeName }} @if($notesRequired)<span class="text-danger">*</span>@endif</span>
                                                         <i class="bx bx-check-circle sum-card__tick"></i>
                                                     </div>
-                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" required class="form-control sum-card__input"
+                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" @required($notesRequired) class="form-control sum-card__input"
                                                         placeholder="e.g. {{ $typeName }} is in good condition"
                                                         oninput="this.closest('.sum-card').classList.toggle('is-filled', this.value.trim().length>0)">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
                                                     {{-- Arabic note for the same area — optional, printed on the
@@ -2438,10 +2476,13 @@
 
         // ---- one diagram at a time ----
         const tabs = Array.from(block.querySelectorAll('[data-damage-tab]'));
-        let active = (tabs[0] && tabs[0].dataset.damageTab) || canvases[0].dataset.damageView;
+        // Null when the Underbody's Chassis Type has not been picked yet.
+        let active = block.dataset.damageInitial || null;
+        let chassis = block.dataset.chassis || null;
 
         function show(view) {
             active = view;
+            block.classList.toggle('no-view', ! view);
             tabs.forEach(function (t) {
                 const on = t.dataset.damageTab === view;
                 t.classList.toggle('btn-success', on);
@@ -2460,6 +2501,17 @@
             if (t.classList.contains('d-none')) { return; }
             t.addEventListener('click', function () { show(t.dataset.damageTab); });
         });
+
+        // Underbody: one Chassis Type at a time, and only its diagram is shown.
+        const chassisSelect = q('[data-chassis-select]');
+        if (chassisSelect) {
+            chassisSelect.addEventListener('change', function () {
+                const opt = chassisSelect.selectedOptions[0];
+                chassis = chassisSelect.value || null;
+                show(chassis && opt ? opt.dataset.diagram : null);
+                if (chassis) { say('Chassis type changed — press Save to store it', 'text-warning'); }
+            });
+        }
 
         // ---- zoom ----
         // Width is a percentage of the scroll frame, so 100% always fits the card
@@ -2596,6 +2648,10 @@
         const saveBtn = q('[data-damage-save]');
         if (saveBtn) {
             saveBtn.addEventListener('click', async function () {
+                if (block.hasAttribute('data-chassis-block') && ! chassis) {
+                    say('Select the chassis type first', 'text-danger');
+                    return;
+                }
                 saveBtn.disabled = true;
                 say('Saving…', 'text-warning');
                 saving();
@@ -2607,7 +2663,9 @@
                     // never returns.
                     const form = new FormData();
                     const payloadMarks = {};
-                    for (const cv of Array.from(canvases)) {
+                    // Only the chosen chassis diagram: the server drops the other one.
+                    const toSave = canvases.filter(function (cv) { return ! cv.dataset.chassis || cv.dataset.chassis === chassis; });
+                    for (const cv of toSave) {
                         const v = cv.dataset.damageView;
                         const blob = await new Promise(function (resolve) { cv.toBlob(resolve, 'image/png'); });
                         if (! blob) { throw new Error('Could not read the ' + v + ' diagram.'); }
@@ -2619,6 +2677,7 @@
                         payloadMarks[v] = flattened[v] ? [] : (marks[v] || []);
                     }
                     form.append('marks', JSON.stringify(payloadMarks));
+                    if (chassis) { form.append('chassis_type', chassis); }
                     const res = await post(urls.damageDiagrams, form);
                     // Point each canvas at what the server now holds, so a later
                     // "Clear all" then Save cannot resurrect a stale drawing.

@@ -1364,7 +1364,7 @@ class InspectionController extends Controller
                 ->reject(fn ($name, $typeId) => $noted->has($typeId))
                 ->values();
 
-            if ($missingNotes->isNotEmpty()) {
+            if ($missingNotes->isNotEmpty() && $inspection->summaryNotesRequired()) {
                 $inspection->save();
 
                 $names = $missingNotes->take(4)->implode(', ');
@@ -1552,6 +1552,8 @@ class InspectionController extends Controller
             'marks.*.*.x' => ['required', 'numeric', 'min:0', 'max:20000'],
             'marks.*.*.y' => ['required', 'numeric', 'min:0', 'max:20000'],
             'marks.*.*.c' => ['required', 'string'],
+            // Sent by the Underbody section: which chassis diagram is the real one.
+            'chassis_type' => ['nullable', Rule::in(array_keys(Inspection::CHASSIS_TYPES))],
         ]);
 
         // The rules — valid views, valid PNG, the palette a diagram accepts, how a
@@ -1564,11 +1566,16 @@ class InspectionController extends Controller
             $request->has('marks') ? (array) $request->input('marks') : null
         );
 
+        $replaced = $result['replaced'];
+        if ($chassis = $request->input('chassis_type')) {
+            $replaced += $writer->applyChassisType($inspection, $chassis);
+        }
+
         $this->markStarted($inspection);
         $inspection->save();
 
         // Drop the superseded files only once the new paths are committed.
-        $writer->pruneReplaced($inspection, $result['replaced']);
+        $writer->pruneReplaced($inspection, $replaced);
 
         return response()->json(['saved' => true, 'urls' => $writer->urls($inspection, $result['views'])]);
     }

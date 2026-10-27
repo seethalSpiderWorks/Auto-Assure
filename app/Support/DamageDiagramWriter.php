@@ -76,6 +76,35 @@ class DamageDiagramWriter
     }
 
     /**
+     * Record the Chassis Type and forget the other chassis diagram, so only the
+     * one that matches the vehicle is saved and reported. Like apply(), the
+     * model is left dirty; pass the result to pruneReplaced() after saving.
+     *
+     * @return array<string, string|null>  view => file it no longer uses
+     */
+    public function applyChassisType(Inspection $inspection, string $type): array
+    {
+        $inspection->chassis_type = $type;
+
+        $images = is_array($inspection->damage_images) ? $inspection->damage_images : [];
+        $marks = is_array($inspection->damage_marks) ? $inspection->damage_marks : [];
+        $replaced = [];
+
+        foreach (Inspection::CHASSIS_DIAGRAMS as $other => $view) {
+            if ($other === $type) {
+                continue;
+            }
+            $replaced[$view] = $images[$view] ?? null;
+            unset($images[$view], $marks[$view]);
+        }
+
+        $inspection->damage_images = $images;
+        $inspection->damage_marks = $marks;
+
+        return array_filter($replaced);
+    }
+
+    /**
      * Delete the files a save superseded. Call it only once the new paths are
      * committed, so a failed write never loses the old picture.
      *
