@@ -164,7 +164,7 @@ class PremiumInspectionTemplateSeeder extends Seeder
                             'show_multiple_choice' => true,
                             'multiple_choice_options' => self::CHOICES,
                             'show_rating' => false,
-                            'show_text_answer' => true,   // Observation box — hidden until Bad or Average is picked
+                            'show_text_answer' => false,
                             'show_remedial_suggestions' => false,
                             'photos' => InspectionStep::MEDIA_NOT_REQUIRED,
                             'videos' => InspectionStep::MEDIA_NOT_REQUIRED,
