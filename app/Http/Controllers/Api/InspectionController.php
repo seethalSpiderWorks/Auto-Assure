@@ -313,31 +313,33 @@ class InspectionController extends Controller
             ->get()
             ->filter(fn ($d) => $d->imageExists());
 
-        // Unibody first (Chassis Type order), whatever the diagram sequence.
+        // The selected chassis diagram first, then Chassis Type order (Unibody
+        // first), whatever the diagram sequence.
         $offered = collect(Inspection::CHASSIS_DIAGRAMS)->filter(fn ($key) => $diagrams->contains('key', $key));
         $selected = $inspection->chassisType() ?? $offered->keys()->first();
+        $offered = $offered->sortBy(fn ($key, $chassis) => $chassis === $selected ? 0 : 1);
         $diagrams = $diagrams->sortBy(fn ($d) => [isset($chassisOf[$d->key]) ? 1 : 0, $offered->values()->search($d->key)]);
 
-        if ($type) {
-            $diagrams = $diagrams->filter(fn ($d) => (isset($chassisOf[$d->key]) ? 'under_body' : 'full_body') === $type);
-        }
+        $rows = $diagrams->map(function ($d) use ($chassisOf, $selected) {
+            $chassis = $chassisOf[$d->key] ?? null;
+
+            return [
+                'id' => $d->id,
+                'key' => $d->key,
+                'name' => $d->name,
+                'type' => $chassis ? 'under_body' : 'full_body',
+                'chassis_type' => $chassis,
+                'chassis_label' => $chassis ? Inspection::CHASSIS_TYPES[$chassis] : null,
+                'image_url' => $d->imageUrl(),
+                'is_selected' => ! $chassis || $chassis === $selected,
+            ];
+        })->values();
 
         return response()->json([
             'selected_chassis_type' => $selected,
-            'diagrams' => $diagrams->map(function ($d) use ($chassisOf, $selected) {
-                $chassis = $chassisOf[$d->key] ?? null;
-
-                return [
-                    'id' => $d->id,
-                    'key' => $d->key,
-                    'name' => $d->name,
-                    'type' => $chassis ? 'under_body' : 'full_body',
-                    'chassis_type' => $chassis,
-                    'chassis_label' => $chassis ? Inspection::CHASSIS_TYPES[$chassis] : null,
-                    'image_url' => $d->imageUrl(),
-                    'is_selected' => ! $chassis || $chassis === $selected,
-                ];
-            })->values(),
+            // The chosen under-body diagram — the one the technician marks.
+            'selected' => $rows->first(fn ($row) => $row['type'] === 'under_body' && $row['is_selected']),
+            'diagrams' => $type ? $rows->where('type', $type)->values() : $rows,
         ]);
     }
 

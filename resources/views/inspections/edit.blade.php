@@ -1119,7 +1119,8 @@
                                             <div class="chassis-pick mb-3">
                                                 <label class="chassis-pick__label" for="chassis-{{ $section->id }}"><i class="bx bx-car"></i> Chassis Type</label>
                                                 <select class="form-select" id="chassis-{{ $section->id }}" data-chassis-select>
-                                                    @foreach (\App\Models\Inspection::CHASSIS_TYPES as $type => $label)
+                                                    {{-- The saved chassis type first. --}}
+                                                    @foreach (collect(\App\Models\Inspection::CHASSIS_TYPES)->sortBy(fn ($l, $t) => $t === $chassis ? 0 : 1) as $type => $label)
                                                         @php($cKey = \App\Models\Inspection::CHASSIS_DIAGRAMS[$type])
                                                         @continue(! $secDiagrams->contains('key', $cKey))
                                                         <option value="{{ $type }}" data-diagram="{{ $cKey }}" @selected($chassis === $type)>{{ $label }}</option>
