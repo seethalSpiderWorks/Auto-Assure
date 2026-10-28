@@ -99,6 +99,14 @@ class DamageDiagramWriter
             unset($images[$view], $marks[$view]);
         }
 
+        // The old single Under Body drawing (and its legacy column) is replaced
+        // by the chassis diagram once that one is saved.
+        if (filled($images[Inspection::CHASSIS_DIAGRAMS[$type]] ?? null)) {
+            $replaced['under_body'] = $images['under_body'] ?? $inspection->damage_under_body;
+            unset($images['under_body'], $marks['under_body']);
+            $inspection->damage_under_body = null;
+        }
+
         $inspection->damage_images = $images;
         $inspection->damage_marks = $marks;
 

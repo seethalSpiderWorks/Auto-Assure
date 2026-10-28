@@ -947,6 +947,9 @@ class Inspection extends Model
     /**
      * Saved mark-ups keyed by DamageDiagram::key, with the two legacy columns
      * folded in so nothing drawn before Damage Setup is lost.
+     *
+     * The old single Under Body drawing is superseded once a chassis diagram
+     * (Unibody / Body-on-Frame) is saved — only the latest under-body shows.
      */
     public function damageImages(): array
     {
@@ -958,7 +961,13 @@ class Inspection extends Model
             }
         }
 
-        return array_filter($images);
+        $images = array_filter($images);
+
+        if (array_intersect_key($images, array_flip(self::CHASSIS_DIAGRAMS))) {
+            unset($images['under_body']);
+        }
+
+        return $images;
     }
 
     /**
