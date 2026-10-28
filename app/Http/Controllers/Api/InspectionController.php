@@ -359,7 +359,9 @@ class InspectionController extends Controller
         $hasSteps = (bool) $inspection->type?->steps()->exists();
 
         $validator = Validator::make($request->all(), [
-            'answers' => $hasSteps ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
+            // Not needed on a save that only adds or removes Additional Damage
+            // Photos or diagrams — those can still change after completion.
+            'answers' => $hasSteps ? ['required_without_all:damage_photos,remove_damage_photo_ids,damage', 'array', 'min:1'] : ['nullable', 'array'],
             'answers.*.step_id' => ['required', 'integer'],
             'answers.*.rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'answers.*.choice' => ['nullable', 'string', 'max:255'],

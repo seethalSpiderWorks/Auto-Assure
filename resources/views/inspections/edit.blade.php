@@ -1240,7 +1240,8 @@
                         {{-- ======================= ADDITIONAL DAMAGE PHOTOS STEP =======================
                              Optional photos of damage not covered by a question, uploaded
                              instantly to their own bucket and printed under Damage Photos
-                             in the report. --}}
+                             in the report. Still editable once completed; only a cancelled
+                             inspection locks them. --}}
                         @elseif ($ws['type'] === 'damage')
                             <div class="card">
                                 <div class="card-header bg-transparent d-flex align-items-center" style="gap:.7rem;">
@@ -1251,7 +1252,7 @@
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    @unless ($isLocked)
+                                    @unless ($isCancelled)
                                         <label class="upload-drop">
                                             <input type="file" accept="image/*" multiple class="d-none" onchange="AA.uploadDamage(this)">
                                             <i class="bx bx-image-add"></i>
@@ -1263,14 +1264,14 @@
                                             <div class="extra-item" data-media="{{ $m->id }}">
                                                 <div class="extra-item__thumb">
                                                     <img src="{{ $m->url }}">
-                                                    @unless ($isLocked)
+                                                    @unless ($isCancelled)
                                                         <button type="button" onclick="AA.deleteMedia({{ $m->id }})"
                                                             class="btn btn-danger btn-sm position-absolute p-0"
                                                             style="top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;line-height:1;">×</button>
                                                     @endunless
                                                 </div>
                                                 <input type="text" class="form-control form-control-sm extra-item__label" maxlength="255"
-                                                    placeholder="Add a label…" value="{{ $m->label }}" @if($isLocked) disabled @endif
+                                                    placeholder="Add a label…" value="{{ $m->label }}" @if($isCancelled) disabled @endif
                                                     oninput="AA.debounceLabel({{ $m->id }}, this.value)" onblur="AA.saveLabel({{ $m->id }}, this.value)">
                                             </div>
                                         @empty
