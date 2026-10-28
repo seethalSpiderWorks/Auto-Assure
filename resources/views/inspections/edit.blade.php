@@ -1408,20 +1408,19 @@
                                     {{-- Per-type summaries. Types come from tbl_summary_type, the same
                                          lookup the legacy /inspectionreport summary tab reads. --}}
                                     @if (!empty($summaryTypes))
-                                        @php($notesRequired = $inspection->summaryNotesRequired())
                                         <hr class="detail-sep">
-                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary @if($notesRequired)<span class="text-danger">*</span>@endif</h6>
-                                        <p class="text-muted font-size-12 mb-3">{{ $notesRequired ? 'A note per area — all are required and shown on the report.' : 'A note per area — optional; areas left blank are not shown on the report.' }}</p>
+                                        <h6 class="mb-1"><i class="bx bx-notepad text-success"></i> Summary</h6>
+                                        <p class="text-muted font-size-12 mb-3">A note per area — optional; areas left blank are not shown on the report.</p>
                                         <div class="sum-grid">
                                             @foreach ($summaryTypes as $typeId => $typeName)
                                                 @php($hasNote = filled(old('summaries.'.$typeId, $summaries[$typeId] ?? '')))
                                                 <div class="sum-card {{ $hasNote ? 'is-filled' : '' }}" data-sum-card="{{ $typeId }}">
                                                     <div class="sum-card__head">
                                                         <span class="sum-card__icon"><i class="bx {{ $areaIcon($typeName) }}"></i></span>
-                                                        <span class="sum-card__title">{{ $typeName }} @if($notesRequired)<span class="text-danger">*</span>@endif</span>
+                                                        <span class="sum-card__title">{{ $typeName }}</span>
                                                         <i class="bx bx-check-circle sum-card__tick"></i>
                                                     </div>
-                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" @required($notesRequired) class="form-control sum-card__input"
+                                                    <textarea name="summaries[{{ $typeId }}]" rows="2" class="form-control sum-card__input"
                                                         placeholder="e.g. {{ $typeName }} is in good condition"
                                                         oninput="this.closest('.sum-card').classList.toggle('is-filled', this.value.trim().length>0)">{{ old('summaries.'.$typeId, $summaries[$typeId] ?? '') }}</textarea>
                                                     {{-- Arabic note for the same area — optional, printed on the

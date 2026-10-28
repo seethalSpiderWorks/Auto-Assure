@@ -186,15 +186,6 @@ class Inspection extends Model
     }
 
     /**
-     * Whether every summary area needs a note. Quick Inspection leaves them
-     * optional; a blank area is simply left off the report.
-     */
-    public function summaryNotesRequired(): bool
-    {
-        return ! preg_match('/^\s*quick\b/i', (string) $this->type?->name);
-    }
-
-    /**
      * Save (or, when the English note is blank, remove) one area's note.
      */
     public function saveSummaryNote(int $areaId, ?string $text, ?string $textAr = null): void

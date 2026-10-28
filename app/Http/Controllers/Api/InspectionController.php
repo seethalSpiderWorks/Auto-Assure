@@ -1322,12 +1322,11 @@ class InspectionController extends Controller
         $savedAr = $inspection->summaryNotes('summary_ar');
         $namesAr = $inspection->summaryAreaNamesAr();
 
-        $required = $inspection->summaryNotesRequired();
-
+        // Notes are optional; a blank area is left off the report.
         $areas = collect($inspection->summaryAreas())
             ->map(fn ($name, $id) => [
                 'id' => (int) $id,
-                'is_required' => $required,
+                'is_required' => false,
                 'summary_type_name' => $name,
                 'summary_type_name_ar' => $namesAr[$id] ?? null,
                 'summary' => $saved[$id] ?? null,
@@ -1335,13 +1334,12 @@ class InspectionController extends Controller
             ])
             ->values();
 
-        return response()->json(['is_required' => $required, 'summaries' => $areas]);
+        return response()->json(['is_required' => false, 'summaries' => $areas]);
     }
 
     /**
-     * Save the per-area summary notes. Every summary area is required — a note
-     * must be provided for each of the inspection's summary areas — except on
-     * Quick Inspection, where any may be left blank (a blank one is removed).
+     * Save the per-area summary notes. Every area is optional; a blank note
+     * removes the saved one.
      *
      * POST /api/inspections/{inspection}/summaries
      */
@@ -1356,13 +1354,12 @@ class InspectionController extends Controller
         $inspection->loadMissing('type.summaryOptions');
         $types = $inspection->summaryAreas();   // [id => name]
 
-        // Build "required for every area" rules so a missing/blank note fails
-        // with a clear, per-area validation error.
-        $required = $inspection->summaryNotesRequired();
-        $rules = ['summaries' => [$required ? 'required' : 'nullable', 'array'], 'summaries_ar' => ['nullable', 'array']];
+        // Every area is optional — a blank note removes the saved one and the
+        // area is left off the report.
+        $rules = ['summaries' => ['nullable', 'array'], 'summaries_ar' => ['nullable', 'array']];
         $attributes = [];
         foreach ($types as $id => $name) {
-            $rules["summaries.{$id}"] = [$required ? 'required' : 'nullable', 'string', 'max:5000'];
+            $rules["summaries.{$id}"] = ['nullable', 'string', 'max:5000'];
             $attributes["summaries.{$id}"] = $name;
             // Arabic is optional: the Arabic report falls back to the English
             // note wherever it was left empty.

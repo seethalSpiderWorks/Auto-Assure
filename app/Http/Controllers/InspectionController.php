@@ -1354,24 +1354,8 @@ class InspectionController extends Controller
                 return back()->withErrors(['complete' => 'Cannot complete — fill the Overall Verdict first. Missing: '.implode(', ', $verdictMissing).'.']);
             }
 
-            // Every summary area (Exterior, Engine, Brakes, …) needs its note —
-            // the report prints one per area, and the technician API enforces
-            // the same "a note for every area" rule.
-            $inspection->load('summaries');
-            $noted = collect($inspection->summaryNotes())->filter(fn ($text) => filled($text));
-
-            $missingNotes = collect($inspection->summaryAreas())
-                ->reject(fn ($name, $typeId) => $noted->has($typeId))
-                ->values();
-
-            if ($missingNotes->isNotEmpty() && $inspection->summaryNotesRequired()) {
-                $inspection->save();
-
-                $names = $missingNotes->take(4)->implode(', ');
-                $more = $missingNotes->count() > 4 ? ' …and '.($missingNotes->count() - 4).' more' : '';
-
-                return back()->withErrors(['complete' => 'Cannot complete — add a Summary note for every area. Missing: '.$names.$more.'.']);
-            }
+            // Summary area notes are optional — an area left blank is simply
+            // not printed on the report.
 
             if ($missing = $inspection->missingMandatoryMedia()) {
                 $inspection->save();
