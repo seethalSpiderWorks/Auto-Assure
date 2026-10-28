@@ -678,13 +678,13 @@
     </div>
 @endif
 
+{{-- Damage Photos sit right under General Photos. --}}
+@include('inspections._report_pdf_damage_photos')
+
 {{-- Quick / Fleet: Damage Points follow the photos directly, so the short
      report doesn't leave a gap before them at the end. --}}
 @if ($quickOrFleet && ! empty($damageDiagrams))
     @include('inspections._report_pdf_damage')
-@endif
-@if ($quickOrFleet)
-    @include('inspections._report_pdf_damage_photos')
 @endif
 
 {{-- ============================== EV & TECHNICAL (full report only) ============================== --}}
@@ -777,9 +777,6 @@
 {{-- Quick / Fleet print these straight after the photos instead. --}}
 @if (! $quickOrFleet && ! empty($damageDiagrams))
     @include('inspections._report_pdf_damage')
-@endif
-@if (! $quickOrFleet)
-    @include('inspections._report_pdf_damage_photos')
 @endif
 
 {{-- ============================== SIGNATURES ============================== --}}

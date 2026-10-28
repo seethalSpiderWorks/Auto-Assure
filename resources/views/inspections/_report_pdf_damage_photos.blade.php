@@ -1,5 +1,5 @@
-{{-- Additional Damage Photos — included from report_pdf straight after the
-     damage diagrams, wherever those sit. Prints nothing when none were taken. --}}
+{{-- Additional Damage Photos — included from report_pdf straight after
+     General Photos. Prints nothing when none were taken. --}}
 @if (! empty($damagePhotos))
     <div class="sec-bar">{{ $L('Damage Photos') }}</div>
     <div class="card">

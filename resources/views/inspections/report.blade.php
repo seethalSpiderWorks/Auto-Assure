@@ -1232,6 +1232,32 @@
         </div>
         @endif
 
+{{-- ============================== DAMAGE PHOTOS ============================== --}}
+        {{-- Photos from the Additional Damage Photos step, right under General Photos. --}}
+        @php
+            $damagePhotos = $inspection->damagePhotos()->filter(function ($m) {
+                try { return $m->path && Storage::disk($m->disk ?: 'public')->exists($m->path); }
+                catch (\Throwable $e) { return false; }
+            });
+        @endphp
+        @if ($damagePhotos->isNotEmpty())
+        <div class="page">
+            <div class="sec-bar"><span class="en">{{ $L('Damage Photos') }}</span></div>
+            <div class="card photos">
+                <div class="gal gal--4">
+                    @foreach ($damagePhotos as $m)
+                        <figure>
+                            <a href="{{ $m->url }}" data-fancybox="damage-photos" data-caption="{{ $m->label }}">
+                                <img src="{{ $m->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
+                            </a>
+                            @if (filled($m->label))<figcaption>{{ $m->label }}</figcaption>@endif
+                        </figure>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
+
         {{-- ============================== VEHICLE SUMMARY ============================== --}}
         {{-- Hidden at the client's request — the cover's Vehicle Summary card and the
              <Make> Details card beside it already carry these rows. Flip the flag to
@@ -1503,32 +1529,6 @@
                         <img src="{{ $d['url'] }}" alt="{{ $d['label'] }} damage diagram " style="display:block;max-width:80%;max-height:300px;width:auto;height:auto;margin:0 auto;">
                     </div>
                 @endforeach
-            </div>
-        </div>
-        @endif
-
-{{-- ============================== DAMAGE PHOTOS ============================== --}}
-        {{-- Photos from the Additional Damage Photos step, after the diagrams. --}}
-        @php
-            $damagePhotos = $inspection->damagePhotos()->filter(function ($m) {
-                try { return $m->path && Storage::disk($m->disk ?: 'public')->exists($m->path); }
-                catch (\Throwable $e) { return false; }
-            });
-        @endphp
-        @if ($damagePhotos->isNotEmpty())
-        <div class="page">
-            <div class="sec-bar"><span class="en">{{ $L('Damage Photos') }}</span></div>
-            <div class="card photos">
-                <div class="gal gal--4">
-                    @foreach ($damagePhotos as $m)
-                        <figure>
-                            <a href="{{ $m->url }}" data-fancybox="damage-photos" data-caption="{{ $m->label }}">
-                                <img src="{{ $m->thumbUrl(480) }}" alt="" loading="lazy" decoding="async">
-                            </a>
-                            @if (filled($m->label))<figcaption>{{ $m->label }}</figcaption>@endif
-                        </figure>
-                    @endforeach
-                </div>
             </div>
         </div>
         @endif
