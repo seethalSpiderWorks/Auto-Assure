@@ -29,7 +29,7 @@ class DamageDiagramWriter
      * A view absent from $images keeps whatever it already had; the same is true
      * of $marks, so saving one diagram never clears another.
      *
-     * @param  array<string, string|UploadedFile>  $images  view key => PNG data URL or uploaded PNG
+     * @param  array<string, string|UploadedFile>  $images  view key => PNG/JPEG data URL or uploaded file
      * @param  array<string, array<int, array{x: mixed, y: mixed, c: mixed}>>|null  $marks
      * @return array{replaced: array<string, string|null>, views: array<int, string>}
      */
@@ -50,8 +50,9 @@ class DamageDiagramWriter
             $binary = $dataUrl instanceof UploadedFile
                 ? $this->readPngUpload($dataUrl, $view)
                 : $this->decodePng((string) $dataUrl, $view);
+            $ext = str_starts_with($binary, "\xFF\xD8\xFF") ? 'jpg' : 'png';
 
-            $path = "inspections/{$inspection->id}/damage/{$view}-".Str::random(20).'.png';
+            $path = "inspections/{$inspection->id}/damage/{$view}-".Str::random(20).'.'.$ext;
             Storage::disk('public')->put($path, $binary);
 
             $replaced[$view] = $stored[$view] ?? null;
@@ -139,12 +140,12 @@ class DamageDiagramWriter
     }
 
     /**
-     * Accept only a base64 PNG data URL — nothing else may reach the disk.
+     * Accept only a base64 PNG or JPEG data URL — nothing else may reach the disk.
      */
     private function decodePng(string $dataUrl, string $view): string
     {
-        if (! preg_match('#^data:image/png;base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
-            abort(422, "{$view}: damage diagram must be a PNG data URL.");
+        if (! preg_match('#^data:image/(?:png|jpe?g);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+            abort(422, "{$view}: damage diagram must be a PNG or JPEG data URL.");
         }
 
         $binary = base64_decode($m[1], true);
@@ -157,8 +158,9 @@ class DamageDiagramWriter
     }
 
     /**
-     * Accept a PNG sent as a file upload — what the edit screen posts, since a
-     * multi-megabyte base64 JSON body stalls in front of the live server.
+     * Accept a PNG or JPEG sent as a file upload — what the edit screen posts
+     * (JPEG, a fifth of the PNG's size), since a multi-megabyte body is slow to
+     * reach the live server.
      */
     private function readPngUpload(UploadedFile $file, string $view): string
     {
@@ -182,9 +184,9 @@ class DamageDiagramWriter
             abort(422, "{$view}: damage diagram is too large.");
         }
 
-        // Confirm the bytes really are a PNG, not base64 of something else.
-        if (substr($binary, 0, 8) !== "\x89PNG\r\n\x1a\n") {
-            abort(422, "{$view}: damage diagram is not a valid PNG.");
+        // Confirm the bytes really are a PNG or JPEG, not base64 of something else.
+        if (substr($binary, 0, 8) !== "\x89PNG\r\n\x1a\n" && ! str_starts_with($binary, "\xFF\xD8\xFF")) {
+            abort(422, "{$view}: damage diagram is not a valid PNG or JPEG.");
         }
 
         return $binary;

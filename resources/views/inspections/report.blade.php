@@ -1485,10 +1485,14 @@
             // The section a diagram sits in depends on the template, so read it
             // off this inspection's own template.
             $inspectionTypeId = $inspection->inspection_type_id;
-            foreach (\App\Models\DamageDiagram::with('sections')->ordered()->get() as $dgm) {
-                $damageNames[$dgm->key] = $dgm->name;
-                $damageKeys[$dgm->key] = $inspection->damageKey($dgm);
-                $damageSection[$dgm->key] = optional($dgm->sections->firstWhere('inspection_type_id', $inspectionTypeId))->section_name;
+            $allDiagrams = \App\Models\DamageDiagram::with('sections')->ordered()->get()->keyBy('key');
+            foreach (array_keys($inspection->damageImages()) as $dv) {
+                $dgm = $inspection->diagramForView($dv, $allDiagrams);
+                if (! $dgm) { continue; }
+                // A view saved on the retired Under Body keeps its own name.
+                $damageNames[$dv] = $dgm->key === $dv ? $dgm->name : Str::headline($dv);
+                $damageKeys[$dv] = $inspection->damageKey($dgm, $dv);
+                $damageSection[$dv] = optional($dgm->sections->firstWhere('inspection_type_id', $inspectionTypeId))->section_name;
             }
 
             $damageDiagrams = [];

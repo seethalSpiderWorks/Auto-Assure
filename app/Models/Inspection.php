@@ -962,13 +962,31 @@ class Inspection extends Model
     }
 
     /**
+     * The Damage Setup diagram a saved view belongs to. The old single Under
+     * Body diagram was split per Chassis Type, so a view saved on it borrows
+     * the chosen chassis diagram (Unibody if none) for its section and colours.
+     *
+     * @param  \Illuminate\Support\Collection<string, DamageDiagram>  $byKey
+     */
+    public function diagramForView(string $view, \Illuminate\Support\Collection $byKey): ?DamageDiagram
+    {
+        if ($diagram = $byKey->get($view)) {
+            return $diagram;
+        }
+
+        return $view === 'under_body'
+            ? $byKey->get(self::CHASSIS_DIAGRAMS[$this->chassisType() ?? array_key_first(self::CHASSIS_DIAGRAMS)])
+            : null;
+    }
+
+    /**
      * The colour key printed beside one diagram: the active options, plus any
      * inactive one this inspection's dots still use — a retired option keeps
      * its meaning on the reports it was used in, and drops off every other.
      */
-    public function damageKey(DamageDiagram $diagram): \Illuminate\Support\Collection
+    public function damageKey(DamageDiagram $diagram, ?string $view = null): \Illuminate\Support\Collection
     {
-        $used = array_map(fn ($m) => strtolower((string) ($m['c'] ?? '')), $this->damageMarks($diagram->key));
+        $used = array_map(fn ($m) => strtolower((string) ($m['c'] ?? '')), $this->damageMarks($view ?? $diagram->key));
 
         return DamageColour::forDiagram($diagram->id)->ordered()->get()
             ->filter(fn ($c) => $c->is_active || in_array(strtolower($c->colour), $used, true))

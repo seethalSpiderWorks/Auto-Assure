@@ -2659,18 +2659,26 @@
                 try {
                     // Only this section's diagrams: the endpoint leaves views it was
                     // not sent alone, so other sections keep their mark-ups.
-                    // Sent as PNG file uploads, not base64 JSON: a multi-megabyte
-                    // JSON body stalls in front of the live server and the save
-                    // never returns.
+                    // Sent as JPEG file uploads, not base64 JSON or PNG: a PNG of a
+                    // photo-like diagram runs to 1–2 MB and made the save crawl on
+                    // the live server; the JPEG is about a fifth of that.
                     const form = new FormData();
                     const payloadMarks = {};
                     // Only the chosen chassis diagram: the server drops the other one.
                     const toSave = canvases.filter(function (cv) { return ! cv.dataset.chassis || cv.dataset.chassis === chassis; });
                     for (const cv of toSave) {
                         const v = cv.dataset.damageView;
-                        const blob = await new Promise(function (resolve) { cv.toBlob(resolve, 'image/png'); });
+                        // JPEG has no transparency, so flatten onto white first —
+                        // a transparent diagram would otherwise turn black.
+                        const flat = document.createElement('canvas');
+                        flat.width = cv.width; flat.height = cv.height;
+                        const fctx = flat.getContext('2d');
+                        fctx.fillStyle = '#fff';
+                        fctx.fillRect(0, 0, flat.width, flat.height);
+                        fctx.drawImage(cv, 0, 0);
+                        const blob = await new Promise(function (resolve) { flat.toBlob(resolve, 'image/jpeg', 0.88); });
                         if (! blob) { throw new Error('Could not read the ' + v + ' diagram.'); }
-                        form.append('images[' + v + ']', blob, v + '.png');
+                        form.append('images[' + v + ']', blob, v + '.jpg');
                         // A diagram drawn on a flattened picture stores no dot
                         // list: its new dots are already in the picture, and
                         // keeping half of them as data would make the next load

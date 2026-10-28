@@ -290,12 +290,13 @@
         try {
             if (! $path || ! Storage::disk('public')->exists($path)) continue;
         } catch (\Throwable $e) { continue; }
-        $dg = $diagrams->get($key);
+        // A view saved on the retired Under Body borrows its chassis diagram.
+        $dg = $inspection->diagramForView($key, $diagrams);
         $damageDiagrams[] = [
-            'label'   => $dg?->name ?? Str::headline($key),
+            'label'   => $dg && $dg->key === $key ? $dg->name : Str::headline($key),
             'section' => optional($dg?->sections->firstWhere('inspection_type_id', $typeId))->section_name,
             'file'    => Storage::disk('public')->path($path),
-            'key'     => $dg ? $inspection->damageKey($dg) : collect(),
+            'key'     => $dg ? $inspection->damageKey($dg, $key) : collect(),
         ];
     }
 
