@@ -2451,9 +2451,9 @@
             });
         }
 
-        // Marker a little under the legacy r=5-on-512px weight, scaled to the
-        // diagram's width so it reads the same on every canvas size.
-        function dotRadius(cv) { return Math.max(5, Math.round(cv.width * 0.008)); }
+        // Marker scaled to the diagram's width so it reads the same on every
+        // canvas size.
+        function dotRadius(cv) { return Math.max(8, Math.round(cv.width * 0.014)); }
 
         function render(cv) {
             const img = bases[cv.dataset.damageView];
